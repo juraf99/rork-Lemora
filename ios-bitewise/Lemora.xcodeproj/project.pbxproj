@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		5B5B5B5B5B5B5B5B5B5B5B01 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 5B5B5B5B5B5B5B5B5B5B5B02 /* Supabase */; };
 		XXB9508B171746A581F028XX /* ClerkKit in Frameworks */ = {isa = PBXBuildFile; productRef = XX694FD0783DAD8A35242CXX /* ClerkKit */; };
+		5B5B5B5B5B5B5B5B5B5B5B04 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 5B5B5B5B5B5B5B5B5B5B5B05 /* RevenueCat */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +60,7 @@
 			files = (
 				5B5B5B5B5B5B5B5B5B5B5B01 /* Supabase in Frameworks */,
 				XXB9508B171746A581F028XX /* ClerkKit in Frameworks */,
+				5B5B5B5B5B5B5B5B5B5B5B04 /* RevenueCat in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -121,6 +123,7 @@
 			packageProductDependencies = (
 				5B5B5B5B5B5B5B5B5B5B5B02 /* Supabase */,
 				XX694FD0783DAD8A35242CXX /* ClerkKit */,
+				5B5B5B5B5B5B5B5B5B5B5B05 /* RevenueCat */,
 			);
 			productName = Lemora;
 			productReference = 105FC57A2E9EAD3100EA8BCF /* Lemora.app */;
@@ -216,6 +219,7 @@
 			packageReferences = (
 				5B5B5B5B5B5B5B5B5B5B5B03 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				XX3DB027AECFDAD03266F3XX /* XCRemoteSwiftPackageReference "clerk-ios" */,
+				5B5B5B5B5B5B5B5B5B5B5B06 /* XCRemoteSwiftPackageReference "purchases-ios" */,
 			);
 		};
 /* End PBXProject section */
@@ -619,6 +623,14 @@
 				minimumVersion = 1.5.7;
 			};
 		};
+		5B5B5B5B5B5B5B5B5B5B5B06 /* XCRemoteSwiftPackageReference "purchases-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -631,6 +643,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = XX3DB027AECFDAD03266F3XX /* XCRemoteSwiftPackageReference "clerk-ios" */;
 			productName = ClerkKit;
+		};
+		5B5B5B5B5B5B5B5B5B5B5B05 /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5B5B5B5B5B5B5B5B5B5B5B06 /* XCRemoteSwiftPackageReference "purchases-ios" */;
+			productName = RevenueCat;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
