@@ -178,7 +178,7 @@ struct AccountOptions: View {
 
     private func google() async {
         errorMessage = nil
-        guard let user = await auth.signIn(provider: "google") else { return }
+        guard let user = await auth.signIn(provider: "google", signUp: mode == .signUp) else { return }
         let fallback = String(user.email.split(separator: "@").first ?? "")
         onComplete(user.name ?? fallback, user.email)
     }
