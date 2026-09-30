@@ -147,7 +147,14 @@ final class AppStore {
     // MARK: Entitlements
 
     /// Full app access is granted only by a verified StoreKit entitlement.
-    var isPremium: Bool { subscription.hasActiveSubscription }
+    // TEMPORARY (beta): tester bypass for the hard paywall. Remove before public release.
+    var testerBypass: Bool = UserDefaults.standard.bool(forKey: "lemora.testerBypass")
+    func enableTesterBypass() {
+        testerBypass = true
+        UserDefaults.standard.set(true, forKey: "lemora.testerBypass")
+    }
+
+    var isPremium: Bool { subscription.hasActiveSubscription || testerBypass }
 
     func has(_ entitlement: Entitlement) -> Bool { isPremium }
 
