@@ -496,9 +496,11 @@ final class AppStore {
 
     // MARK: Ask
 
-    var askRemainingToday: Int? {
-        guard !has(.advancedAsk) else { return nil }
-        return max(0, config.freeAskPerDay - (data.askUsage[dayKey(.now)] ?? 0))
+    /// Hidden daily cap on Ask questions. The number is never shown in the UI.
+    private static let askDailyCap = 50
+
+    var askLimitReached: Bool {
+        (data.askUsage[dayKey(.now)] ?? 0) >= Self.askDailyCap
     }
 
     func ask(_ query: String) -> AskResponse {
