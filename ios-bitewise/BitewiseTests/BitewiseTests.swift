@@ -63,6 +63,28 @@ struct SafetyTests {
         #expect(abs(doubled.total - base.total * 2) < 0.01)
     }
 
+    private func terms(trial: Int?, eligible: Bool, annual: Bool = true) -> PaywallTerms {
+        PaywallTerms(annualPrice: "$39.99", annualValue: 39.99, monthlyPrice: "$9.99", monthlyValue: 9.99,
+                     currencyCode: "CAD", currencySuffix: "", configuredTrialDays: trial,
+                     isEligibleForTrial: eligible, annualSelected: annual)
+    }
+
+    @Test func freeWeekOnlyWhenEligibleForSevenDayTrial() {
+        #expect(terms(trial: 7, eligible: true).ctaTitle == "Start My Free Week")
+        #expect(terms(trial: 7, eligible: true).reminderDay == 5)
+        #expect(terms(trial: 7, eligible: false).trialDays == nil)
+        #expect(terms(trial: 7, eligible: false).ctaTitle != "Start My Free Week")
+        #expect(terms(trial: nil, eligible: true).trialDays == nil)
+    }
+
+    @Test func monthlyPlanHasNoTrial() {
+        #expect(terms(trial: 7, eligible: true, annual: false).trialDays == nil)
+    }
+
+    @Test func yearlySavingsIsComputedFromRealPrices() {
+        #expect(terms(trial: 7, eligible: true).savingsPercent == 67)
+    }
+
     private func prices() -> [String: RecipePrice] {
         let deals = SampleDealProvider.deals()
         return Dictionary(uniqueKeysWithValues: RecipeCatalog.all.map { ($0.id, PricingEngine().price(recipe: $0, servings: $0.servings, deals: deals)) })

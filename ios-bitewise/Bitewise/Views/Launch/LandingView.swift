@@ -34,7 +34,7 @@ struct LandingView: View {
 
             VStack(spacing: 14) {
                 Text("Eat what you love.\nPay less.")
-                    .font(.system(.largeTitle, design: .rounded, weight: .heavy))
+                    .font(.bw(.largeTitle, weight: .heavy))
                     .foregroundStyle(BW.ink)
                     .multilineTextAlignment(.center)
 
@@ -83,7 +83,7 @@ struct LandingStoryView: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("Swipe meals you love. Bitewise finds grocery deals and shows the price per serving."))
+        .accessibilityLabel(Text("Swipe meals you love. Lemora finds grocery deals and shows the price per serving."))
     }
 
     private var swipeScene: some View {
@@ -115,7 +115,7 @@ struct LandingStoryView: View {
                 Text("$10.99").font(.bw(.title2, weight: .heavy)).foregroundStyle(BW.leafDeep)
             }
             Text("$3.82 / serving")
-                .font(.system(size: 34, weight: .heavy, design: .rounded)).monospacedDigit()
+                .font(.bw(size: 34, weight: .heavy)).monospacedDigit()
                 .foregroundStyle(BW.ink)
                 .padding(.horizontal, 20).padding(.vertical, 10)
                 .background(BW.lemon, in: .capsule)

@@ -75,7 +75,7 @@ nonisolated enum RecipeSource: String, Codable, Sendable {
 
     var title: String {
         switch self {
-        case .bitewiseOriginal: String(localized: "Bitewise Original")
+        case .bitewiseOriginal: String(localized: "Lemora Original")
         case .founderSubmitted: String(localized: "Founder recipe")
         case .chefCollaboration: String(localized: "Chef collaboration")
         case .creatorCollaboration: String(localized: "Creator collaboration")

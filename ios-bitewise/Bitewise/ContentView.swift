@@ -1,22 +1,31 @@
 import SwiftUI
 
-/// Routes between launch, auth, onboarding, paywall and the main app.
+/// Landing → onboarding (Zest) → Build My Plan → summary → account → paywall → You're in! → app.
 struct ContentView: View {
     @Environment(AppStore.self) private var store
     @State private var showSplash: Bool = true
     @State private var authMode: AuthView.Mode? = nil
+    @State private var startedOnboarding: Bool = false
+
+    private var showsLanding: Bool {
+        !store.isSignedIn && (!startedOnboarding || store.data.onboardingComplete)
+    }
 
     var body: some View {
         ZStack {
             BW.canvas.ignoresSafeArea()
 
             Group {
-                if !store.isSignedIn {
-                    LandingView(onStart: { authMode = .signUp }, onSignIn: { authMode = .signIn })
+                if showsLanding {
+                    LandingView(onStart: {
+                        if store.data.onboardingComplete { authMode = .signUp } else { startedOnboarding = true }
+                    }, onSignIn: { authMode = .signIn })
                 } else if !store.data.onboardingComplete {
                     OnboardingFlowView()
                 } else if !store.data.paywallSeen {
                     PaywallView(context: .onboarding) { store.finishPaywall() }
+                } else if store.needsWelcome {
+                    WelcomeView()
                 } else {
                     MainTabView()
                 }
@@ -29,9 +38,10 @@ struct ContentView: View {
                     .zIndex(1)
             }
         }
-        .animation(.easeInOut(duration: 0.35), value: store.isSignedIn)
+        .animation(.easeInOut(duration: 0.35), value: showsLanding)
         .animation(.easeInOut(duration: 0.35), value: store.data.onboardingComplete)
         .animation(.easeInOut(duration: 0.35), value: store.data.paywallSeen)
+        .animation(.easeInOut(duration: 0.35), value: store.needsWelcome)
         .sheet(item: $authMode) { mode in
             AuthView(mode: mode)
         }
@@ -52,12 +62,10 @@ struct SplashView: View {
     var body: some View {
         ZStack {
             BW.canvas.ignoresSafeArea()
-            VStack(spacing: 14) {
-                MascotView(name: BWImage.mascotWave, size: 120)
+            VStack(spacing: 12) {
+                ZestView(pose: .wave, size: 130)
                     .scaleEffect(appear ? 1 : 0.8)
-                Text("Bitewise")
-                    .font(.system(size: 40, weight: .heavy, design: .rounded))
-                    .foregroundStyle(BW.ink)
+                LemoraWordmark(size: 46)
             }
             .opacity(appear ? 1 : 0)
         }

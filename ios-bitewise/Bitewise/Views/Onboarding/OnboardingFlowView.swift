@@ -1,39 +1,51 @@
 import SwiftUI
 
 enum OnboardingStep: Hashable {
-    case goal, heardFrom, birthDate, body, valueDiscovery, diet, allergies, dislikes, cuisines
-    case budget, stores, strategy, valueDeals, location, summary
+    case goal, birthDate, body, diet, allergies, dislikes, location, stores, budget, strategy
+    case building, summary, account
 }
 
-/// Conversational onboarding: one question per screen, branches on the chosen goal.
+/// Conversational onboarding guided by Zest: one question per screen, then Build My Plan,
+/// a personalized plan summary and account creation.
 struct OnboardingFlowView: View {
     @Environment(AppStore.self) private var store
     @State private var profile: UserProfile = UserProfile()
     @State private var index: Int = 0
     @State private var forward: Bool = true
+    @State private var preview: PlanPreview? = nil
 
     private var steps: [OnboardingStep] {
         var s: [OnboardingStep] = [.goal]
         if profile.goal.needsBodyMetrics { s += [.birthDate, .body] }
-        s += [.valueDiscovery, .diet, .allergies, .dislikes, .cuisines, .budget, .stores, .strategy, .valueDeals, .location, .heardFrom, .summary]
+        s += [.diet, .allergies, .dislikes, .location, .stores, .budget, .strategy, .building, .summary]
+        if !store.isSignedIn { s.append(.account) }
         return s
     }
 
     private var step: OnboardingStep { steps[min(index, steps.count - 1)] }
-    private var progress: Double { Double(index + 1) / Double(steps.count) }
+    private var questionCount: Int { steps.firstIndex(of: .building) ?? steps.count }
+    private var progress: Double { min(1, Double(index + 1) / Double(questionCount)) }
+    private var isQuestion: Bool { index < questionCount }
 
     var body: some View {
         VStack(spacing: 0) {
             header
             ZStack {
-                content
-                    .id(step)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: forward ? .trailing : .leading).combined(with: .opacity),
-                        removal: .move(edge: forward ? .leading : .trailing).combined(with: .opacity)))
+                VStack(spacing: 0) {
+                    if let line = zestLine {
+                        ZestGuide(text: line, size: 60)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 10)
+                    }
+                    content
+                }
+                .id(step)
+                .transition(.asymmetric(
+                    insertion: .move(edge: forward ? .trailing : .leading).combined(with: .opacity),
+                    removal: .move(edge: forward ? .leading : .trailing).combined(with: .opacity)))
             }
             .frame(maxHeight: .infinity)
-            footer
+            if isQuestion || step == .summary { footer }
         }
         .background(BW.canvas)
         .onAppear { store.track("onboarding_started") }
@@ -49,8 +61,8 @@ struct OnboardingFlowView: View {
                     .foregroundStyle(BW.ink)
                     .frame(width: 44, height: 44)
             }
-            .opacity(index == 0 ? 0 : 1)
-            .disabled(index == 0)
+            .opacity(canGoBack ? 1 : 0)
+            .disabled(!canGoBack)
             .accessibilityLabel("Back")
 
             GeometryReader { geo in
@@ -60,6 +72,7 @@ struct OnboardingFlowView: View {
                 }
             }
             .frame(height: 8)
+            .opacity(isQuestion ? 1 : 0)
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: progress)
 
             Color.clear.frame(width: 44, height: 44)
@@ -67,30 +80,47 @@ struct OnboardingFlowView: View {
         .padding(.horizontal, 12)
     }
 
+    private var canGoBack: Bool { index > 0 && step != .building }
+
+    private var zestLine: String? {
+        switch step {
+        case .goal: String(localized: "Hi, I'm Zest! Let's build your plan together.")
+        case .birthDate: String(localized: "Just so my suggestions make sense for you.")
+        case .body: String(localized: "Only used to match meals to your goal.")
+        case .diet: String(localized: "How do you eat? I'll only show what fits.")
+        case .allergies: String(localized: "Safety first. No allergies? Just tap Continue.")
+        case .dislikes: String(localized: "Anything you never want to see? I'll hide it.")
+        case .location: String(localized: "Let's find the grocery stores near you.")
+        case .stores: String(localized: "Where do you usually shop?")
+        case .budget: String(localized: "Roughly what do you spend each week?")
+        case .strategy: String(localized: "Last one! How do you like to shop?")
+        case .account: String(localized: "Save your plan so it's always with you.")
+        case .building, .summary: nil
+        }
+    }
+
     @ViewBuilder
     private var content: some View {
         switch step {
         case .goal: GoalStep(profile: $profile)
-        case .heardFrom: HeardFromStep(profile: $profile)
         case .birthDate: BirthDateStep(profile: $profile)
         case .body: BodyStep(profile: $profile)
-        case .valueDiscovery:
-            ValueStep(mascot: BWImage.mascotWave, image: "chicken_burrito_bowl",
-                      title: String(localized: "You choose the food.\nBitewise finds the value."),
-                      message: String(localized: "Swipe on meals that look good. We learn what you love and match it with this week's grocery deals."))
         case .diet: DietStep(profile: $profile)
         case .allergies: AllergyStep(profile: $profile)
         case .dislikes: DislikeStep(profile: $profile)
-        case .cuisines: CuisineStep(profile: $profile)
-        case .budget: BudgetStep(profile: $profile)
-        case .stores: StoresStep(profile: $profile)
-        case .strategy: StrategyStep(profile: $profile)
-        case .valueDeals:
-            ValueStep(mascot: BWImage.mascotCheer, image: "teriyaki_chicken_rice_bowl",
-                      title: String(localized: "Your weekly deals.\nTurned into meals."),
-                      message: String(localized: "When chicken, peppers or yogurt go on sale at your stores, Bitewise shows you what to cook with them."))
         case .location: LocationStep(profile: $profile)
-        case .summary: SummaryStep(profile: profile)
+        case .stores: StoresStep(profile: $profile)
+        case .budget: BudgetStep(profile: $profile)
+        case .strategy: StrategyStep(profile: $profile)
+        case .building:
+            BuildingPlanView(profile: profile, preview: preview ?? store.planPreview(for: profile)) { go(1) }
+        case .summary:
+            PlanSummaryStep(profile: profile, preview: preview ?? store.planPreview(for: profile))
+        case .account:
+            AccountStep { name, email in
+                store.signIn(name: name, email: email)
+                store.completeOnboarding(with: profile)
+            }
         }
     }
 
@@ -102,13 +132,30 @@ struct OnboardingFlowView: View {
         }
     }
 
+    private var footerTitle: String {
+        switch step {
+        case .strategy: String(localized: "Build My Plan")
+        case .summary: store.isSignedIn ? String(localized: "Continue") : String(localized: "Save My Plan")
+        default: String(localized: "Continue")
+        }
+    }
+
     private var footer: some View {
         VStack(spacing: 8) {
-            Button(step == .summary ? String(localized: "Let's go") : String(localized: "Continue")) {
-                if step == .summary {
+            Button {
+                if step == .strategy {
+                    preview = store.planPreview(for: profile)
+                    store.track("plan_build_started")
+                }
+                if step == .summary && store.isSignedIn {
                     store.completeOnboarding(with: profile)
                 } else {
                     go(1)
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    if step == .strategy { Image(systemName: "sparkles") }
+                    Text(footerTitle)
                 }
             }
             .buttonStyle(BWPrimaryButtonStyle())
@@ -128,8 +175,10 @@ struct OnboardingFlowView: View {
 
     private func go(_ delta: Int) {
         forward = delta > 0
+        var target = max(0, min(steps.count - 1, index + delta))
+        if delta < 0 && steps[target] == .building { target = max(0, target - 1) }
         withAnimation(.spring(response: 0.45, dampingFraction: 0.88)) {
-            index = max(0, min(steps.count - 1, index + delta))
+            index = target
         }
     }
 }
@@ -146,7 +195,7 @@ struct StepScaffold<Content: View>: View {
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(title)
-                        .font(.system(.title, design: .rounded, weight: .heavy))
+                        .font(.bw(.title, weight: .heavy))
                         .foregroundStyle(BW.ink)
                         .fixedSize(horizontal: false, vertical: true)
                     if let subtitle {
@@ -156,7 +205,7 @@ struct StepScaffold<Content: View>: View {
                 content
             }
             .padding(.horizontal, 24)
-            .padding(.top, 20)
+            .padding(.top, 16)
             .padding(.bottom, 24)
         }
         .scrollDismissesKeyboard(.interactively)
@@ -293,7 +342,7 @@ struct BodyStep: View {
     @State private var goalWeight: Double = 70
 
     var body: some View {
-        StepScaffold(title: String(localized: "A few quick numbers"), subtitle: String(localized: "Bitewise is not medical advice. We only use this to suggest meals that fit your goal.")) {
+        StepScaffold(title: String(localized: "A few quick numbers"), subtitle: String(localized: "Lemora is not medical advice. We only use this to suggest meals that fit your goal.")) {
             Picker("Units", selection: $profile.usesMetric) {
                 Text("Metric").tag(true)
                 Text("Imperial").tag(false)
@@ -365,7 +414,7 @@ struct ValueStep: View {
             .scaleEffect(appear ? 1 : 0.94)
             .opacity(appear ? 1 : 0)
             Text(title)
-                .font(.system(.title, design: .rounded, weight: .heavy))
+                .font(.bw(.title, weight: .heavy))
                 .foregroundStyle(BW.ink)
                 .multilineTextAlignment(.center)
             Text(message)
@@ -425,7 +474,6 @@ struct AllergyStep: View {
                     ChoiceChip(title: "\(item)  ✕", selected: true) { profile.customAllergies.removeAll { $0 == item } }
                 }
             }
-            MascotTip(text: String(localized: "No allergies? Just tap Continue."))
         }
     }
 }
@@ -502,7 +550,7 @@ struct BudgetStep: View {
         StepScaffold(title: String(localized: "What's your approximate grocery budget?")) {
             VStack(spacing: 16) {
                 Text(flexible ? String(localized: "Flexible") : "\(Money.format(amount)) / week")
-                    .font(.system(size: 44, weight: .heavy, design: .rounded))
+                    .font(.bw(size: 44, weight: .heavy))
                     .monospacedDigit()
                     .foregroundStyle(BW.ink)
                     .contentTransition(.numericText())
@@ -718,7 +766,11 @@ struct LocationStep: View {
     var body: some View {
         StepScaffold(title: String(localized: "Find deals near you")) {
             VStack(spacing: 18) {
-                MascotView(name: BWImage.mascotPeek, size: 110)
+                Image(systemName: "location.circle.fill")
+                    .font(.system(size: 64))
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(BW.ink, BW.lemon)
+                    .padding(.top, 8)
                 Text("Use your location to find nearby stores and local deals. We only check it when you open the app, never in the background.")
                     .font(.bw(.body, weight: .regular))
                     .foregroundStyle(BW.inkSecondary)
@@ -756,57 +808,6 @@ struct LocationStep: View {
         case .requesting: String(localized: "Finding you…")
         case .resolved: String(localized: "Location found")
         default: String(localized: "Use my location")
-        }
-    }
-}
-
-struct SummaryStep: View {
-    let profile: UserProfile
-    @State private var appear: Bool = false
-
-    var body: some View {
-        StepScaffold(title: String(localized: "Your Bitewise is ready.")) {
-            ZStack(alignment: .topTrailing) {
-                VStack(spacing: 0) {
-                    row(String(localized: "Goal"), profile.goal.title)
-                    row(String(localized: "Diet"), profile.diets.map(\.title).sorted().joined(separator: ", "))
-                    row(String(localized: "Budget"), profile.weeklyBudget.map { "\(Money.format($0))/week" } ?? String(localized: "Flexible"))
-                    row(String(localized: "Stores"), storeNames)
-                    row(String(localized: "Avoid"), avoidText, last: true)
-                }
-                .padding(.vertical, 6)
-                .bwCard()
-                MascotView(name: BWImage.mascotCheer, size: 80, bob: true)
-                    .offset(x: 10, y: -58)
-            }
-            .padding(.top, 30)
-            .scaleEffect(appear ? 1 : 0.95)
-            .opacity(appear ? 1 : 0)
-        }
-        .onAppear { withAnimation(.spring(response: 0.55, dampingFraction: 0.8)) { appear = true } }
-    }
-
-    private var storeNames: String {
-        let ids = profile.storePreferences.filter { $0.value != .doNotRecommend }.keys
-        let names = ids.compactMap { RetailerCatalog.byId[$0]?.name }.sorted()
-        return names.isEmpty ? "—" : names.joined(separator: ", ")
-    }
-
-    private var avoidText: String {
-        let items = profile.allergies.map(\.title).sorted() + profile.customAllergies + profile.dislikes
-        return items.isEmpty ? String(localized: "Nothing") : items.joined(separator: ", ")
-    }
-
-    private func row(_ title: String, _ value: String, last: Bool = false) -> some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(title).font(.bw(.subheadline, weight: .semibold)).foregroundStyle(BW.inkSecondary)
-                Spacer(minLength: 16)
-                Text(value).font(.bw(.body, weight: .bold)).foregroundStyle(BW.ink).multilineTextAlignment(.trailing)
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
-            if !last { Divider().overlay(BW.hairline).padding(.leading, 18) }
         }
     }
 }

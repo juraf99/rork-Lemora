@@ -49,7 +49,7 @@ struct DiscoverView: View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(greeting)
-                    .font(.system(.title, design: .rounded, weight: .heavy))
+                    .font(.bw(.title, weight: .heavy))
                     .foregroundStyle(BW.ink)
                 Text(subtitle)
                     .font(.bw(.subheadline, weight: .regular))
@@ -132,12 +132,12 @@ struct DiscoverView: View {
     private var stamp: some View {
         let progress = min(1, abs(drag.width) / 110)
         if drag.width > 10 {
-            Text("YUM").font(.system(size: 34, weight: .black, design: .rounded)).foregroundStyle(BW.ink)
+            Text("YUM").font(.bw(size: 34, weight: .black)).foregroundStyle(BW.ink)
                 .padding(.horizontal, 16).padding(.vertical, 6)
                 .background(BW.lemon, in: .rect(cornerRadius: 12))
                 .rotationEffect(.degrees(-12)).padding(24).opacity(progress)
         } else if drag.width < -10 {
-            Text("NOPE").font(.system(size: 34, weight: .black, design: .rounded)).foregroundStyle(BW.ink)
+            Text("NOPE").font(.bw(size: 34, weight: .black)).foregroundStyle(BW.ink)
                 .padding(.horizontal, 16).padding(.vertical, 6)
                 .background(.white, in: .rect(cornerRadius: 12))
                 .rotationEffect(.degrees(12)).padding(24).opacity(progress)
@@ -223,7 +223,7 @@ struct RecipeSwipeCard: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     Text(item.recipe.title)
-                        .font(.system(.title, design: .rounded, weight: .heavy))
+                        .font(.bw(.title, weight: .heavy))
                         .foregroundStyle(.white)
                         .lineLimit(2)
                         .minimumScaleFactor(0.8)

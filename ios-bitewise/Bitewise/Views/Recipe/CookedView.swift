@@ -41,7 +41,7 @@ struct CookedView: View {
                     VStack(spacing: 4) {
                         Text("You saved").font(.bw(.subheadline, weight: .medium)).foregroundStyle(BW.inkSecondary)
                         Text(Money.format(shownSavings))
-                            .font(.system(size: 60, weight: .heavy, design: .rounded))
+                            .font(.bw(size: 60, weight: .heavy))
                             .monospacedDigit()
                             .foregroundStyle(BW.ink)
                             .contentTransition(.numericText(value: shownSavings))
@@ -85,9 +85,9 @@ struct CookedView: View {
                 HStack(spacing: 16) {
                     MascotView(name: BWImage.stageLemon, size: 70)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Total saved with Bitewise").font(.bw(.subheadline, weight: .medium)).foregroundStyle(BW.inkSecondary)
+                        Text("Total saved with Lemora").font(.bw(.subheadline, weight: .medium)).foregroundStyle(BW.inkSecondary)
                         Text(Money.format(store.totalSaved))
-                            .font(.system(size: 36, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(BW.ink)
+                            .font(.bw(size: 36, weight: .heavy)).monospacedDigit().foregroundStyle(BW.ink)
                             .contentTransition(.numericText(value: store.totalSaved))
                         Text("This month: \(Money.format(store.savedThisMonth))").font(.bw(.footnote, weight: .medium)).foregroundStyle(BW.inkSecondary)
                     }

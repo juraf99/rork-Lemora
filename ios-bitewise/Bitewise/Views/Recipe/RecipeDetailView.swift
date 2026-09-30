@@ -46,7 +46,7 @@ struct RecipeDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                ShareLink(item: "\(recipe.title) on Bitewise") {
+                ShareLink(item: "\(recipe.title) on Lemora") {
                     Image(systemName: "square.and.arrow.up")
                 }
             }
@@ -87,7 +87,7 @@ struct RecipeDetailView: View {
 
     private var titleBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(recipe.title).font(.system(.title, design: .rounded, weight: .heavy)).foregroundStyle(BW.ink)
+            Text(recipe.title).font(.bw(.title, weight: .heavy)).foregroundStyle(BW.ink)
             Text(recipe.summary).font(.bw(.body, weight: .regular)).foregroundStyle(BW.inkSecondary)
             HStack(spacing: 14) {
                 Label("\(recipe.totalMinutes) min", systemImage: "clock")

@@ -86,7 +86,44 @@ final class AppStore {
     }
 
     func finishPaywall() {
-        mutate { $0.paywallSeen = true }
+        mutate {
+            $0.paywallSeen = true
+            if $0.welcomeSeen == nil { $0.welcomeSeen = false }
+        }
+    }
+
+    var needsWelcome: Bool { data.welcomeSeen == false }
+
+    func finishWelcome() {
+        mutate { $0.welcomeSeen = true }
+        track("welcome_completed")
+    }
+
+    /// Records a started free trial and schedules the real reminder shown on the paywall timeline.
+    func recordTrialStart(days: Int, priceText: String) {
+        mutate { $0.trialEndsAt = Calendar.current.date(byAdding: .day, value: days, to: .now) }
+        track("trial_started", ["days": "\(days)"])
+        Task { await TrialReminderService.schedule(trialDays: days, priceText: priceText) }
+    }
+
+    /// Personalized preview of the plan built from onboarding answers (before it is saved).
+    func planPreview(for profile: UserProfile) -> PlanPreview {
+        let now = Date.now
+        let mine = Set(profile.storePreferences.filter { $0.value != .doNotRecommend }.map(\.key))
+        var blocked = Set(profile.storePreferences.filter { $0.value == .doNotRecommend }.map(\.key))
+        if !profile.shopsAtCostco { blocked.insert("costco") }
+        let active = SampleDealProvider.deals(now: now).filter { $0.isActive(at: now) && !blocked.contains($0.retailerId) }
+        let scoped = mine.isEmpty ? active : active.filter { mine.contains($0.retailerId) }
+        let previewPrices = Dictionary(uniqueKeysWithValues: recipes.map {
+            ($0.id, pricing.price(recipe: $0, servings: $0.servings, deals: scoped))
+        })
+        let matches = engine.rank(recipes: recipes, profile: profile, taste: [:], seen: [],
+                                  prices: previewPrices, weights: config.weights)
+        let perServing = matches.isEmpty ? 0 : matches.map(\.price.perServing).reduce(0, +) / Double(matches.count)
+        let topSavings = matches.map(\.price.savings).sorted(by: >).prefix(3).reduce(0, +)
+        let names = mine.compactMap { RetailerCatalog.byId[$0]?.name }.sorted()
+        return PlanPreview(matches: matches, excludedCount: recipes.count - matches.count, dealCount: scoped.count,
+                           storeNames: names, averagePerServing: perServing, sampleWeeklySavings: topSavings)
     }
 
     func updateProfile(_ change: (inout UserProfile) -> Void) {

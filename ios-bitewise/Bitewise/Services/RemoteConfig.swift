@@ -10,8 +10,12 @@ nonisolated struct RemoteConfig: Codable, Sendable {
     var temporarySaveHours: Int = 72
     var freeAskPerDay: Int = 3
     var trialEnabled: Bool = true
+    /// Used only until StoreKit products load; the live intro offer always wins.
+    var trialDays: Int = 7
     var annualPriceFallback: String = "$39.99"
     var monthlyPriceFallback: String = "$9.99"
+    var annualPriceValue: Double = 39.99
+    var monthlyPriceValue: Double = 9.99
     var weights = RecommendationWeights()
 }
 

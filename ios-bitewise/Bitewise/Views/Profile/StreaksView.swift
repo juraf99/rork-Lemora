@@ -13,7 +13,7 @@ struct StreaksView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Streaks").font(.system(.largeTitle, design: .rounded, weight: .heavy)).foregroundStyle(BW.ink)
+                    Text("Streaks").font(.bw(.largeTitle, weight: .heavy)).foregroundStyle(BW.ink)
                     Text("Small steps. Bigger savings.").font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
                 }
                 savingsCard
@@ -36,7 +36,7 @@ struct StreaksView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Savings Streak").font(.bw(.headline)).foregroundStyle(BW.ink)
                     Text(weeks == 1 ? String(localized: "1 week") : String(localized: "\(weeks) weeks"))
-                        .font(.system(size: 44, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(BW.ink)
+                        .font(.bw(size: 44, weight: .heavy)).monospacedDigit().foregroundStyle(BW.ink)
                     Text(store.savingsThisWeekDone ? String(localized: "This week is locked in!") : String(localized: "Keep it going this week!"))
                         .font(.bw(.subheadline, weight: .medium)).foregroundStyle(BW.inkSecondary)
                 }
@@ -80,7 +80,7 @@ struct StreaksView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Wise Streak").font(.bw(.headline)).foregroundStyle(BW.ink)
                     Text(days == 1 ? String(localized: "1 day") : String(localized: "\(days) days"))
-                        .font(.system(size: 34, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(BW.ink)
+                        .font(.bw(size: 34, weight: .heavy)).monospacedDigit().foregroundStyle(BW.ink)
                 }
                 Spacer()
                 Text("Make it \(days + 1) tomorrow!").font(.bw(.caption, weight: .semibold)).foregroundStyle(BW.inkSecondary)

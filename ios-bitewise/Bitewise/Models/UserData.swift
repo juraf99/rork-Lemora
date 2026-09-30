@@ -104,4 +104,6 @@ nonisolated struct AppData: Codable, Sendable {
     var tasteWeights: [String: Double] = [:]
     var askUsage: [String: Int] = [:]
     var queueResetDate: Date?
+    var welcomeSeen: Bool?
+    var trialEndsAt: Date?
 }

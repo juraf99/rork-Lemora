@@ -34,7 +34,7 @@ struct DealsView: View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Fresh deals for you")
-                    .font(.system(.title, design: .rounded, weight: .heavy))
+                    .font(.bw(.title, weight: .heavy))
                     .foregroundStyle(BW.ink)
                 Text("Updated this week").font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
             }
@@ -247,9 +247,9 @@ struct DealDetailView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(deal.productName).font(.system(.title2, design: .rounded, weight: .heavy)).foregroundStyle(BW.ink)
+                        Text(deal.productName).font(.bw(.title2, weight: .heavy)).foregroundStyle(BW.ink)
                         HStack(alignment: .firstTextBaseline, spacing: 10) {
-                            Text(deal.priceText).font(.system(size: 38, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(BW.ink)
+                            Text(deal.priceText).font(.bw(size: 38, weight: .heavy)).monospacedDigit().foregroundStyle(BW.ink)
                             if let regular = deal.regularPrice {
                                 Text("reg. \(Money.format(regular))\(deal.multiBuyQuantity == nil ? deal.unitLabel : " ea")")
                                     .font(.bw(.subheadline, weight: .medium)).strikethrough().foregroundStyle(BW.inkSecondary)

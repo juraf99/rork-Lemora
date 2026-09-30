@@ -401,9 +401,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				CODE_SIGN_ENTITLEMENTS = Bitewise/Bitewise.entitlements;
-				INFOPLIST_KEY_CFBundleDisplayName = Bitewise;
+				INFOPLIST_KEY_CFBundleDisplayName = Lemora;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Bitewise uses your location to find nearby grocery stores and local deals.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Lemora uses your location to find nearby grocery stores and local deals.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -437,9 +437,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				CODE_SIGN_ENTITLEMENTS = Bitewise/Bitewise.entitlements;
-				INFOPLIST_KEY_CFBundleDisplayName = Bitewise;
+				INFOPLIST_KEY_CFBundleDisplayName = Lemora;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Bitewise uses your location to find nearby grocery stores and local deals.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Lemora uses your location to find nearby grocery stores and local deals.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

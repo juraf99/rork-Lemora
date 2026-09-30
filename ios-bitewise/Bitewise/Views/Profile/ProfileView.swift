@@ -24,7 +24,7 @@ struct ProfileView: View {
 
                 Section("Subscription") {
                     if store.isPremium {
-                        Label("Bitewise Premium is active", systemImage: "checkmark.seal.fill").foregroundStyle(BW.leafDeep)
+                        Label("Lemora Premium is active", systemImage: "checkmark.seal.fill").foregroundStyle(BW.leafDeep)
                     } else {
                         Button { showPaywall = true } label: {
                             Label("Upgrade to Premium", systemImage: "sparkles").foregroundStyle(BW.ink).fontWeight(.semibold)
@@ -35,7 +35,7 @@ struct ProfileView: View {
                         .tint(BW.leaf)
                 }
 
-                Section("My Bitewise") {
+                Section("My Lemora") {
                     NavigationLink { GoalEditView() } label: { row("target", String(localized: "My Goal"), profile.goal.title) }
                     NavigationLink { DietEditView() } label: { row("leaf", String(localized: "Diet"), profile.diets.map(\.title).sorted().joined(separator: ", ")) }
                     NavigationLink { AllergyEditView() } label: { row("allergens", String(localized: "Allergies"), allergyText) }
@@ -96,7 +96,7 @@ struct ProfileView: View {
                 if let email = store.data.account?.email, !email.isEmpty {
                     Text(email).font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
                 }
-                Text("Saved \(Money.format(store.totalSaved)) with Bitewise")
+                Text("Saved \(Money.format(store.totalSaved)) with Lemora")
                     .font(.bw(.subheadline, weight: .bold)).foregroundStyle(BW.leafDeep)
             }
             Spacer()
@@ -168,7 +168,7 @@ struct NotificationsEditView: View {
                 Toggle("Deal alerts", isOn: $prefs.dealAlerts)
                 Toggle("Recipe recommendations", isOn: $prefs.recommendations)
                 Toggle("Saved recipe price drops", isOn: $prefs.priceDrops)
-                Toggle("Weekly Bitewise recap", isOn: $prefs.weeklyRecap)
+                Toggle("Weekly Lemora recap", isOn: $prefs.weeklyRecap)
             } footer: {
                 Text("We only notify you when something is genuinely worth it. Never just because a flyer updated.")
             }
@@ -188,7 +188,7 @@ struct PrivacyView: View {
         List {
             Section("What we use") {
                 Text("Location: only when you open the app, to find nearby stores. You can use a postal code instead.")
-                Text("Profile & goals: to personalize recipes. Bitewise is not medical advice and never promises health outcomes.")
+                Text("Profile & goals: to personalize recipes. Lemora is not medical advice and never promises health outcomes.")
                 Text("Usage analytics: anonymous events that help us improve recommendations.")
             }
             Section("Your control") {

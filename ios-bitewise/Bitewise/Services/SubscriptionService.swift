@@ -5,12 +5,14 @@ import OSLog
 /// StoreKit 2 subscription handling. Product IDs must match App Store Connect.
 @Observable
 final class SubscriptionService {
-    static let annualId = "app.bitewise.premium.annual"
-    static let monthlyId = "app.bitewise.premium.monthly"
+    static let annualId = "app.lemora.premium.annual"
+    static let monthlyId = "app.lemora.premium.monthly"
 
     private(set) var products: [Product] = []
     private(set) var hasActiveSubscription = false
     private(set) var isLoading = false
+    /// StoreKit's answer to whether this Apple ID can still redeem the introductory offer.
+    private(set) var isEligibleForTrial = true
     private var updatesTask: Task<Void, Never>?
     private let logger = Logger(subsystem: "app.bitewise", category: "subscriptions")
 
@@ -39,6 +41,9 @@ final class SubscriptionService {
         defer { isLoading = false }
         do {
             products = try await Product.products(for: [Self.annualId, Self.monthlyId])
+            if let info = annual?.subscription {
+                isEligibleForTrial = await info.isEligibleForIntroOffer
+            }
         } catch {
             logger.error("Could not load products")
         }
@@ -69,6 +74,23 @@ final class SubscriptionService {
         @unknown default:
             return false
         }
+    }
+
+    /// Free-trial length in days, read from the product's configured introductory offer.
+    static func trialDays(of product: Product) -> Int? {
+        guard let offer = product.subscription?.introductoryOffer, offer.paymentMode == .freeTrial else { return nil }
+        let value = offer.period.value
+        switch offer.period.unit {
+        case .day: return value
+        case .week: return value * 7
+        case .month: return value * 30
+        case .year: return value * 365
+        @unknown default: return nil
+        }
+    }
+
+    static func amount(_ product: Product) -> Double {
+        NSDecimalNumber(decimal: product.price).doubleValue
     }
 
     func restore() async {
