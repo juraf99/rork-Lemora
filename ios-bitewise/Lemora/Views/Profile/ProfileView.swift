@@ -3,7 +3,6 @@ import SwiftUI
 struct ProfileView: View {
     @Environment(AppStore.self) private var store
     @State private var path: NavigationPath = NavigationPath()
-    @State private var showPaywall: Bool = false
     @State private var confirmDelete: Bool = false
 
     private var profile: UserProfile { store.data.profile }
@@ -23,23 +22,15 @@ struct ProfileView: View {
                 }
 
                 Section("Subscription") {
-                    if store.isPremium {
-                        Label("Lemora Premium is active", systemImage: "checkmark.seal.fill").foregroundStyle(BW.leafDeep)
-                    } else {
-                        Button { showPaywall = true } label: {
-                            Label("Upgrade to Premium", systemImage: "sparkles").foregroundStyle(BW.ink).fontWeight(.semibold)
-                        }
-                    }
+                    Label("Lemora Premium is active", systemImage: "checkmark.seal.fill").foregroundStyle(BW.leafDeep)
                     Button("Restore purchases") { Task { await store.subscription.restore() } }
-                    Toggle("Preview Premium (testing)", isOn: Binding(get: { store.data.premiumPreview }, set: { store.setPremiumPreview($0) }))
-                        .tint(BW.leaf)
                 }
 
                 Section("My Lemora") {
                     NavigationLink { GoalEditView() } label: { row("target", String(localized: "My Goal"), profile.goal.title) }
                     NavigationLink { DietEditView() } label: { row("leaf", String(localized: "Diet"), profile.diets.map(\.title).sorted().joined(separator: ", ")) }
                     NavigationLink { AllergyEditView() } label: { row("allergens", String(localized: "Allergies"), allergyText) }
-                    NavigationLink { DislikeEditView() } label: { row("hand.thumbsdown", String(localized: "Foods I Dislike"), profile.dislikes.isEmpty ? String(localized: "None") : profile.dislikes.joined(separator: ", ")) }
+                    NavigationLink { DislikeEditView() } label: { row("hand.thumbsdown", String(localized: "Foods I Dislike"), profile.dislikeNames.isEmpty ? String(localized: "None") : profile.dislikeNames.joined(separator: ", ")) }
                     NavigationLink { CuisineEditView() } label: { row("globe.americas", String(localized: "Cuisines"), profile.cuisines.isEmpty ? String(localized: "Any") : "\(profile.cuisines.count)") }
                     NavigationLink { BudgetEditView() } label: { row("dollarsign.circle", String(localized: "Budget"), profile.weeklyBudget.map { "\(Money.format($0))/wk" } ?? String(localized: "Flexible")) }
                 }
@@ -74,7 +65,6 @@ struct ProfileView: View {
             .foregroundStyle(BW.ink)
             .navigationTitle("Profile")
             .bitewiseDestinations()
-            .sheet(isPresented: $showPaywall) { PaywallView(context: .upgrade) { showPaywall = false } }
             .confirmationDialog("Delete your account?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete everything", role: .destructive) { store.deleteAccount() }
             } message: {
@@ -84,7 +74,7 @@ struct ProfileView: View {
     }
 
     private var allergyText: String {
-        let items = profile.allergies.map(\.title).sorted() + profile.customAllergies
+        let items = profile.allergyNames.sorted()
         return items.isEmpty ? String(localized: "None") : items.joined(separator: ", ")
     }
 

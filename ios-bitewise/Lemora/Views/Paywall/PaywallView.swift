@@ -62,7 +62,6 @@ struct PaywallView: View {
             }
             .ignoresSafeArea()
         }
-        .overlay(alignment: .topTrailing) { closeButton }
         .safeAreaInset(edge: .bottom, spacing: 0) { ctaBar }
         .sensoryFeedback(.success, trigger: purchaseSuccess)
         .sheet(isPresented: $showPrivacy) { NavigationStack { PrivacyView() } }
@@ -98,21 +97,6 @@ struct PaywallView: View {
             }
         }
         .clipped()
-    }
-
-    private var closeButton: some View {
-        Button(action: onClose) {
-            Image(systemName: "xmark")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(BW.ink)
-                .frame(width: 40, height: 40)
-                .background(.white.opacity(0.9), in: .circle)
-                .shadow(color: BW.ink.opacity(0.08), radius: 6, x: 0, y: 2)
-                .frame(width: 44, height: 44)
-        }
-        .padding(.trailing, 14)
-        .padding(.top, 4)
-        .accessibilityLabel(context == .onboarding ? Text("Continue with Free") : Text("Close"))
     }
 
     private var premiumPill: some View {
@@ -205,7 +189,7 @@ struct PaywallView: View {
                 .contentTransition(.opacity)
             }
             .buttonStyle(ShineButtonStyle())
-            .disabled(isPurchasing)
+            .disabled(isPurchasing || selectedProduct == nil)
             .animation(.snappy, value: annualSelected)
 
             Text(terms.footnote)
@@ -225,12 +209,6 @@ struct PaywallView: View {
 
     private var bottomLinks: some View {
         VStack(spacing: 12) {
-            if context == .onboarding {
-                Button("Continue with Free", action: onClose)
-                    .font(.bw(.subheadline, weight: .bold))
-                    .foregroundStyle(BW.ink)
-                    .frame(maxWidth: .infinity, minHeight: 44)
-            }
             HStack(spacing: 18) {
                 Button("Restore") {
                     Task {
@@ -247,6 +225,13 @@ struct PaywallView: View {
             .foregroundStyle(BW.inkSecondary)
             .frame(maxWidth: .infinity, minHeight: 44)
 
+            if context == .onboarding {
+                Button("Sign out") { store.signOut() }
+                    .font(.bw(.footnote, weight: .semibold))
+                    .foregroundStyle(BW.inkSecondary)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+
             Text("Subscriptions renew automatically unless cancelled at least 24 hours before the end of the period. Manage or cancel anytime in your App Store settings.")
                 .font(.bw(.caption2, weight: .regular))
                 .foregroundStyle(BW.inkSecondary.opacity(0.8))
@@ -257,8 +242,8 @@ struct PaywallView: View {
     }
 
     private func purchase() async {
-        guard let product = annualSelected ? sub.annual : sub.monthly else {
-            message = String(localized: "Subscriptions aren't live in this build yet. You can preview Premium from Profile.")
+        guard let product = selectedProduct else {
+            message = String(localized: "Subscriptions aren't available right now. Please try again.")
             return
         }
         let current = terms
@@ -276,6 +261,10 @@ struct PaywallView: View {
         } catch {
             message = String(localized: "The purchase didn't go through. Please try again.")
         }
+    }
+
+    private var selectedProduct: Product? {
+        annualSelected ? sub.annual : sub.monthly
     }
 }
 

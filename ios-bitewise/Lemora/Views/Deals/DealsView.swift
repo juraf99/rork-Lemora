@@ -166,7 +166,7 @@ struct WorthItCard: View {
                         .font(.bw(.subheadline, weight: .medium)).monospacedDigit().foregroundStyle(BW.inkSecondary)
                 }
                 if let headline = item.price.headlineDeal, let deal = headline.deal {
-                    Text("\(IngredientCatalog.name(headline.ingredientId)) on sale at \(RetailerCatalog.name(deal.retailerId))")
+                    Text("\(IngredientCatalog.name(headline.ingredientId)) on sale at \(deal.retailerDisplayName)")
                         .font(.bw(.caption, weight: .semibold)).foregroundStyle(BW.leafDeep).lineLimit(1)
                 }
             }
@@ -186,15 +186,7 @@ struct StealCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .topLeading) {
-                if let image = deal.imageName {
-                    FoodImage(name: image, height: 130, radius: 0)
-                } else {
-                    BW.beigeSoft
-                        .frame(height: 130)
-                        .overlay {
-                            Text(IngredientCatalog.emoji(deal.ingredientId)).font(.system(size: 58))
-                        }
-                }
+                DealArtwork(deal: deal, height: 130, radius: 0)
                 if let label = deal.label {
                     DealTag(text: label.title).padding(10)
                 }
@@ -206,7 +198,7 @@ struct StealCard: View {
                     .font(.bw(.title3, weight: .heavy)).monospacedDigit().foregroundStyle(BW.ink)
                     .lineLimit(1).minimumScaleFactor(0.8)
                 HStack(spacing: 4) {
-                    Text(RetailerCatalog.name(deal.retailerId))
+                    Text(deal.retailerDisplayName)
                     if let pct = deal.discountPercent {
                         Text("·")
                         Text("-\(pct)%").foregroundStyle(BW.leafDeep)
@@ -224,6 +216,45 @@ struct StealCard: View {
     }
 }
 
+private struct DealArtwork: View {
+    let deal: Deal
+    let height: CGFloat
+    let radius: CGFloat
+
+    var body: some View {
+        Group {
+            if let image = deal.imageName {
+                FoodImage(name: image, height: height, radius: radius)
+            } else if let url = deal.imageURL {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    default:
+                        placeholder
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: height)
+                .clipped()
+                .clipShape(.rect(cornerRadius: radius))
+            } else {
+                placeholder
+                    .frame(height: height)
+                    .clipShape(.rect(cornerRadius: radius))
+            }
+        }
+    }
+
+    private var placeholder: some View {
+        BW.beigeSoft
+            .overlay {
+                Text(IngredientCatalog.emoji(deal.ingredientId))
+                    .font(.system(size: min(90, height * 0.45)))
+            }
+    }
+}
+
 struct DealDetailView: View {
     let dealId: String
     @Environment(AppStore.self) private var store
@@ -236,13 +267,7 @@ struct DealDetailView: View {
             if let deal {
                 VStack(alignment: .leading, spacing: 20) {
                     ZStack(alignment: .topLeading) {
-                        if let image = deal.imageName {
-                            FoodImage(name: image, height: 240, radius: BW.heroRadius)
-                        } else {
-                            BW.beigeSoft.frame(height: 200)
-                                .overlay { Text(IngredientCatalog.emoji(deal.ingredientId)).font(.system(size: 90)) }
-                                .clipShape(.rect(cornerRadius: BW.heroRadius))
-                        }
+                        DealArtwork(deal: deal, height: 240, radius: BW.heroRadius)
                         if let label = deal.label { DealTag(text: label.title).padding(14) }
                     }
 
@@ -258,7 +283,7 @@ struct DealDetailView: View {
                         if let q = deal.multiBuyQuantity, q > 1 {
                             Text("That's \(Money.format(deal.effectivePrice)) each").font(.bw(.subheadline, weight: .semibold)).foregroundStyle(BW.leafDeep)
                         }
-                        Text("At \(RetailerCatalog.name(deal.retailerId)) · until \(deal.validUntil.formatted(.dateTime.weekday(.wide).month().day()))")
+                        Text("At \(deal.retailerDisplayName) · until \(deal.validUntil.formatted(.dateTime.weekday(.wide).month().day()))")
                             .font(.bw(.subheadline, weight: .medium)).foregroundStyle(BW.inkSecondary)
                         Text(deal.confidence.note).font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
                     }

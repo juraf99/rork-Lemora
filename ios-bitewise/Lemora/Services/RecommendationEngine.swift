@@ -49,18 +49,19 @@ nonisolated struct RecommendationEngine {
         }
 
         let searchable = recipe.ingredients.map { ($0.rawText + " " + IngredientCatalog.name($0.ingredientId)).lowercased() }
-        for custom in profile.customAllergies where !custom.trimmingCharacters(in: .whitespaces).isEmpty {
-            let term = custom.lowercased()
-            if searchable.contains(where: { $0.contains(term) }) { return "Contains \(custom)" }
+        for allergy in profile.allergyRefs where allergy.kind == .ingredient {
+            let term = allergy.name.trimmingCharacters(in: .whitespaces).lowercased()
+            let exactIngredient = recipe.ingredients.contains { $0.ingredientId == allergy.id }
+            if exactIngredient || (!term.isEmpty && searchable.contains(where: { $0.contains(term) })) {
+                return "Contains \(allergy.name)"
+            }
         }
 
-        for dislike in profile.dislikes {
-            for term in DislikeCatalog.terms(for: dislike) {
-                if term == "__spicy__" {
-                    if recipe.tags.contains(.spicy) { return "Spicy" }
-                } else if searchable.contains(where: { $0.contains(term) }) {
-                    return "Includes \(dislike)"
-                }
+        for dislike in profile.dislikedIngredients {
+            let term = dislike.name.trimmingCharacters(in: .whitespaces).lowercased()
+            let exactIngredient = recipe.ingredients.contains { $0.ingredientId == dislike.id }
+            if exactIngredient || (!term.isEmpty && searchable.contains(where: { $0.contains(term) })) {
+                return "Includes \(dislike.name)"
             }
         }
 
@@ -161,6 +162,11 @@ nonisolated struct RecommendationEngine {
             let fiber = n.fiber ?? 0
             goalScore = fiber >= 10 ? 1 : (fiber >= 6 ? 0.7 : 0.4)
             if fiber >= 10 { reasons.append(.init(code: .highFiber, text: String(localized: "Packed with fiber and veggies"))) }
+        case .mealPrep:
+            goalScore = recipe.tags.contains(.mealPrep) ? 1 : 0.45
+            if recipe.tags.contains(.mealPrep) {
+                reasons.append(.init(code: .quickMeal, text: String(localized: "Great for meal prep")))
+            }
         case .maintain, .discover, .other:
             goalScore = 0.6
         }
@@ -170,7 +176,7 @@ nonisolated struct RecommendationEngine {
         // Deals
         let dealScore = min(1, price.savingsFraction * 2.5)
         if let headline = price.headlineDeal, let deal = headline.deal {
-            reasons.insert(.init(code: .currentDeal, text: String(localized: "\(IngredientCatalog.name(headline.ingredientId)) is on sale at \(RetailerCatalog.name(deal.retailerId))")), at: 0)
+            reasons.insert(.init(code: .currentDeal, text: String(localized: "\(IngredientCatalog.name(headline.ingredientId)) is on sale at \(deal.retailerDisplayName)")), at: 0)
         }
 
         // Budget

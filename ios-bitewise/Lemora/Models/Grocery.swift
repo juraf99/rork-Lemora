@@ -12,7 +12,7 @@ nonisolated struct Retailer: Identifiable, Hashable, Sendable {
 }
 
 nonisolated enum GroceryCategory: String, Codable, CaseIterable, Sendable {
-    case protein, produce, dairy, pantry, frozen, bakery
+    case protein, produce, dairy, pantry, frozen, bakery, beverages, prepared, snacks, other
 
     var title: String {
         switch self {
@@ -22,6 +22,10 @@ nonisolated enum GroceryCategory: String, Codable, CaseIterable, Sendable {
         case .pantry: String(localized: "Pantry")
         case .frozen: String(localized: "Frozen")
         case .bakery: String(localized: "Bakery")
+        case .beverages: String(localized: "Beverages")
+        case .prepared: String(localized: "Prepared food")
+        case .snacks: String(localized: "Snacks")
+        case .other: String(localized: "Other food")
         }
     }
 
@@ -33,6 +37,10 @@ nonisolated enum GroceryCategory: String, Codable, CaseIterable, Sendable {
         case .pantry: "takeoutbag.and.cup.and.straw"
         case .frozen: "snowflake"
         case .bakery: "birthday.cake"
+        case .beverages: "cup.and.saucer.fill"
+        case .prepared: "takeoutbag.and.cup.and.straw.fill"
+        case .snacks: "popcorn.fill"
+        case .other: "basket.fill"
         }
     }
 }
@@ -80,6 +88,19 @@ nonisolated struct Deal: Identifiable, Hashable, Sendable {
     let category: GroceryCategory
     /// True for development fixtures. Never presented as live prices.
     let isSampleData: Bool
+    /// Provider-reported flyer discount. Kept separate from a verified regular price.
+    var sourceDiscountPercent: Int? = nil
+    var dealScore: Double = 0
+    var imageURL: URL? = nil
+    var retailerName: String? = nil
+    var sourcePostalCode: String? = nil
+    var currencyCode: String = "CAD"
+    var dietaryFlags: [String: String] = [:]
+    var allergenFlags: [String: String] = [:]
+
+    var retailerDisplayName: String {
+        retailerName ?? RetailerCatalog.name(retailerId)
+    }
 
     /// Effective per-item price for multi-buy offers ("3 for $4" -> $1.33).
     var effectivePrice: Double {
@@ -87,15 +108,22 @@ nonisolated struct Deal: Identifiable, Hashable, Sendable {
         return salePrice / Double(q)
     }
 
-    /// Only computed when a real reference price exists.
+    /// Uses a verified regular price first, then the flyer provider's reported discount.
     var discountPercent: Int? {
-        guard let regular = regularPrice, regular > effectivePrice else { return nil }
-        return Int(((1 - effectivePrice / regular) * 100).rounded())
+        if let regular = regularPrice, regular > effectivePrice {
+            return Int(((1 - effectivePrice / regular) * 100).rounded())
+        }
+        return sourceDiscountPercent
     }
 
     var priceRatio: Double {
-        guard let regular = regularPrice, regular > 0 else { return 1 }
-        return min(1, effectivePrice / regular)
+        if let regular = regularPrice, regular > 0 {
+            return min(1, effectivePrice / regular)
+        }
+        if let sourceDiscountPercent {
+            return max(0, 1 - Double(sourceDiscountPercent) / 100)
+        }
+        return 1
     }
 
     var priceText: String {

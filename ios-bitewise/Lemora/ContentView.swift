@@ -22,7 +22,9 @@ struct ContentView: View {
                     }, onSignIn: { authMode = .signIn })
                 } else if !store.data.onboardingComplete {
                     OnboardingFlowView()
-                } else if !store.data.paywallSeen {
+                } else if !store.subscription.hasCheckedEntitlements {
+                    SubscriptionStatusView()
+                } else if !store.isPremium {
                     PaywallView(context: .onboarding) { store.finishPaywall() }
                 } else if store.needsWelcome {
                     WelcomeView()
@@ -40,7 +42,8 @@ struct ContentView: View {
         }
         .animation(.easeInOut(duration: 0.35), value: showsLanding)
         .animation(.easeInOut(duration: 0.35), value: store.data.onboardingComplete)
-        .animation(.easeInOut(duration: 0.35), value: store.data.paywallSeen)
+        .animation(.easeInOut(duration: 0.35), value: store.subscription.hasCheckedEntitlements)
+        .animation(.easeInOut(duration: 0.35), value: store.isPremium)
         .animation(.easeInOut(duration: 0.35), value: store.needsWelcome)
         .sheet(item: $authMode) { mode in
             AuthView(mode: mode)
@@ -53,6 +56,20 @@ struct ContentView: View {
         .onChange(of: store.subscription.hasActiveSubscription) { _, _ in
             store.onSubscriptionChanged()
         }
+    }
+}
+
+private struct SubscriptionStatusView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            ProgressView().tint(BW.ink)
+            Text("Checking your subscription…")
+                .font(.bw(.subheadline, weight: .semibold))
+                .foregroundStyle(BW.inkSecondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(BW.canvas)
+        .accessibilityElement(children: .combine)
     }
 }
 

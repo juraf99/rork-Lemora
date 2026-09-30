@@ -28,7 +28,7 @@ struct RecipeDetailView: View {
                         warning(exclusion)
                     }
                     if let headline = price.headlineDeal, let deal = headline.deal {
-                        MascotTip(text: String(localized: "\(IngredientCatalog.name(headline.ingredientId)) is on sale at \(RetailerCatalog.name(deal.retailerId)). Great time to cook this!"))
+                        MascotTip(text: String(localized: "\(IngredientCatalog.name(headline.ingredientId)) is on sale at \(deal.retailerDisplayName). Great time to cook this!"))
                     }
                     servingsStepper
                     ingredients
@@ -179,7 +179,7 @@ struct RecipeDetailView: View {
                         Spacer()
                         if let deal = line.deal, line.savings > 0.01 {
                             VStack(alignment: .trailing, spacing: 3) {
-                                DealTag(text: String(localized: "On sale at \(RetailerCatalog.name(deal.retailerId))"), symbol: "tag.fill")
+                                DealTag(text: String(localized: "On sale at \(deal.retailerDisplayName)"), symbol: "tag.fill")
                                 Text(Money.format(line.cost)).font(.bw(.caption, weight: .bold)).monospacedDigit().foregroundStyle(BW.leafDeep)
                             }
                         } else {

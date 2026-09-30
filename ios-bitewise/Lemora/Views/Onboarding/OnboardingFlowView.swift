@@ -309,8 +309,8 @@ struct HeardFromStep: View {
 
     var body: some View {
         StepScaffold(title: String(localized: "How did you hear about us?")) {
-            ChipFlow(items: HeardFrom.allCases) { source in
-                ChoiceChip(title: source.title, selected: profile.heardFrom == source) { profile.heardFrom = source }
+            ChipFlow(items: ReferralSource.onboardingCases) { source in
+                ChoiceChip(title: source.title, selected: profile.referralSource == source) { profile.referralSource = source }
             }
         }
     }
@@ -465,13 +465,16 @@ struct AllergyStep: View {
             }
             CustomEntryField(placeholder: String(localized: "Add another allergy"), text: $custom) {
                 let value = custom.trimmingCharacters(in: .whitespaces)
-                guard !value.isEmpty, !profile.customAllergies.contains(value) else { return }
-                profile.customAllergies.append(value)
+                guard !value.isEmpty, !profile.allergyRefs.contains(where: { $0.name.localizedCaseInsensitiveCompare(value) == .orderedSame }) else { return }
+                let id = value.lowercased().replacingOccurrences(of: " ", with: "_")
+                profile.allergyRefs.append(AllergyRef(id: id, name: value, kind: .ingredient))
+                profile.hasNoAllergies = false
                 custom = ""
             }
-            if !profile.customAllergies.isEmpty {
-                ChipFlow(items: profile.customAllergies) { item in
-                    ChoiceChip(title: "\(item)  ✕", selected: true) { profile.customAllergies.removeAll { $0 == item } }
+            let customAllergies = profile.allergyRefs.filter { $0.kind == .ingredient }
+            if !customAllergies.isEmpty {
+                ChipFlow(items: customAllergies) { item in
+                    ChoiceChip(title: "\(item.name)  ✕", selected: true) { profile.allergyRefs.removeAll { $0.id == item.id } }
                 }
             }
         }
@@ -482,24 +485,40 @@ struct DislikeStep: View {
     @Binding var profile: UserProfile
     @State private var custom: String = ""
 
+    private let common = ["Mushrooms", "Olives", "Onions", "Cilantro", "Seafood", "Tomatoes", "Avocado", "Spicy food", "Eggs", "Tofu"]
+
     private var items: [String] {
-        DislikeCatalog.common + profile.dislikes.filter { !DislikeCatalog.common.contains($0) }
+        common + profile.dislikeNames.filter { !common.contains($0) }
     }
 
     var body: some View {
         StepScaffold(title: String(localized: "Any foods you never want to see?")) {
             ChipFlow(items: items) { item in
-                ChoiceChip(title: item, selected: profile.dislikes.contains(item)) {
-                    if profile.dislikes.contains(item) { profile.dislikes.removeAll { $0 == item } } else { profile.dislikes.append(item) }
+                ChoiceChip(title: item, selected: profile.dislikeNames.contains(item)) {
+                    if let index = profile.dislikedIngredients.firstIndex(where: { $0.name == item }) {
+                        profile.dislikedIngredients.remove(at: index)
+                    } else {
+                        profile.dislikedIngredients.append(ingredientRef(item))
+                    }
                 }
             }
             CustomEntryField(placeholder: String(localized: "Search or add a food"), text: $custom) {
                 let value = custom.trimmingCharacters(in: .whitespaces).capitalized
-                guard !value.isEmpty, !profile.dislikes.contains(value) else { return }
-                profile.dislikes.append(value)
+                guard !value.isEmpty, !profile.dislikeNames.contains(value) else { return }
+                profile.dislikedIngredients.append(ingredientRef(value))
                 custom = ""
             }
         }
+    }
+
+    private func ingredientRef(_ name: String) -> IngredientRef {
+        let match = IngredientCatalog.all.values.first {
+            $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame
+        }
+        return IngredientRef(
+            id: match?.id ?? name.lowercased().replacingOccurrences(of: " ", with: "_"),
+            name: match?.name ?? name
+        )
     }
 }
 
@@ -789,7 +808,13 @@ struct LocationStep: View {
                         .font(.bw(.footnote, weight: .medium)).foregroundStyle(BW.inkSecondary)
                 }
 
-                TextField("Postal code (e.g. H2X 1Y4)", text: $profile.postalCode)
+                TextField("Postal code (e.g. H2X 1Y4)", text: Binding(
+                    get: { profile.location.postalCode },
+                    set: { code in
+                        let country = profile.location.country ?? .canada
+                        profile.location = .manual(country: country, postalCode: code)
+                    }
+                ))
                     .textInputAutocapitalization(.characters)
                     .font(.bw(.body, weight: .semibold))
                     .padding(.horizontal, 18)
@@ -799,7 +824,9 @@ struct LocationStep: View {
             }
         }
         .onChange(of: location.state) { _, state in
-            if case .resolved(let code) = state { profile.postalCode = code }
+            if case .resolved(let code) = state {
+                profile.location = .manual(country: profile.location.country ?? .canada, postalCode: code)
+            }
         }
     }
 

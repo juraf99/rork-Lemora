@@ -16,6 +16,9 @@ struct LemoraApp: App {
                 .environment(auth)
                 .preferredColorScheme(.light)
                 .tint(BW.ink)
+                .task {
+                    await SupabaseService.shared.verifyConnection()
+                }
         }
     }
 }

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5B5B5B5B5B5B5B5B5B5B5B01 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 5B5B5B5B5B5B5B5B5B5B5B02 /* Supabase */; };
 		XXB9508B171746A581F028XX /* ClerkKit in Frameworks */ = {isa = PBXBuildFile; productRef = XX694FD0783DAD8A35242CXX /* ClerkKit */; };
 /* End PBXBuildFile section */
 
@@ -56,6 +57,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5B5B5B5B5B5B5B5B5B5B5B01 /* Supabase in Frameworks */,
 				XXB9508B171746A581F028XX /* ClerkKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -117,6 +119,7 @@
 			);
 			name = Lemora;
 			packageProductDependencies = (
+				5B5B5B5B5B5B5B5B5B5B5B02 /* Supabase */,
 				XX694FD0783DAD8A35242CXX /* ClerkKit */,
 			);
 			productName = Lemora;
@@ -211,6 +214,7 @@
 				105FC5922E9EAD3200EA8BCF /* LemoraUITests */,
 			);
 			packageReferences = (
+				5B5B5B5B5B5B5B5B5B5B5B03 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				XX3DB027AECFDAD03266F3XX /* XCRemoteSwiftPackageReference "clerk-ios" */,
 			);
 		};
@@ -597,6 +601,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		5B5B5B5B5B5B5B5B5B5B5B03 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = exactVersion;
+				version = 2.55.2;
+			};
+		};
 		XX3DB027AECFDAD03266F3XX /* XCRemoteSwiftPackageReference "clerk-ios" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/clerk/clerk-ios.git";
@@ -608,6 +620,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		5B5B5B5B5B5B5B5B5B5B5B02 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5B5B5B5B5B5B5B5B5B5B5B03 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
 		XX694FD0783DAD8A35242CXX /* ClerkKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = XX3DB027AECFDAD03266F3XX /* XCRemoteSwiftPackageReference "clerk-ios" */;

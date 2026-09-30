@@ -12,7 +12,7 @@ struct BuildingPlanView: View {
 
     private var tasks: [String] {
         var lines: [String] = [String(localized: "Tuning meals for your goal: \(profile.goal.title.lowercased())")]
-        let allergies = profile.allergies.map(\.title).sorted() + profile.customAllergies
+        let allergies = profile.allergyNames.sorted()
         if allergies.isEmpty {
             lines.append(String(localized: "Checking every ingredient against your diet"))
         } else {
@@ -185,7 +185,7 @@ struct PlanSummaryStep: View {
     }
 
     private var avoidText: String {
-        let items = profile.allergies.map(\.title).sorted() + profile.customAllergies + profile.dislikes
+        let items = profile.allergyNames.sorted() + profile.dislikeNames
         return items.isEmpty ? String(localized: "Nothing") : items.joined(separator: ", ")
     }
 

@@ -10,6 +10,8 @@ final class AppStore {
     private(set) var deals: [Deal] = []
     private(set) var prices: [String: RecipePrice] = [:]
     private(set) var ranked: [ScoredRecipe] = []
+    private(set) var liveDealsLoaded = false
+    private(set) var dealLoadError: String?
 
     let subscription = SubscriptionService()
     let recipes: [Recipe] = RecipeCatalog.all
@@ -19,6 +21,7 @@ final class AppStore {
     private let configProvider: RemoteConfigProvider
     private let engine = RecommendationEngine()
     private let pricing = PricingEngine()
+    private var availableDeals: [Deal] = []
     private var sessionPosition = 0
 
     init(repository: UserDataRepository = LocalUserDataRepository(),
@@ -35,8 +38,8 @@ final class AppStore {
 
     func bootstrap() async {
         config = await configProvider.fetch()
-        subscription.start()
-        refreshDeals()
+        await subscription.start()
+        await loadLiveDeals()
         markActive()
         analytics.track("app_opened", [:])
     }
@@ -81,7 +84,7 @@ final class AppStore {
             $0.profile = profile
             $0.onboardingComplete = true
         }
-        refreshRanking()
+        Task { await loadLiveDeals() }
         track("onboarding_completed", ["goal": profile.goal.rawValue])
     }
 
@@ -112,7 +115,8 @@ final class AppStore {
         let mine = Set(profile.storePreferences.filter { $0.value != .doNotRecommend }.map(\.key))
         var blocked = Set(profile.storePreferences.filter { $0.value == .doNotRecommend }.map(\.key))
         if !profile.shopsAtCostco { blocked.insert("costco") }
-        let active = SampleDealProvider.deals(now: now).filter { $0.isActive(at: now) && !blocked.contains($0.retailerId) }
+        let source = availableDeals.isEmpty ? SampleDealProvider.deals(now: now) : availableDeals
+        let active = source.filter { $0.isActive(at: now) && !blocked.contains($0.retailerId) }
         let scoped = mine.isEmpty ? active : active.filter { mine.contains($0.retailerId) }
         let previewPrices = Dictionary(uniqueKeysWithValues: recipes.map {
             ($0.id, pricing.price(recipe: $0, servings: $0.servings, deals: scoped))
@@ -127,8 +131,13 @@ final class AppStore {
     }
 
     func updateProfile(_ change: (inout UserProfile) -> Void) {
+        let previousPostalCode = data.profile.postalCode
         mutate { change(&$0.profile) }
-        refreshDeals()
+        if data.profile.postalCode != previousPostalCode {
+            Task { await loadLiveDeals() }
+        } else {
+            refreshDeals()
+        }
     }
 
     func updateNotifications(_ prefs: NotificationPrefs) {
@@ -137,16 +146,10 @@ final class AppStore {
 
     // MARK: Entitlements
 
-    var isPremium: Bool { subscription.hasActiveSubscription || data.premiumPreview }
+    /// Full app access is granted only by a verified StoreKit entitlement.
+    var isPremium: Bool { subscription.hasActiveSubscription }
 
     func has(_ entitlement: Entitlement) -> Bool { isPremium }
-
-    func setPremiumPreview(_ on: Bool) {
-        mutate {
-            $0.premiumPreview = on
-            if on { for i in $0.saved.indices { $0.saved[i].expiresAt = nil } }
-        }
-    }
 
     func onSubscriptionChanged() {
         guard isPremium else { return }
@@ -169,8 +172,30 @@ final class AppStore {
     /// Active, non-expired deals from stores the user hasn't excluded.
     func refreshDeals() {
         let now = Date.now
-        deals = SampleDealProvider.deals(now: now).filter { $0.isActive(at: now) && !blockedStoreIds.contains($0.retailerId) }
+        if availableDeals.isEmpty && !liveDealsLoaded {
+            availableDeals = SampleDealProvider.deals(now: now)
+        }
+        deals = availableDeals.filter { $0.isActive(at: now) && !blockedStoreIds.contains($0.retailerId) }
         refreshRanking()
+    }
+
+    /// Replaces development fixtures with the current, food-only weekly flyer feed.
+    /// A valid location with no coverage intentionally returns no deals instead of showing another region.
+    func loadLiveDeals() async {
+        do {
+            let fetched = try await SupabaseService.shared.fetchActiveDeals(postalCode: data.profile.postalCode)
+            availableDeals = fetched
+            liveDealsLoaded = true
+            dealLoadError = nil
+            refreshDeals()
+        } catch {
+            dealLoadError = error.localizedDescription
+            if !liveDealsLoaded {
+                availableDeals = SampleDealProvider.deals(now: .now)
+                refreshDeals()
+            }
+            analytics.track("live_deals_load_failed", ["error": error.localizedDescription])
+        }
     }
 
     func deals(myStoresOnly: Bool) -> [Deal] {
@@ -220,8 +245,8 @@ final class AppStore {
     /// Steals: deals ordered by real value (discount with confidence). Deals without history rank last.
     func steals(myStoresOnly: Bool) -> [Deal] {
         deals(myStoresOnly: myStoresOnly).sorted { a, b in
-            let av = Double(a.discountPercent ?? 0) * (a.confidence == .high ? 1.2 : 1)
-            let bv = Double(b.discountPercent ?? 0) * (b.confidence == .high ? 1.2 : 1)
+            let av = max(a.dealScore, Double(a.discountPercent ?? 0)) * (a.confidence == .high ? 1.2 : 1)
+            let bv = max(b.dealScore, Double(b.discountPercent ?? 0)) * (b.confidence == .high ? 1.2 : 1)
             return av > bv
         }
     }

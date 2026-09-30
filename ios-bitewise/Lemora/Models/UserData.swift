@@ -61,11 +61,14 @@ nonisolated struct UserProfile: Codable, Hashable, Sendable {
 
     /// Core allergen flags covered by the user's allergies (used against recipe ingredient flags).
     var allergies: Set<Allergen> {
-        get { Set(allergyRefs.flatMap { AllergenDatabase.coreFlags(for: $0) }) }
+        get {
+            Set(allergyRefs.compactMap { ref in
+                Allergen.allCases.first { $0.databaseId == ref.id || $0.rawValue == ref.id }
+            })
+        }
         set {
             allergyRefs = newValue.sorted { $0.rawValue < $1.rawValue }.map { flag in
-                let entry = AllergenDatabase.entry(flag.databaseId)
-                return AllergyRef(id: flag.databaseId, name: entry?.name ?? flag.title, kind: .allergen)
+                AllergyRef(id: flag.databaseId, name: flag.title, kind: .allergen)
             }
             if !allergyRefs.isEmpty { hasNoAllergies = false }
         }
@@ -110,7 +113,15 @@ nonisolated struct UserProfile: Codable, Hashable, Sendable {
         if let items = try c.decodeIfPresent([IngredientRef].self, forKey: .dislikedIngredients) {
             dislikedIngredients = items
         } else if let old = try? legacy.decodeIfPresent([String].self, forKey: .dislikes) {
-            dislikedIngredients = old.compactMap { IngredientDatabase.bestMatch(for: $0) }
+            dislikedIngredients = old.map { name in
+                let match = IngredientCatalog.all.values.first {
+                    $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame
+                }
+                return IngredientRef(
+                    id: match?.id ?? name.lowercased().replacingOccurrences(of: " ", with: "_"),
+                    name: match?.name ?? name
+                )
+            }
         }
         if let loc = try c.decodeIfPresent(UserLocation.self, forKey: .location) {
             location = loc
@@ -196,7 +207,6 @@ nonisolated struct AppData: Codable, Sendable {
     var onboardingComplete = false
     var paywallSeen = false
     var notifications = NotificationPrefs()
-    var premiumPreview = false
     var swipes: [SwipeEvent] = []
     var saved: [SavedRecipe] = []
     var grocery: [GroceryItem] = []
@@ -209,6 +219,5 @@ nonisolated struct AppData: Codable, Sendable {
     var welcomeSeen: Bool?
     var trialEndsAt: Date?
     var onboardingProgress: OnboardingProgress?
-    var savingsEstimate: SavingsEstimate?
     var notificationPreference: NotificationPreference?
 }
