@@ -48,7 +48,7 @@ final class AppStore {
         repository.save(data)
     }
 
-    private func mutate(_ change: (inout AppData) -> Void) {
+    func mutate(_ change: (inout AppData) -> Void) {
         change(&data)
         persist()
     }
