@@ -13,7 +13,6 @@ struct AskView: View {
     @State private var messages: [AskMessage] = []
     @State private var input: String = ""
     @State private var isThinking: Bool = false
-    @State private var showPaywall: Bool = false
     @FocusState private var focused: Bool
 
     private let suggestions: [String] = [
@@ -52,7 +51,6 @@ struct AskView: View {
             .navigationTitle("Ask")
             .safeAreaInset(edge: .bottom) { composer }
             .bitewiseDestinations()
-            .sheet(isPresented: $showPaywall) { PaywallView(context: .upgrade) { showPaywall = false } }
         }
     }
 
@@ -116,12 +114,10 @@ struct AskView: View {
 
     private var composer: some View {
         VStack(spacing: 6) {
-            if let left = store.askRemainingToday {
-                Button { showPaywall = true } label: {
-                    Text(left == 0 ? String(localized: "Out of free questions today · Unlock Advanced Ask") : String(localized: "\(left) free questions left today"))
-                        .font(.bw(.caption, weight: .semibold)).foregroundStyle(BW.inkSecondary)
-                }
-                .disabled(left > 0)
+            if store.askLimitReached {
+                Text("You've asked too many questions for today. Come back tomorrow!")
+                    .font(.bw(.caption, weight: .semibold)).foregroundStyle(BW.inkSecondary)
+                    .multilineTextAlignment(.center)
             }
             HStack(spacing: 10) {
                 TextField("Ask for any meal…", text: $input, axis: .vertical)
@@ -150,13 +146,13 @@ struct AskView: View {
     }
 
     private var canSend: Bool {
-        !input.trimmingCharacters(in: .whitespaces).isEmpty && !isThinking && (store.askRemainingToday ?? 1) > 0
+        !input.trimmingCharacters(in: .whitespaces).isEmpty && !isThinking && !store.askLimitReached
     }
 
     private func send(_ text: String) {
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty, !isThinking else { return }
-        guard (store.askRemainingToday ?? 1) > 0 else { showPaywall = true; return }
+        guard !store.askLimitReached else { return }
         input = ""
         focused = false
         messages.append(AskMessage(isUser: true, text: query))
