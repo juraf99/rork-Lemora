@@ -1,0 +1,10 @@
+{
+  "apps": [
+    {
+      "name": "Bitewise",
+      "path": "ios-bitewise",
+      "framework": "swift"
+    }
+  ],
+  "$schema": "https://rork.com/schema/rork.json"
+}

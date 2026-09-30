@@ -1,0 +1,147 @@
+import SwiftUI
+
+struct GroceryListView: View {
+    enum Grouping: String, CaseIterable, Identifiable {
+        case store, category, recipe
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .store: String(localized: "Store")
+            case .category: String(localized: "Category")
+            case .recipe: String(localized: "Recipe")
+            }
+        }
+    }
+
+    @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    @State private var grouping: Grouping = .store
+
+    private var items: [GroceryItem] { store.data.grocery }
+
+    private var sections: [(title: String, items: [GroceryItem])] {
+        let grouped: [String: [GroceryItem]]
+        switch grouping {
+        case .store:
+            grouped = Dictionary(grouping: items) { RetailerCatalog.name($0.retailerId) }
+        case .category:
+            grouped = Dictionary(grouping: items) { IngredientCatalog.ingredient($0.ingredientId)?.category.title ?? String(localized: "Other") }
+        case .recipe:
+            grouped = Dictionary(grouping: items) { item in
+                item.recipeIds.first.flatMap { RecipeCatalog.byId[$0]?.title } ?? String(localized: "Deals")
+            }
+        }
+        return grouped.map { ($0.key, $0.value.sorted { !$0.isChecked && $1.isChecked }) }
+            .sorted { lhs, rhs in
+                let anyStore = RetailerCatalog.name(nil)
+                if lhs.title == anyStore { return false }
+                if rhs.title == anyStore { return true }
+                return lhs.title < rhs.title
+            }
+    }
+
+    private var dealsInList: Int { items.filter { $0.dealId != nil && !$0.isChecked }.count }
+    private var estimatedTotal: Double { items.filter { !$0.isChecked }.reduce(0) { $0 + $1.estimatedCost } }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if items.isEmpty {
+                    EmptyStateView(mascot: BWImage.mascotPeek, title: String(localized: "Your list is empty"),
+                                   message: String(localized: "Open a recipe and tap Add to Grocery List. Matching ingredients merge automatically."))
+                        .frame(maxHeight: .infinity)
+                } else {
+                    List {
+                        Section {
+                            Picker("Group by", selection: $grouping) {
+                                ForEach(Grouping.allCases) { Text($0.title).tag($0) }
+                            }
+                            .pickerStyle(.segmented)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets())
+                        }
+
+                        ForEach(sections, id: \.title) { section in
+                            Section {
+                                ForEach(section.items) { item in
+                                    GroceryRow(item: item, deal: store.dealById(item.dealId)) { store.toggleGrocery(item.id) }
+                                        .swipeActions {
+                                            Button("Delete", systemImage: "trash", role: .destructive) { store.removeGrocery(item.id) }
+                                        }
+                                }
+                            } header: {
+                                Text(section.title).font(.bw(.headline)).foregroundStyle(BW.ink).textCase(nil)
+                            }
+                        }
+
+                        Section {
+                            HStack(spacing: 12) {
+                                MascotView(name: BWImage.mascotCheer, size: 60, bob: true)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(dealsInList > 0 ? String(localized: "Nice picks! You're saving with \(dealsInList) deals.") : String(localized: "Happy shopping!"))
+                                        .font(.bw(.subheadline, weight: .bold)).foregroundStyle(BW.ink)
+                                    Text("Estimated total ~\(Money.format(estimatedTotal))")
+                                        .font(.bw(.footnote, weight: .medium)).monospacedDigit().foregroundStyle(BW.inkSecondary)
+                                }
+                            }
+                            .listRowBackground(BW.lemonSoft)
+                        }
+                    }
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            .background(BW.canvas)
+            .navigationTitle("Grocery List")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if items.contains(where: \.isChecked) {
+                        Button("Clear checked") { withAnimation { store.clearCheckedGrocery() } }
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }.fontWeight(.bold)
+                }
+            }
+        }
+        .presentationDragIndicator(.visible)
+    }
+}
+
+struct GroceryRow: View {
+    let item: GroceryItem
+    let deal: Deal?
+    let onToggle: () -> Void
+
+    var body: some View {
+        Button(action: onToggle) {
+            HStack(spacing: 12) {
+                Image(systemName: item.isChecked ? "checkmark.circle.fill" : "circle")
+                    .font(.title2)
+                    .foregroundStyle(item.isChecked ? BW.leaf : BW.outline)
+                    .contentTransition(.symbolEffect(.replace))
+                Text(IngredientCatalog.emoji(item.ingredientId))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(IngredientCatalog.name(item.ingredientId))
+                        .font(.bw(.body, weight: .semibold))
+                        .foregroundStyle(item.isChecked ? BW.inkSecondary : BW.ink)
+                        .strikethrough(item.isChecked)
+                    Text("~\(item.unit.format(item.quantity))")
+                        .font(.bw(.footnote, weight: .regular)).foregroundStyle(BW.inkSecondary)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 3) {
+                    if deal != nil {
+                        Text("On sale").font(.bw(.caption2, weight: .bold)).foregroundStyle(.white)
+                            .padding(.horizontal, 8).padding(.vertical, 3).background(BW.leaf, in: .capsule)
+                    }
+                    Text(Money.format(item.estimatedCost)).font(.bw(.footnote, weight: .semibold)).monospacedDigit().foregroundStyle(BW.inkSecondary)
+                }
+            }
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .sensoryFeedback(.selection, trigger: item.isChecked)
+        .accessibilityAddTraits(item.isChecked ? .isSelected : [])
+    }
+}

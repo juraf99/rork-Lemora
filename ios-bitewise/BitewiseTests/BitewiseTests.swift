@@ -1,0 +1,70 @@
+import Testing
+import Foundation
+@testable import Bitewise
+
+struct SafetyTests {
+    let engine = RecommendationEngine()
+
+    private func profile(_ change: (inout UserProfile) -> Void) -> UserProfile {
+        var p = UserProfile()
+        change(&p)
+        return p
+    }
+
+    @Test func sesameAllergyNeverSeesSesameOrUncertainRecipes() {
+        let p = profile { $0.allergies = [.sesame] }
+        let ranked = engine.rank(recipes: RecipeCatalog.all, profile: p, taste: [:], seen: [],
+                                 prices: prices(), weights: RecommendationWeights())
+        for item in ranked {
+            let ids = item.recipe.ingredients.compactMap { IngredientCatalog.ingredient($0.ingredientId) }
+            #expect(!ids.contains { $0.contains.contains(.sesame) || $0.mayContain.contains(.sesame) })
+        }
+    }
+
+    @Test func veganNeverGetsAnimalProducts() {
+        let p = profile { $0.diets = [.vegan] }
+        for recipe in RecipeCatalog.all where engine.passesHardFilters(recipe, profile: p) {
+            #expect(recipe.ingredients.allSatisfy { IngredientCatalog.ingredient($0.ingredientId)?.animal == AnimalKind.none })
+        }
+    }
+
+    @Test func glutenFreeExcludesUncertainGluten() {
+        let p = profile { $0.diets = [.glutenFree] }
+        let tacos = RecipeCatalog.byId["carne_asada_tacos"]!
+        #expect(!engine.passesHardFilters(tacos, profile: p))
+    }
+
+    @Test func dislikesAreFiltered() {
+        let p = profile { $0.dislikes = ["Avocado"] }
+        let bowl = RecipeCatalog.byId["burrito_bowl"]!
+        #expect(!engine.passesHardFilters(bowl, profile: p))
+    }
+
+    @Test func expiredDealsAreNeverActive() {
+        let deals = SampleDealProvider.deals(now: .now)
+        let expired = deals.first { $0.id == "d_tomato_old" }!
+        #expect(!expired.isActive(at: .now))
+    }
+
+    @Test func multiBuyNormalizesPerItem() {
+        let pepper = SampleDealProvider.deals().first { $0.id == "d_pepper" }!
+        #expect(abs(pepper.effectivePrice - 4.0 / 3.0) < 0.001)
+    }
+
+    @Test func noDiscountWithoutReferencePrice() {
+        let blueberries = SampleDealProvider.deals().first { $0.id == "d_blueberries" }!
+        #expect(blueberries.discountPercent == nil)
+    }
+
+    @Test func servingScalingIsProportional() {
+        let recipe = RecipeCatalog.byId["burrito_bowl"]!
+        let base = PricingEngine().price(recipe: recipe, servings: 4, deals: [])
+        let doubled = PricingEngine().price(recipe: recipe, servings: 8, deals: [])
+        #expect(abs(doubled.total - base.total * 2) < 0.01)
+    }
+
+    private func prices() -> [String: RecipePrice] {
+        let deals = SampleDealProvider.deals()
+        return Dictionary(uniqueKeysWithValues: RecipeCatalog.all.map { ($0.id, PricingEngine().price(recipe: $0, servings: $0.servings, deals: deals)) })
+    }
+}

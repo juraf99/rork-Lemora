@@ -1,0 +1,12 @@
+{
+  "images": [
+    {
+      "filename": "bananas_peppers_avocados.png",
+      "idiom": "universal"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
+}
