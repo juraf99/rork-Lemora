@@ -1,0 +1,894 @@
+[
+{
+"id": "peanut",
+"n": "Peanuts",
+"fr": [
+"arachides",
+"cacahuètes",
+"beurre d'arachide"
+],
+"s": [
+"peanut",
+"groundnut",
+"peanut butter",
+"goober"
+],
+"f": [
+"peanut"
+],
+"l": [
+"peanuts"
+],
+"c": 1
+},
+{
+"id": "tree_nuts",
+"n": "Tree Nuts",
+"fr": [
+"noix",
+"fruits à coque",
+"noix en coque"
+],
+"s": [
+"nuts",
+"tree nut",
+"mixed nuts"
+],
+"f": [
+"tree_nut"
+],
+"l": [
+"treeNuts"
+],
+"c": 2
+},
+{
+"id": "milk",
+"n": "Milk",
+"fr": [
+"lait",
+"produits laitiers",
+"caséine",
+"lactosérum"
+],
+"s": [
+"dairy",
+"cow's milk",
+"casein",
+"whey",
+"milk protein"
+],
+"f": [
+"milk",
+"dairy"
+],
+"l": [
+"milk"
+],
+"c": 3
+},
+{
+"id": "egg",
+"n": "Eggs",
+"fr": [
+"œufs",
+"oeufs",
+"œuf",
+"oeuf"
+],
+"s": [
+"egg",
+"egg white",
+"egg yolk",
+"albumin"
+],
+"f": [
+"egg"
+],
+"l": [
+"egg"
+],
+"c": 4
+},
+{
+"id": "wheat",
+"n": "Wheat",
+"fr": [
+"blé",
+"froment",
+"farine de blé"
+],
+"s": [
+"wheat flour",
+"durum",
+"semolina"
+],
+"f": [
+"wheat"
+],
+"l": [
+"wheat"
+],
+"c": 5
+},
+{
+"id": "soy",
+"n": "Soy",
+"fr": [
+"soja",
+"soya",
+"tofu"
+],
+"s": [
+"soya",
+"soybean",
+"soy bean",
+"edamame",
+"tofu"
+],
+"f": [
+"soya",
+"soya_bean"
+],
+"l": [
+"soy"
+],
+"c": 6
+},
+{
+"id": "fish",
+"n": "Fish",
+"fr": [
+"poisson",
+"poissons"
+],
+"s": [
+"finfish",
+"salmon",
+"tuna",
+"cod"
+],
+"f": [
+"fish"
+],
+"l": [
+"fish"
+],
+"c": 7
+},
+{
+"id": "shellfish",
+"n": "Shellfish",
+"fr": [
+"fruits de mer",
+"crustacés",
+"mollusques"
+],
+"s": [
+"seafood",
+"crustaceans",
+"molluscs"
+],
+"f": [
+"shellfish"
+],
+"l": [
+"shellfish"
+],
+"c": 8
+},
+{
+"id": "sesame",
+"n": "Sesame",
+"fr": [
+"sésame",
+"graines de sésame"
+],
+"s": [
+"sesame seeds",
+"tahini",
+"benne seeds"
+],
+"f": [
+"sesame"
+],
+"l": [
+"sesame"
+],
+"c": 9
+},
+{
+"id": "mustard",
+"n": "Mustard",
+"fr": [
+"moutarde",
+"graines de moutarde"
+],
+"s": [
+"mustard seed",
+"dijon"
+],
+"f": [
+"mustard"
+],
+"c": 10,
+"h": true
+},
+{
+"id": "gluten",
+"n": "Gluten",
+"fr": [
+"gluten",
+"céréales contenant du gluten"
+],
+"s": [
+"celiac",
+"coeliac",
+"barley",
+"rye",
+"spelt"
+],
+"f": [
+"gluten",
+"wheat",
+"barley",
+"rye",
+"spelt"
+],
+"l": [
+"wheat"
+]
+},
+{
+"id": "lactose",
+"n": "Lactose",
+"fr": [
+"lactose",
+"intolérance au lactose"
+],
+"s": [
+"lactose intolerance",
+"milk sugar"
+],
+"f": [
+"milk"
+],
+"l": [
+"milk"
+]
+},
+{
+"id": "almond",
+"n": "Almonds",
+"fr": [
+"amandes",
+"amande"
+],
+"s": [
+"almond",
+"almond butter",
+"almond milk"
+],
+"f": [
+"almond"
+],
+"l": [
+"treeNuts"
+]
+},
+{
+"id": "cashew",
+"n": "Cashews",
+"fr": [
+"noix de cajou",
+"cajou"
+],
+"s": [
+"cashew",
+"cashew nut"
+],
+"f": [
+"cashew_nuts"
+],
+"l": [
+"treeNuts"
+]
+},
+{
+"id": "hazelnut",
+"n": "Hazelnuts",
+"fr": [
+"noisettes",
+"noisette"
+],
+"s": [
+"hazelnut",
+"filbert"
+],
+"f": [
+"hazelnut"
+],
+"l": [
+"treeNuts"
+]
+},
+{
+"id": "walnut",
+"n": "Walnuts",
+"fr": [
+"noix de grenoble",
+"cerneaux de noix"
+],
+"s": [
+"walnut"
+],
+"f": [
+"walnut"
+],
+"l": [
+"treeNuts"
+]
+},
+{
+"id": "pecan",
+"n": "Pecans",
+"fr": [
+"noix de pécan",
+"pacanes"
+],
+"s": [
+"pecan",
+"pecan nut"
+],
+"f": [
+"pecan_nut"
+],
+"l": [
+"treeNuts"
+]
+},
+{
+"id": "pistachio",
+"n": "Pistachios",
+"fr": [
+"pistaches",
+"pistache"
+],
+"s": [
+"pistachio"
+],
+"f": [
+"pistachio_nuts"
+],
+"l": [
+"treeNuts"
+]
+},
+{
+"id": "macadamia",
+"n": "Macadamia Nuts",
+"fr": [
+"noix de macadamia"
+],
+"s": [
+"macadamia"
+],
+"f": [
+"macadamia_nut"
+],
+"l": [
+"treeNuts"
+]
+},
+{
+"id": "brazil_nut",
+"n": "Brazil Nuts",
+"fr": [
+"noix du brésil"
+],
+"s": [
+"brazil nut"
+],
+"f": [
+"brazil_nut"
+],
+"l": [
+"treeNuts"
+]
+},
+{
+"id": "pine_nut",
+"n": "Pine Nuts",
+"fr": [
+"pignons de pin",
+"pignons"
+],
+"s": [
+"pine nut",
+"pignoli"
+],
+"f": [
+"pine_nuts"
+],
+"l": [
+"treeNuts"
+]
+},
+{
+"id": "coconut",
+"n": "Coconut",
+"fr": [
+"noix de coco",
+"coco"
+],
+"s": [
+"coconut milk",
+"coconut oil"
+],
+"f": [
+"coconut"
+]
+},
+{
+"id": "crustaceans",
+"n": "Crustaceans",
+"fr": [
+"crustacés"
+],
+"s": [
+"shrimp",
+"prawn",
+"crab",
+"lobster",
+"crayfish"
+],
+"f": [
+"crustacean"
+],
+"l": [
+"shellfish"
+]
+},
+{
+"id": "molluscs",
+"n": "Molluscs",
+"fr": [
+"mollusques"
+],
+"s": [
+"clam",
+"mussel",
+"oyster",
+"scallop",
+"squid",
+"octopus",
+"mollusk"
+],
+"f": [
+"mollusc"
+],
+"l": [
+"shellfish"
+]
+},
+{
+"id": "shrimp",
+"n": "Shrimp",
+"fr": [
+"crevettes",
+"crevette"
+],
+"s": [
+"prawn",
+"prawns",
+"shrimps"
+],
+"f": [
+"shrimp"
+],
+"l": [
+"shellfish"
+]
+},
+{
+"id": "crab",
+"n": "Crab",
+"fr": [
+"crabe"
+],
+"s": [
+"crabs"
+],
+"f": [
+"crab"
+],
+"l": [
+"shellfish"
+]
+},
+{
+"id": "lobster",
+"n": "Lobster",
+"fr": [
+"homard"
+],
+"s": [
+"lobsters"
+],
+"f": [
+"lobster"
+],
+"l": [
+"shellfish"
+]
+},
+{
+"id": "celery",
+"n": "Celery",
+"fr": [
+"céleri",
+"céleri-rave"
+],
+"s": [
+"celeriac",
+"celery seed"
+],
+"f": [
+"celery"
+],
+"h": true
+},
+{
+"id": "lupin",
+"n": "Lupin",
+"fr": [
+"lupin",
+"farine de lupin"
+],
+"s": [
+"lupine",
+"lupini"
+],
+"f": [
+"lupin_bean"
+],
+"h": true
+},
+{
+"id": "sulphites",
+"n": "Sulphites",
+"fr": [
+"sulfites",
+"sulphites",
+"anhydride sulfureux"
+],
+"s": [
+"sulfites",
+"sulfite",
+"sulphite",
+"sulfur dioxide"
+],
+"f": [
+"wine",
+"vinegar",
+"dried_fruit"
+],
+"h": true
+},
+{
+"id": "corn",
+"n": "Corn",
+"fr": [
+"maïs"
+],
+"s": [
+"maize",
+"cornstarch",
+"corn syrup"
+],
+"f": [
+"corn"
+],
+"h": true
+},
+{
+"id": "buckwheat",
+"n": "Buckwheat",
+"fr": [
+"sarrasin",
+"blé noir"
+],
+"s": [
+"soba"
+],
+"f": [
+"buckwheat"
+]
+},
+{
+"id": "peas",
+"n": "Peas",
+"fr": [
+"pois",
+"petits pois"
+],
+"s": [
+"pea",
+"green peas"
+],
+"f": [
+"pea"
+]
+},
+{
+"id": "pea_protein",
+"n": "Pea Protein",
+"fr": [
+"protéine de pois",
+"protéines de pois"
+],
+"s": [
+"pea isolate"
+],
+"f": [
+"pea_protein"
+],
+"h": true
+},
+{
+"id": "legumes",
+"n": "Legumes",
+"fr": [
+"légumineuses",
+"légumes secs"
+],
+"s": [
+"pulses",
+"beans",
+"lentils",
+"chickpeas"
+],
+"f": [
+"legume",
+"pulse"
+]
+},
+{
+"id": "chickpeas",
+"n": "Chickpeas",
+"fr": [
+"pois chiches"
+],
+"s": [
+"garbanzo",
+"chickpea",
+"hummus"
+],
+"f": [
+"chickpea"
+]
+},
+{
+"id": "kiwi",
+"n": "Kiwi",
+"fr": [
+"kiwi"
+],
+"s": [
+"kiwifruit",
+"kiwi fruit"
+],
+"f": [
+"kiwifruit"
+]
+},
+{
+"id": "banana",
+"n": "Banana",
+"fr": [
+"banane"
+],
+"s": [
+"bananas"
+],
+"f": [
+"banana"
+]
+},
+{
+"id": "strawberry",
+"n": "Strawberries",
+"fr": [
+"fraises",
+"fraise"
+],
+"s": [
+"strawberry"
+],
+"f": [
+"strawberry"
+]
+},
+{
+"id": "peach",
+"n": "Peaches",
+"fr": [
+"pêches",
+"pêche"
+],
+"s": [
+"peach",
+"nectarine"
+],
+"f": [
+"peach"
+]
+},
+{
+"id": "apple",
+"n": "Apples",
+"fr": [
+"pommes",
+"pomme"
+],
+"s": [
+"apple"
+],
+"f": [
+"apple"
+]
+},
+{
+"id": "avocado",
+"n": "Avocado",
+"fr": [
+"avocat"
+],
+"s": [
+"avocados",
+"guacamole"
+],
+"f": [
+"avocado"
+]
+},
+{
+"id": "tomato",
+"n": "Tomatoes",
+"fr": [
+"tomates",
+"tomate"
+],
+"s": [
+"tomato"
+],
+"f": [
+"tomato"
+]
+},
+{
+"id": "citrus",
+"n": "Citrus Fruits",
+"fr": [
+"agrumes"
+],
+"s": [
+"citrus",
+"orange",
+"lemon",
+"lime",
+"grapefruit"
+],
+"f": [
+"citrus_fruit"
+]
+},
+{
+"id": "mango",
+"n": "Mango",
+"fr": [
+"mangue"
+],
+"s": [
+"mangoes"
+],
+"f": [
+"mango"
+]
+},
+{
+"id": "garlic",
+"n": "Garlic",
+"fr": [
+"ail"
+],
+"s": [
+"garlic powder"
+],
+"f": [
+"garlic"
+],
+"h": true
+},
+{
+"id": "red_meat",
+"n": "Red Meat (Alpha-gal)",
+"fr": [
+"viande rouge",
+"alpha-gal"
+],
+"s": [
+"alpha gal",
+"beef",
+"pork",
+"lamb",
+"mammalian meat"
+],
+"f": [
+"beef",
+"pork",
+"lamb"
+],
+"h": true
+},
+{
+"id": "gelatin",
+"n": "Gelatin",
+"fr": [
+"gélatine"
+],
+"s": [
+"gelatine"
+],
+"f": [
+"gelatin"
+],
+"h": true
+},
+{
+"id": "cinnamon",
+"n": "Cinnamon",
+"fr": [
+"cannelle"
+],
+"s": [
+"cassia"
+],
+"f": [
+"cinnamon"
+],
+"h": true
+},
+{
+"id": "cocoa",
+"n": "Cocoa & Chocolate",
+"fr": [
+"cacao",
+"chocolat"
+],
+"s": [
+"chocolate",
+"cacao"
+],
+"f": [
+"cocoa",
+"chocolate"
+],
+"h": true
+},
+{
+"id": "yeast",
+"n": "Yeast",
+"fr": [
+"levure"
+],
+"s": [
+"brewer's yeast",
+"nutritional yeast"
+],
+"f": [
+"yeast"
+],
+"h": true
+}
+]

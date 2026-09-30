@@ -1,11 +1,37 @@
 import Foundation
 
+nonisolated enum AuthProvider: String, Codable, Sendable {
+    case apple, google, email, local
+}
+
 nonisolated struct Account: Codable, Hashable, Sendable {
     var name: String
     var email: String
     var createdAt: Date
+    /// Backend (Clerk) user id. Nil for accounts created before the backend was connected.
+    var userId: String?
+    var provider: AuthProvider?
+    /// True when this device created the account (new user) instead of signing in to an existing one.
+    var isNewUser: Bool?
 }
 
+/// A normalized ingredient chosen by the user. `id` is the canonical ingredient-database id.
+nonisolated struct IngredientRef: Codable, Hashable, Sendable, Identifiable {
+    let id: String
+    let name: String
+}
+
+/// UserAllergies entry. Allergen ids come from the allergen database; ingredient ids from the
+/// ingredient database (for rarer allergies). Never free text.
+nonisolated struct AllergyRef: Codable, Hashable, Sendable, Identifiable {
+    enum Kind: String, Codable, Sendable { case allergen, ingredient }
+    let id: String
+    let name: String
+    let kind: Kind
+}
+
+/// Everything the user tells Lemora about themselves. Each concern stays in its own field:
+/// goal, diets, allergies (safety), dislikes (taste), location, stores, budget, strategy, referral.
 nonisolated struct UserProfile: Codable, Hashable, Sendable {
     var goal: Goal = .saveMoney
     var birthDate: Date?
@@ -13,19 +39,88 @@ nonisolated struct UserProfile: Codable, Hashable, Sendable {
     var heightCm: Double?
     var weightKg: Double?
     var goalWeightKg: Double?
-    var diets: Set<DietPreference> = [.everything]
-    var allergies: Set<Allergen> = []
-    var customAllergies: [String] = []
-    var dislikes: [String] = []
+    var diets: Set<DietPreference> = []
+    /// Explicit "No allergies" answer. Exclusive with `allergyRefs`.
+    var hasNoAllergies: Bool = false
+    var allergyRefs: [AllergyRef] = []
+    var dislikedIngredients: [IngredientRef] = []
     var cuisines: Set<Cuisine> = []
+    /// Nil means "No strict budget".
     var weeklyBudget: Double? = 100
     var householdSize: Int = 1
     var storePreferences: [String: StorePreference] = [:]
     var shopsAtCostco: Bool = false
     var strategy: ShoppingStrategy = .balanced
     var maxStores: Int = 2
-    var postalCode: String = ""
-    var heardFrom: HeardFrom?
+    var location = UserLocation()
+    var referralSource: ReferralSource?
+
+    init() {}
+
+    var postalCode: String { location.postalCode }
+
+    /// Core allergen flags covered by the user's allergies (used against recipe ingredient flags).
+    var allergies: Set<Allergen> {
+        get { Set(allergyRefs.flatMap { AllergenDatabase.coreFlags(for: $0) }) }
+        set {
+            allergyRefs = newValue.sorted { $0.rawValue < $1.rawValue }.map { flag in
+                let entry = AllergenDatabase.entry(flag.databaseId)
+                return AllergyRef(id: flag.databaseId, name: entry?.name ?? flag.title, kind: .allergen)
+            }
+            if !allergyRefs.isEmpty { hasNoAllergies = false }
+        }
+    }
+
+    var allergyNames: [String] { allergyRefs.map(\.name) }
+    var dislikeNames: [String] { dislikedIngredients.map(\.name) }
+
+    var acceptedStoreIds: [String] {
+        storePreferences.filter { $0.value != .doNotRecommend }.map(\.key).sorted()
+    }
+
+    private enum LegacyKeys: String, CodingKey {
+        case allergies, customAllergies, dislikes, heardFrom, postalCode
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        goal = try c.decodeIfPresent(Goal.self, forKey: .goal) ?? .saveMoney
+        birthDate = try c.decodeIfPresent(Date.self, forKey: .birthDate)
+        usesMetric = try c.decodeIfPresent(Bool.self, forKey: .usesMetric) ?? true
+        heightCm = try c.decodeIfPresent(Double.self, forKey: .heightCm)
+        weightKg = try c.decodeIfPresent(Double.self, forKey: .weightKg)
+        goalWeightKg = try c.decodeIfPresent(Double.self, forKey: .goalWeightKg)
+        diets = (try? c.decodeIfPresent(Set<DietPreference>.self, forKey: .diets)) ?? []
+        hasNoAllergies = try c.decodeIfPresent(Bool.self, forKey: .hasNoAllergies) ?? false
+        cuisines = (try? c.decodeIfPresent(Set<Cuisine>.self, forKey: .cuisines)) ?? []
+        weeklyBudget = try c.decodeIfPresent(Double.self, forKey: .weeklyBudget)
+        householdSize = try c.decodeIfPresent(Int.self, forKey: .householdSize) ?? 1
+        storePreferences = try c.decodeIfPresent([String: StorePreference].self, forKey: .storePreferences) ?? [:]
+        shopsAtCostco = try c.decodeIfPresent(Bool.self, forKey: .shopsAtCostco) ?? false
+        strategy = try c.decodeIfPresent(ShoppingStrategy.self, forKey: .strategy) ?? .balanced
+        maxStores = try c.decodeIfPresent(Int.self, forKey: .maxStores) ?? 2
+        referralSource = try? c.decodeIfPresent(ReferralSource.self, forKey: .referralSource)
+
+        let legacy = try decoder.container(keyedBy: LegacyKeys.self)
+        if let refs = try c.decodeIfPresent([AllergyRef].self, forKey: .allergyRefs) {
+            allergyRefs = refs
+        } else if let old = try? legacy.decodeIfPresent(Set<Allergen>.self, forKey: .allergies) {
+            allergies = old
+        }
+        if let items = try c.decodeIfPresent([IngredientRef].self, forKey: .dislikedIngredients) {
+            dislikedIngredients = items
+        } else if let old = try? legacy.decodeIfPresent([String].self, forKey: .dislikes) {
+            dislikedIngredients = old.compactMap { IngredientDatabase.bestMatch(for: $0) }
+        }
+        if let loc = try c.decodeIfPresent(UserLocation.self, forKey: .location) {
+            location = loc
+        } else if let code = try? legacy.decodeIfPresent(String.self, forKey: .postalCode), !code.isEmpty {
+            location = UserLocation.manual(country: .canada, postalCode: code)
+        }
+        if referralSource == nil, let old = try? legacy.decodeIfPresent(String.self, forKey: .heardFrom) {
+            referralSource = ReferralSource(rawValue: old)
+        }
+    }
 }
 
 nonisolated struct NotificationPrefs: Codable, Hashable, Sendable {
@@ -86,9 +181,16 @@ nonisolated struct SavingsAction: Codable, Sendable {
     let kind: SavingsActionKind
 }
 
-/// Everything persisted for the user. Local cache today; a backend sync layer plugs in via `UserDataSyncing`.
+/// OnboardingProgress: a guest's answers saved locally so they can resume after closing the app.
+nonisolated struct OnboardingProgress: Codable, Sendable {
+    var profile: UserProfile
+    var stepId: String
+    var updatedAt: Date
+}
+
+/// Everything persisted for the user. Local cache today; the account profile syncs to the backend.
 nonisolated struct AppData: Codable, Sendable {
-    var schemaVersion: Int = 1
+    var schemaVersion: Int = 2
     var account: Account?
     var profile = UserProfile()
     var onboardingComplete = false
@@ -106,4 +208,7 @@ nonisolated struct AppData: Codable, Sendable {
     var queueResetDate: Date?
     var welcomeSeen: Bool?
     var trialEndsAt: Date?
+    var onboardingProgress: OnboardingProgress?
+    var savingsEstimate: SavingsEstimate?
+    var notificationPreference: NotificationPreference?
 }
