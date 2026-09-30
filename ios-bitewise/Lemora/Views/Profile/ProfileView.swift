@@ -22,7 +22,7 @@ struct ProfileView: View {
                 }
 
                 Section("Subscription") {
-                    Label("Lemora Premium is active", systemImage: "checkmark.seal.fill").foregroundStyle(BW.leafDeep)
+                    Label("Your Lemora plan is active", systemImage: "checkmark.seal.fill").foregroundStyle(BW.leafDeep)
                     Button("Restore purchases") { Task { await store.subscription.restore() } }
                 }
 
