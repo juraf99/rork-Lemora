@@ -14,7 +14,7 @@ struct LandingView: View {
             HStack {
                 HStack(spacing: 8) {
                     MascotView(name: BWImage.mascotPeek, size: 34)
-                    Text("Bitewise").font(.bw(.title3, weight: .heavy)).foregroundStyle(BW.ink)
+                    Text("Lemora").font(.bw(.title3, weight: .heavy)).foregroundStyle(BW.ink)
                 }
                 Spacer()
                 Picker("Language", selection: $language) {

@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import Bitewise
+@testable import Lemora
 
 struct SafetyTests {
     let engine = RecommendationEngine()

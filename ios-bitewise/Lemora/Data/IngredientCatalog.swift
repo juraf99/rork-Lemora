@@ -4,7 +4,7 @@ nonisolated enum AnimalKind: String, Sendable {
     case none, meat, pork, poultry, fish, shellfish, dairy, egg, honey
 }
 
-/// Normalized ingredient in the Bitewise ontology. `mayContain` captures uncertain allergens
+/// Normalized ingredient in the Lemora ontology. `mayContain` captures uncertain allergens
 /// (e.g. soy sauce -> wheat, curry paste -> shellfish). Uncertain is never treated as safe.
 nonisolated struct Ingredient: Identifiable, Sendable {
     let id: String

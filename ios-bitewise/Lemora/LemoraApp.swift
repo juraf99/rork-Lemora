@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct BitewiseApp: App {
+struct LemoraApp: App {
     @State private var store: AppStore = AppStore()
     @State private var auth: AuthManager = AuthManager()
 

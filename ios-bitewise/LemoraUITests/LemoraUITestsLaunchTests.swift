@@ -1,13 +1,13 @@
 //
-//  BitewiseUITestsLaunchTests.swift
-//  BitewiseUITests
+//  LemoraUITestsLaunchTests.swift
+//  LemoraUITests
 //
 //  Created by Rork on September 30, 2026.
 //
 
 import XCTest
 
-final class BitewiseUITestsLaunchTests: XCTestCase {
+final class LemoraUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

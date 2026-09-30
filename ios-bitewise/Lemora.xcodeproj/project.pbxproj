@@ -12,37 +12,37 @@
 			containerPortal = 105FC5722E9EAD3100EA8BCF /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 105FC5792E9EAD3100EA8BCF;
-			remoteInfo = Bitewise;
+			remoteInfo = Lemora;
 		};
 		105FC5942E9EAD3200EA8BCF /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 105FC5722E9EAD3100EA8BCF /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 105FC5792E9EAD3100EA8BCF;
-			remoteInfo = Bitewise;
+			remoteInfo = Lemora;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		105FC57A2E9EAD3100EA8BCF /* Bitewise.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Bitewise.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		105FC5892E9EAD3200EA8BCF /* BitewiseTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BitewiseTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		105FC5932E9EAD3200EA8BCF /* BitewiseUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BitewiseUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		105FC57A2E9EAD3100EA8BCF /* Lemora.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lemora.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		105FC5892E9EAD3200EA8BCF /* LemoraTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LemoraTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		105FC5932E9EAD3200EA8BCF /* LemoraUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LemoraUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		105FC57C2E9EAD3100EA8BCF /* Bitewise */ = {
+		105FC57C2E9EAD3100EA8BCF /* Lemora */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Bitewise;
+			path = Lemora;
 			sourceTree = "<group>";
 		};
-		105FC58C2E9EAD3200EA8BCF /* BitewiseTests */ = {
+		105FC58C2E9EAD3200EA8BCF /* LemoraTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = BitewiseTests;
+			path = LemoraTests;
 			sourceTree = "<group>";
 		};
-		105FC5962E9EAD3200EA8BCF /* BitewiseUITests */ = {
+		105FC5962E9EAD3200EA8BCF /* LemoraUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = BitewiseUITests;
+			path = LemoraUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -75,9 +75,9 @@
 		105FC5712E9EAD3100EA8BCF = {
 			isa = PBXGroup;
 			children = (
-				105FC57C2E9EAD3100EA8BCF /* Bitewise */,
-				105FC58C2E9EAD3200EA8BCF /* BitewiseTests */,
-				105FC5962E9EAD3200EA8BCF /* BitewiseUITests */,
+				105FC57C2E9EAD3100EA8BCF /* Lemora */,
+				105FC58C2E9EAD3200EA8BCF /* LemoraTests */,
+				105FC5962E9EAD3200EA8BCF /* LemoraUITests */,
 				105FC57B2E9EAD3100EA8BCF /* Products */,
 			);
 			sourceTree = "<group>";
@@ -85,9 +85,9 @@
 		105FC57B2E9EAD3100EA8BCF /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				105FC57A2E9EAD3100EA8BCF /* Bitewise.app */,
-				105FC5892E9EAD3200EA8BCF /* BitewiseTests.xctest */,
-				105FC5932E9EAD3200EA8BCF /* BitewiseUITests.xctest */,
+				105FC57A2E9EAD3100EA8BCF /* Lemora.app */,
+				105FC5892E9EAD3200EA8BCF /* LemoraTests.xctest */,
+				105FC5932E9EAD3200EA8BCF /* LemoraUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -95,9 +95,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		105FC5792E9EAD3100EA8BCF /* Bitewise */ = {
+		105FC5792E9EAD3100EA8BCF /* Lemora */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 105FC59D2E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "Bitewise" */;
+			buildConfigurationList = 105FC59D2E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "Lemora" */;
 			buildPhases = (
 				105FC5762E9EAD3100EA8BCF /* Sources */,
 				105FC5772E9EAD3100EA8BCF /* Frameworks */,
@@ -108,18 +108,18 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				105FC57C2E9EAD3100EA8BCF /* Bitewise */,
+				105FC57C2E9EAD3100EA8BCF /* Lemora */,
 			);
-			name = Bitewise;
+			name = Lemora;
 			packageProductDependencies = (
 			);
-			productName = Bitewise;
-			productReference = 105FC57A2E9EAD3100EA8BCF /* Bitewise.app */;
+			productName = Lemora;
+			productReference = 105FC57A2E9EAD3100EA8BCF /* Lemora.app */;
 			productType = "com.apple.product-type.application";
 		};
-		105FC5882E9EAD3200EA8BCF /* BitewiseTests */ = {
+		105FC5882E9EAD3200EA8BCF /* LemoraTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 105FC5A02E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "BitewiseTests" */;
+			buildConfigurationList = 105FC5A02E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "LemoraTests" */;
 			buildPhases = (
 				105FC5852E9EAD3200EA8BCF /* Sources */,
 				105FC5862E9EAD3200EA8BCF /* Frameworks */,
@@ -131,18 +131,18 @@
 				105FC58B2E9EAD3200EA8BCF /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				105FC58C2E9EAD3200EA8BCF /* BitewiseTests */,
+				105FC58C2E9EAD3200EA8BCF /* LemoraTests */,
 			);
-			name = BitewiseTests;
+			name = LemoraTests;
 			packageProductDependencies = (
 			);
-			productName = BitewiseTests;
-			productReference = 105FC5892E9EAD3200EA8BCF /* BitewiseTests.xctest */;
+			productName = LemoraTests;
+			productReference = 105FC5892E9EAD3200EA8BCF /* LemoraTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		105FC5922E9EAD3200EA8BCF /* BitewiseUITests */ = {
+		105FC5922E9EAD3200EA8BCF /* LemoraUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 105FC5A32E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "BitewiseUITests" */;
+			buildConfigurationList = 105FC5A32E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "LemoraUITests" */;
 			buildPhases = (
 				105FC58F2E9EAD3200EA8BCF /* Sources */,
 				105FC5902E9EAD3200EA8BCF /* Frameworks */,
@@ -154,13 +154,13 @@
 				105FC5952E9EAD3200EA8BCF /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				105FC5962E9EAD3200EA8BCF /* BitewiseUITests */,
+				105FC5962E9EAD3200EA8BCF /* LemoraUITests */,
 			);
-			name = BitewiseUITests;
+			name = LemoraUITests;
 			packageProductDependencies = (
 			);
-			productName = BitewiseUITests;
-			productReference = 105FC5932E9EAD3200EA8BCF /* BitewiseUITests.xctest */;
+			productName = LemoraUITests;
+			productReference = 105FC5932E9EAD3200EA8BCF /* LemoraUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -186,7 +186,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 105FC5752E9EAD3100EA8BCF /* Build configuration list for PBXProject "Bitewise" */;
+			buildConfigurationList = 105FC5752E9EAD3100EA8BCF /* Build configuration list for PBXProject "Lemora" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -200,9 +200,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				105FC5792E9EAD3100EA8BCF /* Bitewise */,
-				105FC5882E9EAD3200EA8BCF /* BitewiseTests */,
-				105FC5922E9EAD3200EA8BCF /* BitewiseUITests */,
+				105FC5792E9EAD3100EA8BCF /* Lemora */,
+				105FC5882E9EAD3200EA8BCF /* LemoraTests */,
+				105FC5922E9EAD3200EA8BCF /* LemoraUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -258,12 +258,12 @@
 /* Begin PBXTargetDependency section */
 		105FC58B2E9EAD3200EA8BCF /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 105FC5792E9EAD3100EA8BCF /* Bitewise */;
+			target = 105FC5792E9EAD3100EA8BCF /* Lemora */;
 			targetProxy = 105FC58A2E9EAD3200EA8BCF /* PBXContainerItemProxy */;
 		};
 		105FC5952E9EAD3200EA8BCF /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 105FC5792E9EAD3100EA8BCF /* Bitewise */;
+			target = 105FC5792E9EAD3100EA8BCF /* Lemora */;
 			targetProxy = 105FC5942E9EAD3200EA8BCF /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -400,7 +400,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				CODE_SIGN_ENTITLEMENTS = Bitewise/Bitewise.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Lemora/Lemora.entitlements;
 				INFOPLIST_KEY_CFBundleDisplayName = Lemora;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Lemora uses your location to find nearby grocery stores and local deals.";
@@ -436,7 +436,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				CODE_SIGN_ENTITLEMENTS = Bitewise/Bitewise.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Lemora/Lemora.entitlements;
 				INFOPLIST_KEY_CFBundleDisplayName = Lemora;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Lemora uses your location to find nearby grocery stores and local deals.";
@@ -472,7 +472,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "app.rork.yuf0zn4n53irodch38mtc.tests";
+				PRODUCT_BUNDLE_IDENTIFIER = app.rork.yuf0zn4n53irodch38mtc.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -480,7 +480,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Bitewise.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Bitewise";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Lemora.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Lemora";
 			};
 			name = Debug;
 		};
@@ -494,7 +494,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "app.rork.yuf0zn4n53irodch38mtc.tests";
+				PRODUCT_BUNDLE_IDENTIFIER = app.rork.yuf0zn4n53irodch38mtc.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -502,7 +502,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Bitewise.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Bitewise";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Lemora.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Lemora";
 			};
 			name = Release;
 		};
@@ -514,7 +514,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "app.rork.yuf0zn4n53irodch38mtc.uitests";
+				PRODUCT_BUNDLE_IDENTIFIER = app.rork.yuf0zn4n53irodch38mtc.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -522,7 +522,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Bitewise;
+				TEST_TARGET_NAME = Lemora;
 			};
 			name = Debug;
 		};
@@ -534,7 +534,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "app.rork.yuf0zn4n53irodch38mtc.uitests";
+				PRODUCT_BUNDLE_IDENTIFIER = app.rork.yuf0zn4n53irodch38mtc.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -542,14 +542,14 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Bitewise;
+				TEST_TARGET_NAME = Lemora;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		105FC5752E9EAD3100EA8BCF /* Build configuration list for PBXProject "Bitewise" */ = {
+		105FC5752E9EAD3100EA8BCF /* Build configuration list for PBXProject "Lemora" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				105FC59B2E9EAD3200EA8BCF /* Debug */,
@@ -558,7 +558,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		105FC59D2E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "Bitewise" */ = {
+		105FC59D2E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "Lemora" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				105FC59E2E9EAD3200EA8BCF /* Debug */,
@@ -567,7 +567,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		105FC5A02E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "BitewiseTests" */ = {
+		105FC5A02E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "LemoraTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				105FC5A12E9EAD3200EA8BCF /* Debug */,
@@ -576,7 +576,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		105FC5A32E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "BitewiseUITests" */ = {
+		105FC5A32E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "LemoraUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				105FC5A42E9EAD3200EA8BCF /* Debug */,

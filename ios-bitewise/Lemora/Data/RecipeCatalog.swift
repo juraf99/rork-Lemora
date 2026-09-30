@@ -1,6 +1,6 @@
 import Foundation
 
-/// Development recipe library (clearly Bitewise Original fixtures). A backend-driven
+/// Development recipe library (clearly Lemora Original fixtures). A backend-driven
 /// `RecipeRepository` replaces this once the admin ingestion pipeline is live.
 nonisolated enum RecipeCatalog {
     private static func ri(_ id: String, _ raw: String, _ q: Double, _ u: IngredientUnit, _ cost: Double) -> RecipeIngredient {

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The Bitewise lemon mascot. Decorative, so hidden from VoiceOver by default.
+/// The Lemora lemon mascot. Decorative, so hidden from VoiceOver by default.
 struct MascotView: View {
     let name: String
     var size: CGFloat = 64

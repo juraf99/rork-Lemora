@@ -1,10 +1,13 @@
 {
+  "$schema": "https://rork.com/schema/rork.json",
   "apps": [
     {
       "name": "Bitewise",
       "path": "ios-bitewise",
-      "framework": "swift"
+      "framework": "swift",
+      "settings": {
+        "displayName": "Lemora"
+      }
     }
-  ],
-  "$schema": "https://rork.com/schema/rork.json"
+  ]
 }
