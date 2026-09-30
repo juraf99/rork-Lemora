@@ -1,7 +1,7 @@
 import SwiftUI
 import StoreKit
 
-/// Lemora Premium paywall. Layout follows the approved reference: sunny Zest hero, premium pill,
+/// Lemora paywall (hard paywall, single paid plan). Layout follows the approved reference: sunny Zest hero, premium pill,
 /// "Unlock Your Full Plan Today", trial timeline card, yearly/monthly cards and a shining CTA.
 struct PaywallView: View {
     enum Context { case onboarding, upgrade }
@@ -28,7 +28,7 @@ struct PaywallView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     premiumPill
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Unlock Your Full Plan Today")
+                        Text("Start Your Lemora Plan")
                             .font(.bw(size: 34, weight: .heavy))
                             .tracking(-0.6)
                             .foregroundStyle(BW.ink)
@@ -102,7 +102,7 @@ struct PaywallView: View {
     private var premiumPill: some View {
         HStack(spacing: 7) {
             Image(systemName: "sparkle")
-            Text("LEMORA PREMIUM").tracking(1.1)
+            Text("LEMORA").tracking(1.1)
         }
         .font(.bw(.subheadline, weight: .heavy))
         .foregroundStyle(BW.lemon)
@@ -124,7 +124,7 @@ struct PaywallView: View {
 
     private var timelineSteps: [PaywallTimelineStep] {
         let t = terms
-        let unlocks = [String(localized: "Unlimited swipes"), String(localized: "Every weekly deal"), String(localized: "Saves that never expire")]
+        let unlocks = [String(localized: "Recipes matched to you"), String(localized: "Every weekly deal"), String(localized: "Saves that never expire")]
         if let days = t.trialDays, let reminder = t.reminderDay {
             return [
                 PaywallTimelineStep(id: "today", icon: "lock.open.fill", highlighted: true, title: String(localized: "Today"),
