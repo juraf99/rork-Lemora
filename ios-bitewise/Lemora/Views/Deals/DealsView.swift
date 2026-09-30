@@ -4,9 +4,6 @@ struct DealsView: View {
     @Environment(AppStore.self) private var store
     @State private var path: NavigationPath = NavigationPath()
     @State private var myStoresOnly: Bool = true
-    @State private var showPaywall: Bool = false
-
-    private let freeLimit = 4
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -23,9 +20,6 @@ struct DealsView: View {
             .background(BW.canvas)
             .toolbar(.hidden, for: .navigationBar)
             .bitewiseDestinations()
-            .sheet(isPresented: $showPaywall) {
-                PaywallView(context: .upgrade) { showPaywall = false }
-            }
             .onAppear { store.track("deals_opened") }
         }
     }
@@ -120,29 +114,13 @@ struct DealsView: View {
                 Text("No active deals at your stores right now. Try All Stores.")
                     .font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
             } else {
-                let visible = store.has(.fullDeals) ? stealItems : Array(stealItems.prefix(freeLimit))
+                let visible = stealItems
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
                     ForEach(visible) { deal in
                         NavigationLink(value: Route.deal(deal.id)) {
                             StealCard(deal: deal)
                         }
                         .buttonStyle(BWPressableStyle())
-                    }
-                }
-                if !store.has(.fullDeals) && stealItems.count > freeLimit {
-                    Button { showPaywall = true } label: {
-                        HStack(spacing: 12) {
-                            MascotView(name: BWImage.mascotPeek, size: 44)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("\(stealItems.count - freeLimit) more steals this week").font(.bw(.subheadline, weight: .bold))
-                                Text("Unlock every deal with Premium").font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
-                            }
-                            Spacer()
-                            Image(systemName: "lock.fill")
-                        }
-                        .foregroundStyle(BW.ink)
-                        .padding(14)
-                        .background(BW.lemonSoft, in: .rect(cornerRadius: 18))
                     }
                 }
             }
@@ -383,7 +361,6 @@ struct WorthItListView: View {
 struct StealsListView: View {
     @Environment(AppStore.self) private var store
     @State private var category: GroceryCategory? = nil
-    @State private var showPaywall: Bool = false
 
     private var items: [Deal] {
         store.steals(myStoresOnly: false).filter { category == nil || $0.category == category }
@@ -402,24 +379,12 @@ struct StealsListView: View {
                 }
                 .scrollIndicators(.hidden)
 
-                if store.has(.fullDeals) {
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
                         ForEach(items) { deal in
                             NavigationLink(value: Route.deal(deal.id)) { StealCard(deal: deal) }
                                 .buttonStyle(BWPressableStyle())
                         }
                     }
-                } else {
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
-                        ForEach(items.prefix(4)) { deal in
-                            NavigationLink(value: Route.deal(deal.id)) { StealCard(deal: deal) }
-                                .buttonStyle(BWPressableStyle())
-                        }
-                    }
-                    EmptyStateView(mascot: BWImage.mascotPeek, title: String(localized: "See every steal"),
-                                   message: String(localized: "Premium unlocks all of this week's best prices."),
-                                   actionTitle: String(localized: "Unlock Premium")) { showPaywall = true }
-                }
                 SamplePricesNote()
             }
             .padding(20)
@@ -427,7 +392,6 @@ struct StealsListView: View {
         .background(BW.canvas)
         .navigationTitle("Steals of the Week")
         .toolbar(.hidden, for: .tabBar)
-        .sheet(isPresented: $showPaywall) { PaywallView(context: .upgrade) { showPaywall = false } }
         .onAppear { store.track("steals_opened") }
     }
 }
