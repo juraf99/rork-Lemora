@@ -6,8 +6,8 @@ struct LemoraOnboardingView: View {
     @Environment(AppStore.self) private var store
     @State private var model: OnboardingModel
 
-    init(startAt: OnboardingModel.Screen? = nil) {
-        _model = State(initialValue: OnboardingModel(startAt: startAt))
+    init(entry: OnboardingModel.Entry = .signedOut) {
+        _model = State(initialValue: OnboardingModel(entry: entry))
     }
 
     var body: some View {
@@ -36,6 +36,7 @@ struct LemoraOnboardingView: View {
             ZestyGaze.shared.start()
             store.track("onboarding_v2_viewed", ["screen": model.screen.rawValue])
         }
+        .task { await model.restoreRemoteAnswersIfNeeded() }
     }
 
     @ViewBuilder private var screen: some View {

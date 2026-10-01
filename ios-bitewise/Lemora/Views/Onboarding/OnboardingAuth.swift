@@ -148,7 +148,7 @@ extension OnboardingModel {
                 a = remote
                 doneMode = "back"
                 await upload(store, authState: "existing")
-                go(store.isPremium ? .done : .paywall)
+                go(store.isPremium ? .done : .plan)
             } else {
                 authCtx = .new
                 go(.hear)

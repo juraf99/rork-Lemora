@@ -69,6 +69,7 @@ final class AppStore {
 
     func signOut() {
         mutate { $0.account = nil }
+        OnboardingModel.clearSaved()
     }
 
     func deleteAccount() {

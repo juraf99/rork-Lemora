@@ -30,6 +30,8 @@ nonisolated struct OnboardingAnswers: Codable, Hashable, Sendable {
     var notif: String? = nil
     var plan: String = "annual"
     var completed: Bool = false
+    /// True once the user has seen their personalized plan (all questions answered).
+    var reachedPlan: Bool? = nil
 }
 
 /// Savings estimate, same placeholder formula as the design (conservative_budget_v1).
@@ -94,20 +96,51 @@ final class OnboardingModel {
     @ObservationIgnored private var genTask: Task<Void, Never>?
     @ObservationIgnored let location = LocationService()
 
-    init(startAt: Screen? = nil) {
+    /// How the app was opened. Reopening the app always lands on one of two pages:
+    /// - all questions answered (even if they quit on the account page or the paywall) -> "Your Lemora plan";
+    /// - otherwise -> the very first page ("Get started" / "Log in"), with fresh answers.
+    /// - lapsed: finished before but no active subscription -> plan, then paywall.
+    enum Entry { case signedOut, signedIn, lapsed }
+
+    @ObservationIgnored private var needsRemoteAnswers = false
+
+    /// Screens that only come after the last question.
+    private static let afterQuestions: Set<Screen> = [.thanks, .notif, .ready, .generating, .savings, .reminder,
+                                                      .plan, .account, .email, .verify, .paywall, .done]
+
+    init(entry: Entry = .signedOut) {
         let saved = UserDefaults.standard.data(forKey: Self.storageKey)
             .flatMap { try? JSONDecoder().decode(OnboardingAnswers.self, from: $0) }
-        a = saved ?? OnboardingAnswers()
-        if let startAt {
-            screen = startAt
-            paywallOnly = startAt == .paywall
-        } else if let raw = UserDefaults.standard.string(forKey: Self.screenKey), let s = Screen(rawValue: raw),
-                  ![.generating, .done, .verify, .email, .signin].contains(s) {
-            screen = s
+        let lastScreen = UserDefaults.standard.string(forKey: Self.screenKey).flatMap { Screen(rawValue: $0) }
+        let answeredAll = saved != nil && (saved?.reachedPlan == true || lastScreen.map { Self.afterQuestions.contains($0) } == true)
+
+        if entry == .lapsed {
+            a = saved ?? OnboardingAnswers()
+            paywallOnly = true
+            screen = .plan
+            needsRemoteAnswers = !answeredAll
+        } else if answeredAll, let saved {
+            a = saved
+            screen = .plan
         } else {
+            // Fresh answers in memory; the old partial ones get overwritten as soon as they answer.
+            a = OnboardingAnswers()
             screen = .landing
+            // Signed in on a new phone: their answers may be saved online.
+            needsRemoteAnswers = entry == .signedIn
         }
-        if screen == .savings { startCount() }
+    }
+
+    /// Answers not on this device: load them from Supabase and show the plan.
+    func restoreRemoteAnswersIfNeeded() async {
+        guard needsRemoteAnswers else { return }
+        needsRemoteAnswers = false
+        if let remote = await OnboardingSync.fetch(), remote.referral != nil {
+            a = remote
+            go(.plan)
+        } else if paywallOnly {
+            go(.paywall)
+        }
     }
 
     private func persist() {
@@ -135,6 +168,7 @@ final class OnboardingModel {
         aQuery = ""
         iQuery = ""
         errorText = nil
+        if s == .plan { a.reachedPlan = true }
         if s == .generating { startGen() }
         if s == .savings { startCount() }
     }

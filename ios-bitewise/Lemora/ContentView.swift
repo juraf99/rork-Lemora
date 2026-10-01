@@ -21,12 +21,12 @@ struct ContentView: View {
             Group {
                 switch route {
                 case .onboarding:
-                    LemoraOnboardingView()
+                    LemoraOnboardingView(entry: store.isSignedIn ? .signedIn : .signedOut)
                         .id("onboarding")
                 case .checking:
                     SubscriptionStatusView()
                 case .paywall:
-                    LemoraOnboardingView(startAt: .paywall)
+                    LemoraOnboardingView(entry: .lapsed)
                         .id("paywall")
                 case .app:
                     MainTabView()
