@@ -10,10 +10,10 @@ struct LemoraApp: App {
     init() {
         LemoraFont.registerAll()
         Clerk.configure(publishableKey: "pk_test_cHJvbW90ZWQtZmVycmV0LTU2OTUuY2xlcmsuYWNjb3VudHMuZGV2JA")
-        // RevenueCat: records every App Store purchase made through the app's StoreKit 2 flow.
+        // RevenueCat handles purchases, restores and the `lemora_pro` entitlement.
         Purchases.configure(
             with: Configuration.Builder(withAPIKey: "appl_YFWfbULaxOsXSygRqTzkYwezqIk")
-                .with(purchasesAreCompletedBy: .myApp, storeKitVersion: .storeKit2)
+                .with(storeKitVersion: .storeKit2)
                 .build()
         )
     }

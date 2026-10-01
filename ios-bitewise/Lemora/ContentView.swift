@@ -1,14 +1,17 @@
 import SwiftUI
 
-/// Landing → onboarding (Zest) → Build My Plan → summary → account → paywall → You're in! → app.
+/// Onboarding v2 (landing → questions → plan → Clerk account → paywall → You're in!) → app.
 struct ContentView: View {
     @Environment(AppStore.self) private var store
     @State private var showSplash: Bool = true
-    @State private var authMode: AuthView.Mode? = nil
-    @State private var startedOnboarding: Bool = false
 
-    private var showsLanding: Bool {
-        !store.isSignedIn && (!startedOnboarding || store.data.onboardingComplete)
+    private enum Route: Equatable { case onboarding, checking, paywall, app }
+
+    private var route: Route {
+        if !store.data.onboardingComplete || !store.isSignedIn { return .onboarding }
+        if !store.subscription.hasCheckedEntitlements { return .checking }
+        if !store.isPremium { return .paywall }
+        return .app
     }
 
     var body: some View {
@@ -16,19 +19,16 @@ struct ContentView: View {
             BW.canvas.ignoresSafeArea()
 
             Group {
-                if showsLanding {
-                    LandingView(onStart: {
-                        if store.data.onboardingComplete { authMode = .signUp } else { startedOnboarding = true }
-                    }, onSignIn: { authMode = .signIn })
-                } else if !store.data.onboardingComplete {
-                    OnboardingFlowView()
-                } else if !store.subscription.hasCheckedEntitlements {
+                switch route {
+                case .onboarding:
+                    LemoraOnboardingView()
+                        .id("onboarding")
+                case .checking:
                     SubscriptionStatusView()
-                } else if !store.isPremium {
-                    PaywallView(context: .onboarding) { store.finishPaywall() }
-                } else if store.needsWelcome {
-                    WelcomeView()
-                } else {
+                case .paywall:
+                    LemoraOnboardingView(startAt: .paywall)
+                        .id("paywall")
+                case .app:
                     MainTabView()
                 }
             }
@@ -40,14 +40,7 @@ struct ContentView: View {
                     .zIndex(1)
             }
         }
-        .animation(.easeInOut(duration: 0.35), value: showsLanding)
-        .animation(.easeInOut(duration: 0.35), value: store.data.onboardingComplete)
-        .animation(.easeInOut(duration: 0.35), value: store.subscription.hasCheckedEntitlements)
-        .animation(.easeInOut(duration: 0.35), value: store.isPremium)
-        .animation(.easeInOut(duration: 0.35), value: store.needsWelcome)
-        .sheet(item: $authMode) { mode in
-            AuthView(mode: mode)
-        }
+        .animation(.easeInOut(duration: 0.35), value: route)
         .task {
             await store.bootstrap()
             try? await Task.sleep(for: .milliseconds(900))
