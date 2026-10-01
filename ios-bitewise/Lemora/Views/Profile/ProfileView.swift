@@ -125,6 +125,103 @@ struct ProfileView: View {
 
 // MARK: - Editors (reuse onboarding steps so everything stays editable)
 
+/// Shows one onboarding screen (same cards, emojis and Zesty bubble) to edit a saved preference.
+/// Changes are saved when leaving the screen; only the edited field is written back.
+struct OnboardingPrefEditor<Content: View>: View {
+    @Environment(AppStore.self) private var store
+    @State private var model: OnboardingModel?
+    let screen: OnboardingModel.Screen
+    let title: String
+    let subtitle: String
+    let mood: ZestyMascot.Mood
+    let apply: @MainActor (OnboardingModel, inout UserProfile) -> Void
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        ZStack {
+            OB.cream.ignoresSafeArea()
+            if let model {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        HStack(alignment: .center, spacing: 10) {
+                            ZestyMascot(mood: mood, size: 64, seedKey: "pf-" + screen.rawValue)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(title).font(OB.font(20, 800)).foregroundStyle(OB.ink)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Text(subtitle).font(OB.font(13, 500)).foregroundStyle(OB.sub)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .padding(.horizontal, 16).padding(.vertical, 14)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.white, in: .rect(cornerRadius: 24))
+                            .shadow(color: OB.ink.opacity(0.06), radius: 8, x: 0, y: 3)
+                        }
+                        content()
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 32)
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .environment(model)
+            }
+        }
+        .toolbar(.hidden, for: .tabBar)
+        .onAppear {
+            guard model == nil else { return }
+            let m = OnboardingModel(entry: .signedOut)
+            m.a = OnboardingAnswers(profile: store.data.profile)
+            m.screen = screen
+            model = m
+        }
+        .onDisappear {
+            guard let model else { return }
+            store.updateProfile { apply(model, &$0) }
+        }
+    }
+}
+
+extension OnboardingAnswers {
+    /// Onboarding answers matching a saved profile, so the profile editors can reuse the onboarding screens.
+    init(profile p: UserProfile) {
+        self.init()
+        let goals: [Goal: String] = [.saveMoney: "save_money", .eatHealthier: "eat_healthier", .loseWeight: "lose_weight",
+                                     .buildMuscle: "build_muscle", .gainWeight: "gain_weight", .maintain: "maintain_weight",
+                                     .discover: "discover_meals", .mealPrep: "meal_prep"]
+        goal = goals[p.goal] ?? "save_money"
+        unit = p.usesMetric ? "kg" : "lb"
+        let cuisines: [Cuisine: String] = [.italian: "italian", .mexican: "mexican", .japanese: "japanese", .korean: "korean",
+                                           .indian: "indian", .greek: "greek", .middleEastern: "lebanese", .french: "french",
+                                           .thai: "thai", .vietnamese: "vietnamese", .caribbean: "caribbean", .american: "comfort"]
+        if p.cuisines.isEmpty || p.cuisines.isSuperset(of: Set(Cuisine.allCases)) {
+            self.cuisines = ["all"]
+        } else {
+            self.cuisines = cuisines.filter { p.cuisines.contains($0.key) }.map(\.value).sorted()
+        }
+        let diets: [DietPreference: String] = [.plantBased: "plant_based", .wholeFood: "whole_food", .mediterranean: "mediterranean",
+                                               .flexitarian: "flexitarian", .pescatarian: "pescatarian", .vegetarian: "vegetarian",
+                                               .vegan: "vegan", .lowCarb: "low_carb", .keto: "keto", .highProtein: "high_protein",
+                                               .glutenFree: "gluten_free", .lactoseFree: "lactose_free", .halal: "halal", .kosher: "kosher"]
+        let picked = diets.filter { p.diets.contains($0.key) }.map(\.value).sorted()
+        self.diets = picked.isEmpty ? ["none"] : picked
+        allergies = p.allergyRefs.filter { $0.kind == .allergen }.map { $0.id == "tree_nuts" ? "tree_nut" : $0.id }
+        noAllergy = p.hasNoAllergies
+        dislikes = p.dislikedIngredients.map { Dislike(id: $0.id, name: $0.name) }
+        meals = MealType.allCases.filter { p.mealTypes.contains($0) }.map(\.rawValue)
+        household = max(1, p.householdSize)
+        noBudget = p.weeklyBudget == nil
+        budget = Int((p.weeklyBudget ?? 120).rounded())
+        budgetTouched = true
+        switch p.strategy {
+        case .convenience: strategy = "one"
+        case .maximumSavings: strategy = "max"
+        default: strategy = "balanced"
+        }
+        referral = "other"
+        reachedPlan = true
+    }
+}
+
 private struct ProfileEditor<Content: View>: View {
     @Environment(AppStore.self) private var store
     @State private var draft: UserProfile = UserProfile()
@@ -144,12 +241,74 @@ private struct ProfileEditor<Content: View>: View {
     }
 }
 
-struct GoalEditView: View { var body: some View { ProfileEditor { GoalStep(profile: $0) } } }
-struct DietEditView: View { var body: some View { ProfileEditor { DietStep(profile: $0) } } }
-struct AllergyEditView: View { var body: some View { ProfileEditor { AllergyStep(profile: $0) } } }
-struct DislikeEditView: View { var body: some View { ProfileEditor { DislikeStep(profile: $0) } } }
-struct CuisineEditView: View { var body: some View { ProfileEditor { CuisineStep(profile: $0) } } }
-struct MealTypeEditView: View { var body: some View { ProfileEditor { MealTypeStep(profile: $0) } } }
+struct GoalEditView: View {
+    var body: some View {
+        OnboardingPrefEditor(screen: .goal, title: "What’s your main goal?", subtitle: "This shapes everything I recommend.", mood: .idea,
+                             apply: { m, p in
+                                 let new = m.makeProfile(base: p)
+                                 p.goal = new.goal
+                             }) {
+            OBGoalStep()
+        }
+    }
+}
+struct DietEditView: View {
+    var body: some View {
+        OnboardingPrefEditor(screen: .diet, title: "Do you follow a specific diet?", subtitle: "Pick all that apply. I’ll keep them compatible.", mood: .talking,
+                             apply: { m, p in
+                                 let new = m.makeProfile(base: p)
+                                 p.diets = new.diets
+                             }) {
+            OBDietStep()
+        }
+    }
+}
+struct AllergyEditView: View {
+    var body: some View {
+        OnboardingPrefEditor(screen: .allergies, title: "Do you have any food allergies?", subtitle: "These are strict. I’ll never show recipes with them.", mood: .curious,
+                             apply: { m, p in
+                                 let new = m.makeProfile(base: p)
+                                 let kept = p.allergyRefs.filter { old in old.kind == .ingredient && !new.allergyRefs.contains { $0.id == old.id } }
+                                 p.hasNoAllergies = new.hasNoAllergies
+                                 p.allergyRefs = new.allergyRefs + kept
+                             }) {
+            OBAllergyStep()
+        }
+    }
+}
+struct DislikeEditView: View {
+    var body: some View {
+        OnboardingPrefEditor(screen: .dislikes, title: "Anything you’d rather not eat?", subtitle: "Tap a few or search any ingredient.", mood: .talking,
+                             apply: { m, p in
+                                 let new = m.makeProfile(base: p)
+                                 p.dislikedIngredients = new.dislikedIngredients
+                             }) {
+            OBDislikeStep()
+        }
+    }
+}
+struct CuisineEditView: View {
+    var body: some View {
+        OnboardingPrefEditor(screen: .branch, title: "What do you love eating?", subtitle: "Pick a few. Swipes refine the rest.", mood: .idle,
+                             apply: { m, p in
+                                 let new = m.makeProfile(base: p)
+                                 p.cuisines = new.cuisines
+                             }) {
+            OBTasteStep()
+        }
+    }
+}
+struct MealTypeEditView: View {
+    var body: some View {
+        OnboardingPrefEditor(screen: .meals, title: "What kind of recipes are you looking for?", subtitle: "Pick the meals you want ideas for.", mood: .idea,
+                             apply: { m, p in
+                                 let new = m.makeProfile(base: p)
+                                 p.mealTypes = new.mealTypes
+                             }) {
+            OBMealStep()
+        }
+    }
+}
 
 struct MealTypeStep: View {
     @Binding var profile: UserProfile
@@ -165,9 +324,33 @@ struct MealTypeStep: View {
         }
     }
 }
-struct BudgetEditView: View { var body: some View { ProfileEditor { BudgetStep(profile: $0) } } }
+struct BudgetEditView: View {
+    var body: some View {
+        OnboardingPrefEditor(screen: .budget, title: "What’s your weekly grocery budget?", subtitle: "For your whole household.", mood: .thinking,
+                             apply: { m, p in
+                                 let new = m.makeProfile(base: p)
+                                 p.weeklyBudget = new.weeklyBudget
+                                 p.householdSize = new.householdSize
+                             }) {
+            OBBudgetStep()
+            OBText("How many people do you cook for each week?", 17, 800).padding(.top, 8)
+            OBPeopleStep()
+        }
+    }
+}
 struct StoresEditView: View { var body: some View { ProfileEditor { StoresStep(profile: $0) } } }
-struct StrategyEditView: View { var body: some View { ProfileEditor { StrategyStep(profile: $0) } } }
+struct StrategyEditView: View {
+    var body: some View {
+        OnboardingPrefEditor(screen: .strategy, title: "How do you like to shop?", subtitle: "I’ll plan your list around this.", mood: .cart,
+                             apply: { m, p in
+                                 let new = m.makeProfile(base: p)
+                                 p.strategy = new.strategy
+                                 p.maxStores = new.maxStores
+                             }) {
+            OBStrategyStep()
+        }
+    }
+}
 struct LocationEditView: View { var body: some View { ProfileEditor { LocationStep(profile: $0) } } }
 
 struct NotificationsEditView: View {
