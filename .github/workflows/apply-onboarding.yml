@@ -1,0 +1,269 @@
+name: Apply onboarding v2
+
+# One-shot: moves the onboarding v2 files uploaded at the repo root into ios-bitewise/,
+# adds the missing pieces, commits, then starts the TestFlight build. Deletes itself.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-onboarding.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Move code into the iOS app
+        run: |
+          set -e
+          D=ios-bitewise/Lemora
+          mkdir -p "$D/Views/Onboarding" "$D/Resources/Onboarding"
+          for f in LemoraOnboardingView OnboardingAuth OnboardingCatalog OnboardingData OnboardingFinal OnboardingModel OnboardingSteps OnboardingStyle ZestyMascot; do
+            if [ -f "$f.swift" ]; then git mv -f "$f.swift" "$D/Views/Onboarding/$f.swift"; fi
+          done
+          if [ -f ContentView.swift ]; then git mv -f ContentView.swift "$D/ContentView.swift"; fi
+          if [ -f LemoraApp.swift ]; then git mv -f LemoraApp.swift "$D/LemoraApp.swift"; fi
+          if [ -f SubscriptionService.swift ]; then git mv -f SubscriptionService.swift "$D/Services/SubscriptionService.swift"; fi
+          for f in logo_*@3x.png zesty_*@3x.png; do
+            if [ -f "$f" ]; then git mv -f "$f" "$D/Resources/Onboarding/$f"; fi
+          done
+          cat > "$D/Views/Onboarding/OnboardingSync.swift" <<'SWIFTEOF'
+          import Foundation
+          import ClerkKit
+          import OSLog
+
+          /// Stores onboarding answers in Supabase (`onboarding_profiles`), keyed by the Clerk user id.
+          /// Goes through the `onboarding-profile` Edge Function, which verifies the Clerk session token.
+          enum OnboardingSync {
+              private static let endpoint = URL(string: "https://fsucqlqsafoligouzgrl.supabase.co/functions/v1/onboarding-profile")!
+              private static let publishableKey = "sb_publishable_2iPvFh4m-T-1oG-s84VOzw_1H4R9T3G"
+              private static let logger = Logger(subsystem: "app.lemora", category: "onboarding-sync")
+
+              nonisolated struct Payload: Codable, Sendable {
+                  var email: String?
+                  var displayName: String?
+                  var authState: String
+                  var answers: OnboardingAnswers
+                  var regionKey: String?
+                  var regionName: String?
+                  var currencyCode: String
+                  var savingsEstimate: SavingsEstimate
+                  var onboardingProgress: String
+
+                  enum CodingKeys: String, CodingKey {
+                      case email
+                      case displayName = "display_name"
+                      case authState = "auth_state"
+                      case answers
+                      case regionKey = "region_key"
+                      case regionName = "region_name"
+                      case currencyCode = "currency_code"
+                      case savingsEstimate = "savings_estimate"
+                      case onboardingProgress = "onboarding_progress"
+                  }
+              }
+
+              private nonisolated struct FetchResponse: Decodable, Sendable {
+                  let profile: StoredProfile?
+              }
+
+              private nonisolated struct StoredProfile: Decodable, Sendable {
+                  let answers: OnboardingAnswers?
+              }
+
+              private static func request(method: String, body: Data? = nil) async -> URLRequest? {
+                  guard let token = try? await Clerk.shared.auth.getToken(), !token.isEmpty else { return nil }
+                  var req = URLRequest(url: endpoint)
+                  req.httpMethod = method
+                  req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                  req.setValue(publishableKey, forHTTPHeaderField: "apikey")
+                  req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                  req.httpBody = body
+                  req.timeoutInterval = 15
+                  return req
+              }
+
+              static func save(_ payload: Payload) async {
+                  guard let body = try? JSONEncoder().encode(payload),
+                        let req = await request(method: "POST", body: body) else { return }
+                  do {
+                      let (_, response) = try await URLSession.shared.data(for: req)
+                      let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+                      if code >= 300 { logger.error("Onboarding save failed: \(code)") }
+                  } catch {
+                      logger.error("Onboarding save error: \(error.localizedDescription, privacy: .public)")
+                  }
+              }
+
+              /// The signed-in user's saved answers, if any.
+              static func fetch() async -> OnboardingAnswers? {
+                  guard let req = await request(method: "GET") else { return nil }
+                  do {
+                      let (data, response) = try await URLSession.shared.data(for: req)
+                      guard (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+                      return try JSONDecoder().decode(FetchResponse.self, from: data).profile?.answers
+                  } catch {
+                      logger.error("Onboarding fetch error: \(error.localizedDescription, privacy: .public)")
+                      return nil
+                  }
+              }
+          }
+
+          SWIFTEOF
+      - name: Build logos (App Store + Apple from the uploaded originals, Google box)
+        run: |
+          set -e
+          D=ios-bitewise/Lemora/Resources/Onboarding
+          pip install --quiet pillow
+          cat > /tmp/gbox.b64 <<'B64'
+          iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAWfmNhQlgAABZ+anVtYgAAAB5qdW1kYzJwYQARABCAAACqADibcQNjMnBhAAAAFlhqdW1iAAAA
+          R2p1bWRjMm1hABEAEIAAAKoAOJtxA3VybjpjMnBhOmE3OWFkNTg2LTUxNDEtNGEzZi1iMGNlLTU1MDYyMDgzZTc3NQAAAAOTanVtYgAAAClqdW1kYzJhcwAR
+          ABCAAACqADibcQNjMnBhLmFzc2VydGlvbnMAAAAAuGp1bWIAAABEanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5pbmdyZWRpZW50LnYzAAAAABhjMnNoILRY
+          XGZ7UXx8Mjx6IVK8xQAAAGxjYm9yo2lkYzpmb3JtYXRpaW1hZ2UvcG5namluc3RhbmNlSUR4LHhtcDppaWQ6NzY1OWZhMmMtOTY0My00OGYyLWFiZTEtZDlh
+          YjZhMTNjYjRibHJlbGF0aW9uc2hpcGhwYXJlbnRPZgAAAeJqdW1iAAAAQWp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuYWN0aW9ucy52MgAAAAAYYzJzaA1X
+          PwoygIiHnPN73r+jsREAAAGZY2JvcqJnYWN0aW9uc4KiZmFjdGlvbmtjMnBhLm9wZW5lZGpwYXJhbWV0ZXJzoWtpbmdyZWRpZW50c4GiY3VybHgtc2VsZiNq
+          dW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5pbmdyZWRpZW50LnYzZGhhc2hYIBaKnokohh9QXJObiaDBgwl4BepPGjTQg/odVVNwi32xpGZhY3Rpb254HWNv
+          bS5hbnRocm9waWMuY2xhdWRlLnByb3ZpZGVkanBhcmFtZXRlcnOheB9jb20uYW50aHJvcGljLm9yaWdpbi1jb25maWRlbmNlZ3Vua25vd25rZGVzY3JpcHRp
+          b254ZkNsYXVkZSBwcm92aWRlZCB0aGlzIGZpbGUgYXQgdGhlIHJlcXVlc3Qgb2YgYSB1c2VyIGFuZCBtYXkgaGF2ZSBjcmVhdGVkIG9yIG1vZGlmaWVkIHRo
+          ZSBmaWxlIGNvbnRlbnRzLm1zb2Z0d2FyZUFnZW50oWRuYW1lZkNsYXVkZXJhbGxBY3Rpb25zSW5jbHVkZWT1AAAAyGp1bWIAAABAanVtZGNib3IAEQAQgAAA
+          qgA4m3ETYzJwYS5oYXNoLmRhdGEAAAAAGGMyc2jkD9jUklLYkNJPCnet4I+iAAAAgGNib3KlY2FsZ2ZzaGEyNTZjcGFkTQAAAAAAAAAAAAAAAABkaGFzaFgg
+          nOXn0XDtUkAb1LXB3cPK0Zqj+uxAk1IOFTe/fU0MdV9kbmFtZW5qdW1iZiBtYW5pZmVzdGpleGNsdXNpb25zgaJlc3RhcnQYIWZsZW5ndGgZFooAAAI+anVt
+          YgAAACdqdW1kYzJjbAARABCAAACqADibcQNjMnBhLmNsYWltLnYyAAAAAg9jYm9ypWNhbGdmc2hhMjU2aXNpZ25hdHVyZXhNc2VsZiNqdW1iZj0vYzJwYS91
+          cm46YzJwYTphNzlhZDU4Ni01MTQxLTRhM2YtYjBjZS01NTA2MjA4M2U3NzUvYzJwYS5zaWduYXR1cmVqaW5zdGFuY2VJRHgseG1wOmlpZDoxZTQwZDhhNy1i
+          MzgxLTQ0N2YtYWNiMi1jMGJjZDVjZDYxNTlyY3JlYXRlZF9hc3NlcnRpb25zg6JjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3Jl
+          ZGllbnQudjNkaGFzaFggFoqeiSiGH1Bck5uJoMGDCXgF6k8aNNCD+h1VU3CLfbGiY3VybHgqc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5hY3Rp
+          b25zLnYyZGhhc2hYIPzB+zNVsw7lDz3nXQXjPncXmUxHDWnqf6BWDZXP9zDlomN1cmx4KXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaGFzaC5k
+          YXRhZGhhc2hYIIcEL6UJCl7dDoBar578AuKeeP2OjVr3aUWywzrHJCCRdGNsYWltX2dlbmVyYXRvcl9pbmZvo2RuYW1lb0FudGhyb3BpYyBGaWxlc2d2ZXJz
+          aW9uZTEuMC4wa3NwZWNWZXJzaW9uZTIuNC4wAAAQOGp1bWIAAAAoanVtZGMyY3MAEQAQgAAAqgA4m3EDYzJwYS5zaWduYXR1cmUAAAAQCGNib3LShFkCEqIB
+          JhghWQIKMIICBjCCAY2gAwIBAgIUQOWgCu7COdC+uIP6BkIFPWdVEwAwCgYIKoZIzj0EAwMwSTEXMBUGA1UEChMOQW50aHJvcGljLCBQQkMxLjAsBgNVBAMT
+          JUFudGhyb3BpYyBDb250ZW50IENyZWRlbnRpYWxzIFJvb3QgQ0EwHhcNMjYwODA3MTg0MzU2WhcNMjgwODA2MTk0MzU2WjBEMRcwFQYDVQQKEw5BbnRocm9w
+          aWMsIFBCQzEpMCcGA1UEAxMgQW50aHJvcGljIENsYXVkZSBDb250ZW50IFNpZ25pbmcwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAASYegpry1AYBRTVNL1C
+          pTlbROnY3dey+UrsF9C3phYrATN3ZHf93Mo8RQN0KOUuOn19P4oWNFWe5n2/She9N7eTo1gwVjAOBgNVHQ8BAf8EBAMCB4AwFQYDVR0lBA4wDAYKKwYBBAGD
+          6F4CATAMBgNVHRMBAf8EAjAAMB8GA1UdIwQYMBaAFM5R4gSBTmRbI/jjxM+aPpzB11zCMAoGCCqGSM49BAMDA2cAMGQCMDFzHRSeAXrSy1WOzkbhPZ6Km2wG
+          TmZ/2gK18k8BQGXyqz88Rdrz6CTX9flAnYNVxgIwcF9c3fVhqmJKpi+UhasNUMko69cyX6STPfta3Q8EjyzDjzoyrol46FP6VFHhvUcJoWNwYWRZDZ4AAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          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
+          AAAGSURBVAMAeiiABlZeAbAAAAAASUVORK5CYII=
+          B64
+          base64 -d /tmp/gbox.b64 > "$D/logo_google_box@3x.png"
+          cat > /tmp/logos.py <<'PY'
+          from PIL import Image
+          D = "ios-bitewise/Lemora/Resources/Onboarding"
+          im = Image.open("App_Store_(iOS).svg.webp").convert("RGBA")
+          im.resize((360, 360), Image.LANCZOS).save(f"{D}/logo_appstore@3x.png", optimize=True)
+          ap = Image.open("apple logo .png").convert("RGBA")
+          ap = ap.crop(ap.getbbox())
+          white = Image.new("RGBA", ap.size, (255, 255, 255, 255))
+          white.putalpha(ap.getchannel("A"))
+          white.thumbnail((54, 63), Image.LANCZOS)
+          canvas = Image.new("RGBA", (54, 63), (0, 0, 0, 0))
+          canvas.alpha_composite(white, ((54 - white.width) // 2, (63 - white.height) // 2))
+          canvas.save(f"{D}/logo_apple@3x.png", optimize=True)
+          PY
+          python3 /tmp/logos.py
+          git rm -f "apple logo .png" "App_Store_(iOS).svg.webp"
+          git rm -f .github/workflows/apply-onboarding.yml
+          git add -A
+          git status --short
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Install onboarding v2 in ios-bitewise (views, Zesty art, App Store logo, RevenueCat)"
+          git push
+      - name: Start TestFlight build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run testflight.yml --ref main --repo "${{ github.repository }}"
