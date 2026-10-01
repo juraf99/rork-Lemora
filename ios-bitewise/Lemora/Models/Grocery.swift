@@ -97,6 +97,14 @@ nonisolated struct Deal: Identifiable, Hashable, Sendable {
     var currencyCode: String = "CAD"
     var dietaryFlags: [String: String] = [:]
     var allergenFlags: [String: String] = [:]
+    /// Exact retailer wording is kept for the detail screen; productName is canonical and brand-free.
+    var retailerProductName: String? = nil
+    var brand: String? = nil
+    var sizeText: String? = nil
+    var processingLevel: String = "unknown"
+    var healthPriorityScore: Double = 50
+    var commonFoodScore: Double = 40
+    var recommendationScore: Double = 0
 
     var retailerDisplayName: String {
         retailerName ?? RetailerCatalog.name(retailerId)
@@ -131,6 +139,38 @@ nonisolated struct Deal: Identifiable, Hashable, Sendable {
             return String(localized: "\(q) for \(Money.format(salePrice))")
         }
         return "\(Money.format(salePrice))\(unitLabel)"
+    }
+
+    /// Converts flyer unit prices to the quantity a recipe actually uses.
+    /// Example: $0.79/lb for 700 g of chicken costs about $1.22, not $79 or $0.79 total.
+    func cost(for quantity: Double, unit: IngredientUnit, useRegularPrice: Bool = false) -> Double? {
+        let price: Double
+        if useRegularPrice {
+            guard let regularPrice else { return nil }
+            price = regularPrice
+        } else {
+            price = effectivePrice
+        }
+
+        let label = unitLabel.lowercased().replacingOccurrences(of: " ", with: "")
+        if unit == .g {
+            if label.contains("/lb") || label.contains("perlb") || label.contains("/lbs") {
+                return price * quantity / 453.59237
+            }
+            if label.contains("/kg") || label.contains("perkg") {
+                return price * quantity / 1_000
+            }
+            if label.contains("/100g") {
+                return price * quantity / 100
+            }
+        }
+        if unit == .ml, label.contains("/l") || label.contains("perlitre") || label.contains("perliter") {
+            return price * quantity / 1_000
+        }
+        if unit == .unit || unit == .can {
+            return price * quantity
+        }
+        return nil
     }
 
     func isActive(at date: Date) -> Bool {

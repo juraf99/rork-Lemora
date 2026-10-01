@@ -20,7 +20,11 @@ struct DealsView: View {
             .background(BW.canvas)
             .toolbar(.hidden, for: .navigationBar)
             .bitewiseDestinations()
-            .onAppear { store.track("deals_opened") }
+            .onAppear {
+                store.track("deals_opened")
+                ensureVisibleDeals()
+            }
+            .onChange(of: store.deals) { _, _ in ensureVisibleDeals() }
         }
     }
 
@@ -104,6 +108,15 @@ struct DealsView: View {
 
     private var stealItems: [Deal] { store.steals(myStoresOnly: myStoresOnly) }
 
+    /// A stale or unsupported store selection must not make the whole page look empty.
+    /// Switch the visible scope to All Stores while keeping the user's preferences intact.
+    private func ensureVisibleDeals() {
+        guard myStoresOnly,
+              store.steals(myStoresOnly: true).isEmpty,
+              !store.steals(myStoresOnly: false).isEmpty else { return }
+        myStoresOnly = false
+    }
+
     private var steals: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: String(localized: "Steals of the Week"), subtitle: myStoresOnly ? String(localized: "At your stores") : String(localized: "At stores near you")) {
@@ -144,7 +157,13 @@ struct WorthItCard: View {
                         .font(.bw(.subheadline, weight: .medium)).monospacedDigit().foregroundStyle(BW.inkSecondary)
                 }
                 if let headline = item.price.headlineDeal, let deal = headline.deal {
-                    Text("\(IngredientCatalog.name(headline.ingredientId)) on sale at \(deal.retailerDisplayName)")
+                    let otherNames = item.price.dealLines
+                        .filter { $0.ingredientId != headline.ingredientId }
+                        .map { IngredientCatalog.name($0.ingredientId) }
+                    let dealSummary = otherNames.isEmpty
+                        ? "\(IngredientCatalog.name(headline.ingredientId)) on sale at \(deal.retailerDisplayName)"
+                        : "\(IngredientCatalog.name(headline.ingredientId)) + \(otherNames.prefix(2).joined(separator: " + ")) on sale"
+                    Text(dealSummary)
                         .font(.bw(.caption, weight: .semibold)).foregroundStyle(BW.leafDeep).lineLimit(1)
                 }
             }
@@ -261,8 +280,22 @@ struct DealDetailView: View {
                         if let q = deal.multiBuyQuantity, q > 1 {
                             Text("That's \(Money.format(deal.effectivePrice)) each").font(.bw(.subheadline, weight: .semibold)).foregroundStyle(BW.leafDeep)
                         }
-                        Text("At \(deal.retailerDisplayName) · until \(deal.validUntil.formatted(.dateTime.weekday(.wide).month().day()))")
+                        Text("At \(deal.retailerDisplayName) · valid \(deal.validFrom.formatted(.dateTime.month().day()))–\(deal.validUntil.formatted(.dateTime.month().day()))")
                             .font(.bw(.subheadline, weight: .medium)).foregroundStyle(BW.inkSecondary)
+                        if let exactName = deal.retailerProductName, exactName != deal.productName {
+                            Text(exactName).font(.bw(.subheadline, weight: .semibold)).foregroundStyle(BW.ink)
+                        }
+                        if let brand = deal.brand, !brand.isEmpty {
+                            Text("Brand: \(brand)").font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
+                        }
+                        Text("Format: \(deal.sizeText?.isEmpty == false ? deal.sizeText! : "not specified in the flyer")")
+                            .font(.bw(.caption, weight: .medium))
+                            .foregroundStyle(BW.inkSecondary)
+                        if deal.processingLevel == "processed" || deal.processingLevel == "ultra_processed" {
+                            Text(deal.processingLevel == "ultra_processed" ? "Highly processed" : "Processed")
+                                .font(.bw(.caption, weight: .bold))
+                                .foregroundStyle(deal.processingLevel == "ultra_processed" ? BW.danger : BW.inkSecondary)
+                        }
                         Text(deal.confidence.note).font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
                     }
 

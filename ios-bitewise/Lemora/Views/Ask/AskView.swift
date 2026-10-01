@@ -4,7 +4,8 @@ struct AskMessage: Identifiable {
     let id = UUID()
     let isUser: Bool
     let text: String
-    var results: [ScoredRecipe] = []
+    var recommendations: [ZestyRecommendation] = []
+    var followUps: [String] = []
 }
 
 struct AskView: View {
@@ -13,6 +14,7 @@ struct AskView: View {
     @State private var messages: [AskMessage] = []
     @State private var input: String = ""
     @State private var isThinking: Bool = false
+    @AppStorage("zestyConversationID") private var conversationID: String = ""
     @FocusState private var focused: Bool
 
     private let suggestions: [String] = [
@@ -62,6 +64,9 @@ struct AskView: View {
                     Text("What are you craving?").font(.bw(.title2)).foregroundStyle(BW.ink)
                     Text("I already know your goal, diet, allergies and stores.")
                         .font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
+                    Text("Zesty AI · build \(appBuildNumber)")
+                        .font(.bw(.caption2, weight: .semibold))
+                        .foregroundStyle(BW.inkSecondary)
                 }
             }
             if messages.isEmpty {
@@ -104,12 +109,104 @@ struct AskView: View {
                     .foregroundStyle(BW.ink)
                     .padding(.horizontal, 16).padding(.vertical, 12)
                     .background(BW.card, in: .rect(cornerRadius: 20))
-                ForEach(message.results) { item in
-                    NavigationLink(value: Route.recipe(item.id)) { RecipeRow(item: item) }
-                        .buttonStyle(BWPressableStyle())
+                ForEach(message.recommendations) { item in
+                    recommendationCard(item)
+                }
+                if !message.followUps.isEmpty {
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 8) {
+                            ForEach(message.followUps, id: \.self) { suggestion in
+                                Button { send(suggestion) } label: {
+                                    Text(suggestion)
+                                        .font(.bw(.caption, weight: .semibold))
+                                        .foregroundStyle(BW.ink)
+                                        .padding(.horizontal, 13)
+                                        .padding(.vertical, 9)
+                                        .background(BW.beigeSoft, in: .capsule)
+                                }
+                                .buttonStyle(BWPressableStyle())
+                                .disabled(isThinking)
+                            }
+                        }
+                    }
+                    .scrollIndicators(.hidden)
                 }
             }
         }
+    }
+
+    private func recommendationCard(_ item: ZestyRecommendation) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(item.title)
+                    .font(.bw(.headline, weight: .bold))
+                    .foregroundStyle(BW.ink)
+                Spacer(minLength: 8)
+                if let cost = item.estimatedCost {
+                    Text(cost)
+                        .font(.bw(.caption, weight: .bold))
+                        .foregroundStyle(BW.leafDeep)
+                }
+            }
+            if let subtitle = item.subtitle {
+                Text(subtitle).font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
+            }
+            if let nutrition = item.nutrition {
+                nutritionSummary(nutrition)
+            }
+            HStack(spacing: 8) {
+                if let retailer = item.retailer, !retailer.isEmpty {
+                    Label(retailer, systemImage: "cart")
+                }
+                if let reason = item.reason, !reason.isEmpty {
+                    Label(reason, systemImage: "sparkles")
+                }
+            }
+            .font(.bw(.caption, weight: .semibold))
+            .foregroundStyle(BW.inkSecondary)
+        }
+        .padding(14)
+        .background(BW.card, in: .rect(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(BW.hairline))
+    }
+
+    private func nutritionSummary(_ nutrition: ZestyNutrition) -> some View {
+        let values: [(String, Double?, String)] = [
+            (String(localized: "Calories"), nutrition.calories, "kcal"),
+            (String(localized: "Protein"), nutrition.proteinG, "g"),
+            (String(localized: "Carbs"), nutrition.carbsG, "g"),
+            (String(localized: "Fibre"), nutrition.fiberG, "g"),
+            (String(localized: "Sugars"), nutrition.sugarsG, "g"),
+            (String(localized: "Fat"), nutrition.fatG, "g"),
+            (String(localized: "Sat. fat"), nutrition.saturatedFatG, "g"),
+            (String(localized: "Sodium"), nutrition.sodiumMg, "mg"),
+        ]
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 5) {
+                Text(String(localized: "Nutrition per serving"))
+                    .font(.bw(.caption, weight: .bold))
+                Text("· \(nutrition.status.capitalized)")
+                    .font(.bw(.caption, weight: .semibold))
+                    .foregroundStyle(BW.inkSecondary)
+            }
+            Text(values.map { label, value, unit in
+                "\(label) \(value.map { formattedNutrition($0) + unit } ?? "—")"
+            }.joined(separator: "  ·  "))
+                .font(.bw(.caption, weight: .regular))
+                .foregroundStyle(BW.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let source = nutrition.source, !source.isEmpty {
+                Text(source)
+                    .font(.bw(.caption2, weight: .regular))
+                    .foregroundStyle(BW.inkSecondary)
+            }
+        }
+        .padding(10)
+        .background(BW.beigeSoft, in: .rect(cornerRadius: 12))
+    }
+
+    private func formattedNutrition(_ value: Double) -> String {
+        value.rounded() == value ? String(Int(value)) : String(format: "%.1f", value)
     }
 
     private var composer: some View {
@@ -149,6 +246,10 @@ struct AskView: View {
         !input.trimmingCharacters(in: .whitespaces).isEmpty && !isThinking && !store.askLimitReached
     }
 
+    private var appBuildNumber: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
+    }
+
     private func send(_ text: String) {
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty, !isThinking else { return }
@@ -158,11 +259,26 @@ struct AskView: View {
         messages.append(AskMessage(isUser: true, text: query))
         isThinking = true
         Task {
-            try? await Task.sleep(for: .milliseconds(650))
-            let response = store.ask(query)
-            withAnimation(.spring(response: 0.4)) {
-                messages.append(AskMessage(isUser: false, text: response.message, results: response.results))
-                isThinking = false
+            do {
+                let response = try await store.ask(query, conversationId: conversationID.isEmpty ? nil : conversationID)
+                conversationID = response.conversationId
+                withAnimation(.spring(response: 0.4)) {
+                    messages.append(AskMessage(
+                        isUser: false,
+                        text: response.message,
+                        recommendations: response.recommendations,
+                        followUps: response.followUpSuggestions
+                    ))
+                    isThinking = false
+                }
+            } catch {
+                withAnimation(.spring(response: 0.4)) {
+                    messages.append(AskMessage(
+                        isUser: false,
+                        text: error.localizedDescription
+                    ))
+                    isThinking = false
+                }
             }
         }
     }

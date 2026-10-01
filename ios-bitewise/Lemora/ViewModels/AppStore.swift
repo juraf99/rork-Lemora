@@ -21,6 +21,7 @@ final class AppStore {
     private let configProvider: RemoteConfigProvider
     private let engine = RecommendationEngine()
     private let pricing = PricingEngine()
+    private let zesty = ZestyService()
     private var availableDeals: [Deal] = []
     private var sessionPosition = 0
 
@@ -183,15 +184,43 @@ final class AppStore {
         if availableDeals.isEmpty && !liveDealsLoaded {
             availableDeals = SampleDealProvider.deals(now: now)
         }
-        deals = availableDeals.filter { $0.isActive(at: now) && !blockedStoreIds.contains($0.retailerId) }
+        deals = availableDeals.filter {
+            $0.isActive(at: now)
+                && !blockedStoreIds.contains($0.retailerId)
+                && isDealCompatible($0, profile: data.profile)
+        }
         refreshRanking()
+    }
+
+    /// Applies the user's food exclusions before deals power Steals, recipes,
+    /// grocery lists, Discover, Ask, or meal pricing.
+    private func isDealCompatible(_ deal: Deal, profile: UserProfile) -> Bool {
+        if profile.dislikedIngredients.contains(where: { $0.id == deal.ingredientId }) { return false }
+        if profile.allergyRefs.contains(where: { $0.kind == .ingredient && $0.id == deal.ingredientId }) { return false }
+
+        for allergen in profile.allergies {
+            let state = deal.allergenFlags[allergen.rawValue] ?? deal.allergenFlags[allergen.databaseId]
+            if state == "contains" || state == "may_contain" || state == "mayContain" { return false }
+        }
+
+        let flags: [DietPreference: String] = [
+            .vegetarian: "vegetarian", .vegan: "vegan", .pescatarian: "pescatarian",
+            .keto: "keto", .lowCarb: "low_carb", .highProtein: "high_protein",
+            .glutenFree: "gluten_free", .dairyFree: "dairy_free", .lactoseFree: "lactose_free",
+            .halal: "halal", .kosher: "kosher",
+        ]
+        for diet in profile.diets where diet.isStrict {
+            // A strict diet requires positive confirmation. "Unknown" is never treated as safe.
+            if let key = flags[diet], deal.dietaryFlags[key] != "yes" { return false }
+        }
+        return true
     }
 
     /// Replaces development fixtures with the current, food-only weekly flyer feed.
     /// A valid location with no coverage intentionally returns no deals instead of showing another region.
     func loadLiveDeals() async {
         do {
-            let fetched = try await SupabaseService.shared.fetchActiveDeals(postalCode: data.profile.postalCode)
+            let fetched = try await SupabaseService.shared.fetchActiveDeals(location: data.profile.location)
             availableDeals = fetched
             liveDealsLoaded = true
             dealLoadError = nil
@@ -243,18 +272,30 @@ final class AppStore {
 
     /// Worth It This Week: safe, personalized recipes that currently use deals.
     var worthIt: [ScoredRecipe] {
-        ranked.filter { $0.price.dealCount > 0 }.sorted { ($0.score + $0.price.savingsFraction) > ($1.score + $1.price.savingsFraction) }
+        ranked.filter { $0.price.dealCount > 0 }.sorted {
+            let lhs = $0.price.weeklyValueScore * 0.85 + $0.score * 0.15
+            let rhs = $1.price.weeklyValueScore * 0.85 + $1.score * 0.15
+            return lhs > rhs
+        }
     }
 
     func recipesUsing(ingredientId: String) -> [ScoredRecipe] {
-        ranked.filter { $0.recipe.ingredients.contains { $0.ingredientId == ingredientId } }
+        ranked.filter { recipe in
+            recipe.recipe.ingredients.contains {
+                PricingEngine.recipeIngredient($0.ingredientId, matches: ingredientId)
+            }
+        }
     }
 
     /// Steals: deals ordered by real value (discount with confidence). Deals without history rank last.
     func steals(myStoresOnly: Bool) -> [Deal] {
         deals(myStoresOnly: myStoresOnly).sorted { a, b in
-            let av = max(a.dealScore, Double(a.discountPercent ?? 0)) * (a.confidence == .high ? 1.2 : 1)
-            let bv = max(b.dealScore, Double(b.discountPercent ?? 0)) * (b.confidence == .high ? 1.2 : 1)
+            let fallbackA = max(a.dealScore, Double(a.discountPercent ?? 0)) * 0.50
+                + a.commonFoodScore * 0.30 + a.healthPriorityScore * 0.20
+            let fallbackB = max(b.dealScore, Double(b.discountPercent ?? 0)) * 0.50
+                + b.commonFoodScore * 0.30 + b.healthPriorityScore * 0.20
+            let av = (a.recommendationScore > 0 ? a.recommendationScore : fallbackA) * (a.confidence == .high ? 1.05 : 1)
+            let bv = (b.recommendationScore > 0 ? b.recommendationScore : fallbackB) * (b.confidence == .high ? 1.05 : 1)
             return av > bv
         }
     }
@@ -505,16 +546,23 @@ final class AppStore {
     // MARK: Ask
 
     /// Hidden daily cap on Ask questions. The number is never shown in the UI.
-    private static let askDailyCap = 50
+    private static let askDailyCap = 30
 
     var askLimitReached: Bool {
         (data.askUsage[dayKey(.now)] ?? 0) >= Self.askDailyCap
     }
 
-    func ask(_ query: String) -> AskResponse {
+    func ask(_ query: String, conversationId: String?) async throws -> ZestyAskResponse {
+        let response = try await zesty.ask(
+            message: query,
+            conversationId: conversationId,
+            data: data,
+            acceptedStoreIds: myStoreIds,
+            blockedStoreIds: blockedStoreIds
+        )
         let key = dayKey(.now)
         mutate { $0.askUsage[key, default: 0] += 1 }
-        track("ask_query_sent")
-        return AskEngine().answer(query, candidates: ranked, profile: data.profile)
+        track("ask_query_sent", ["model": response.model])
+        return response
     }
 }

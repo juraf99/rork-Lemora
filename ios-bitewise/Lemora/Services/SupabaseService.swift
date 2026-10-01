@@ -2,23 +2,30 @@ import Foundation
 import OSLog
 import Supabase
 
+nonisolated enum LemoraBackend {
+    static let projectReference = "fsucqlqsafoligouzgrl"
+    static let projectURL = URL(string: "https://fsucqlqsafoligouzgrl.supabase.co")!
+    static let publishableKey = "sb_publishable_2iPvFh4m-T-1oG-s84VOzw_1H4R9T3G"
+}
+
 /// Shared entry point for the Lemora Supabase backend.
 /// The publishable key is safe in a mobile client; access remains enforced by database RLS.
 @MainActor
 final class SupabaseService {
     static let shared = SupabaseService()
 
-    static let projectReference = "fsucqlqsafoligouzgrl"
-    private static let projectURL = URL(string: "https://fsucqlqsafoligouzgrl.supabase.co")!
-    private static let publishableKey = "sb_publishable_2iPvFh4m-T-1oG-s84VOzw_1H4R9T3G"
+    static let projectReference = LemoraBackend.projectReference
 
     let client: SupabaseClient
     private let logger = Logger(subsystem: "app.lemora", category: "supabase")
+    private static let quebecPriorityBanners: Set<String> = [
+        "maxi", "provigo", "iga", "metro", "super c", "walmart", "costco"
+    ]
 
     private init() {
         client = SupabaseClient(
-            supabaseURL: Self.projectURL,
-            supabaseKey: Self.publishableKey
+            supabaseURL: LemoraBackend.projectURL,
+            supabaseKey: LemoraBackend.publishableKey
         )
     }
 
@@ -42,24 +49,59 @@ final class SupabaseService {
 
     /// Loads current food-only flyer deals. The database view already excludes coupons,
     /// non-food items, stale flyers, and expired offers.
-    func fetchActiveDeals(postalCode: String?) async throws -> [Deal] {
+    func fetchActiveDeals(location: UserLocation) async throws -> [Deal] {
         let rows: [LiveDealRow] = try await client
-            .from("active_food_deals_app")
-            .select("id,ingredient_id,product_name,sale_price,regular_price,multi_buy_quantity,unit_label,provider_discount_percent,deal_score,deal_confidence,deal_label,food_category,dietary_flags,allergen_flags,image_url,source_postal_code,currency_code,valid_from,valid_until,retailer_id,retailer_name")
+            .from("active_food_deals_unique")
+            .select("id,ingredient_id,product_name,retailer_product_name,brand,size_text,sale_price,regular_price,multi_buy_quantity,unit_label,provider_discount_percent,deal_score,deal_confidence,deal_label,food_category,dietary_flags,allergen_flags,image_url,source_postal_code,currency_code,valid_from,valid_until,region_codes,country_code,retailer_id,retailer_name,processing_level,health_priority_score,common_food_score,recommendation_score")
             .order("deal_score", ascending: false)
             .limit(1_000)
             .execute()
             .value
 
-        let active = rows.compactMap(\.deal)
-        guard let regionKey = Self.regionKey(postalCode) else {
+        let priorityRows = rows.filter {
+            Self.quebecPriorityBanners.contains($0.retailerName.lowercased())
+        }
+        let active = Self.deduplicated(priorityRows.compactMap(\.deal))
+        guard location.isSet else {
             logger.info("Loaded \(active.count) live weekly flyer deals without a location filter")
             return active
         }
 
-        let local = active.filter { Self.regionKey($0.sourcePostalCode) == regionKey }
-        logger.info("Loaded \(local.count) live weekly flyer deals for region \(regionKey, privacy: .private)")
+        let countryCode = Self.normalizedCountryCode(location.countryCode)
+        let regionCode = Self.normalizedRegionCode(
+            location.region,
+            countryCode: countryCode,
+            postalCode: location.postalCode
+        )
+        let postalRegion = Self.regionKey(location.postalCode)
+        let local = Self.deduplicated(priorityRows.compactMap { row -> Deal? in
+            guard let deal = row.deal, row.countryCode.uppercased() == countryCode else { return nil }
+            if let regionCode, row.regionCodes.map({ $0.uppercased() }).contains(regionCode) { return deal }
+            if let postalRegion, Self.regionKey(deal.sourcePostalCode) == postalRegion { return deal }
+            return nil
+        })
+        logger.info("Loaded \(local.count) live weekly flyer deals for \(countryCode, privacy: .public)-\(regionCode ?? postalRegion ?? "unknown", privacy: .private)")
         return local
+    }
+
+    /// Final client-side safety net. Supabase already deduplicates the feed, but
+    /// this guarantees that cached or temporarily inconsistent API data can never
+    /// render two cards for the same ingredient at the same retailer.
+    private static func deduplicated(_ deals: [Deal]) -> [Deal] {
+        var bestByKey: [String: Deal] = [:]
+        for deal in deals {
+            let key = "\(deal.retailerId.lowercased())|\(deal.ingredientId.lowercased())"
+            guard let existing = bestByKey[key] else {
+                bestByKey[key] = deal
+                continue
+            }
+            if deal.recommendationScore > existing.recommendationScore
+                || (deal.recommendationScore == existing.recommendationScore
+                    && deal.effectivePrice < existing.effectivePrice) {
+                bestByKey[key] = deal
+            }
+        }
+        return Array(bestByKey.values)
     }
 
     private static func regionKey(_ postalCode: String?) -> String? {
@@ -75,6 +117,33 @@ final class SupabaseService {
         }
         return normalized
     }
+
+    /// Profiles created by older builds may contain localized country/province names.
+    /// Normalize them before matching the compact ISO codes stored by Supabase.
+    private static func normalizedCountryCode(_ value: String) -> String {
+        switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "ca", "can", "canada": return "CA"
+        case "us", "usa", "united states", "united states of america", "états-unis", "etats-unis": return "US"
+        default: return value.uppercased()
+        }
+    }
+
+    private static func normalizedRegionCode(
+        _ value: String?,
+        countryCode: String,
+        postalCode: String
+    ) -> String? {
+        if countryCode == "CA",
+           let derived = SupportedCountry.canada.region(forPostal: postalCode.uppercased()) {
+            return derived
+        }
+
+        guard let value else { return nil }
+        switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "qc", "quebec", "québec": return "QC"
+        default: return value.uppercased()
+        }
+    }
 }
 
 private nonisolated struct ConnectionProbe: Decodable, Sendable {
@@ -85,6 +154,9 @@ private nonisolated struct LiveDealRow: Decodable, Sendable {
     let id: String
     let ingredientId: String
     let productName: String
+    let retailerProductName: String?
+    let brand: String?
+    let sizeText: String?
     let salePrice: Double
     let regularPrice: Double?
     let multiBuyQuantity: Int?
@@ -101,13 +173,22 @@ private nonisolated struct LiveDealRow: Decodable, Sendable {
     let currencyCode: String
     let validFrom: String
     let validUntil: String
+    let regionCodes: [String]
+    let countryCode: String
     let retailerId: String
     let retailerName: String
+    let processingLevel: String
+    let healthPriorityScore: Double
+    let commonFoodScore: Double
+    let recommendationScore: Double
 
     enum CodingKeys: String, CodingKey {
         case id
         case ingredientId = "ingredient_id"
         case productName = "product_name"
+        case retailerProductName = "retailer_product_name"
+        case brand
+        case sizeText = "size_text"
         case salePrice = "sale_price"
         case regularPrice = "regular_price"
         case multiBuyQuantity = "multi_buy_quantity"
@@ -124,8 +205,14 @@ private nonisolated struct LiveDealRow: Decodable, Sendable {
         case currencyCode = "currency_code"
         case validFrom = "valid_from"
         case validUntil = "valid_until"
+        case regionCodes = "region_codes"
+        case countryCode = "country_code"
         case retailerId = "retailer_id"
         case retailerName = "retailer_name"
+        case processingLevel = "processing_level"
+        case healthPriorityScore = "health_priority_score"
+        case commonFoodScore = "common_food_score"
+        case recommendationScore = "recommendation_score"
     }
 
     var deal: Deal? {
@@ -143,7 +230,7 @@ private nonisolated struct LiveDealRow: Decodable, Sendable {
         return Deal(
             id: id,
             ingredientId: ingredientId,
-            retailerId: retailerId,
+            retailerId: Self.normalizedRetailerId(retailerId),
             productName: productName,
             salePrice: salePrice,
             regularPrice: regularPrice,
@@ -163,7 +250,14 @@ private nonisolated struct LiveDealRow: Decodable, Sendable {
             sourcePostalCode: sourcePostalCode,
             currencyCode: currencyCode,
             dietaryFlags: dietaryFlags,
-            allergenFlags: allergenFlags
+            allergenFlags: allergenFlags,
+            retailerProductName: retailerProductName,
+            brand: brand,
+            sizeText: sizeText,
+            processingLevel: processingLevel,
+            healthPriorityScore: healthPriorityScore,
+            commonFoodScore: commonFoodScore,
+            recommendationScore: recommendationScore
         )
     }
 
@@ -179,5 +273,12 @@ private nonisolated struct LiveDealRow: Decodable, Sendable {
             components.second = 59
         }
         return calendar.date(from: components)
+    }
+
+    private static func normalizedRetailerId(_ value: String) -> String {
+        switch value.lowercased() {
+        case "super_c", "super-c", "super c": return "superc"
+        default: return value.lowercased()
+        }
     }
 }
