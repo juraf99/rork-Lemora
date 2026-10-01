@@ -184,7 +184,7 @@ final class OnboardingModel {
             }
             return
         }
-        go(i < Self.steps.count - 1 ? Self.steps[i + 1] : .thanks)
+        go(i < Self.steps.count - 1 ? Self.steps[i + 1] : (a.reachedPlan == true ? .plan : .thanks))
     }
 
     func back() {
@@ -194,7 +194,7 @@ final class OnboardingModel {
 
     func skip() {
         guard let i = stepIndex else { return }
-        go(i < Self.steps.count - 1 ? Self.steps[i + 1] : .thanks)
+        go(i < Self.steps.count - 1 ? Self.steps[i + 1] : (a.reachedPlan == true ? .plan : .thanks))
     }
 
     var canContinue: Bool {

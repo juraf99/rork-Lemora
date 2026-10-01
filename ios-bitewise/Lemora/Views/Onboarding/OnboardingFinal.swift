@@ -365,6 +365,11 @@ struct OBPlanScreen: View {
         ]
         let picks = Array(store.planPreview(for: m.makeProfile(base: store.data.profile)).matches.prefix(3))
         VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                OBBackButton(size: 38) { m.go(OnboardingModel.steps.last ?? .strategy) }
+                Spacer()
+            }
+            .padding(.bottom, 6)
             HStack(spacing: 10) {
                 ZestyMascot(mood: .idle, size: 54, seedKey: "pl")
                 VStack(alignment: .leading, spacing: 3) {
@@ -451,6 +456,10 @@ struct OBAccountScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            HStack {
+                OBBackButton(size: 38) { m.go(.plan) }
+                Spacer()
+            }
             Spacer(minLength: 0)
             VStack(spacing: 0) {
                 ZestyMascot(mood: .talking, size: 110, seedKey: "ac")
@@ -788,6 +797,11 @@ struct OBPaywallScreen: View {
             .padding(.top, 4)
             .padding(.trailing, 16)
             .accessibilityLabel("testerbypass")
+        }
+        .overlay(alignment: .topLeading) {
+            OBBackButton(size: 34) { m.go(.plan) }
+                .padding(.top, 4)
+                .padding(.leading, 16)
         }
         .sheet(isPresented: $showPrivacy) { NavigationStack { PrivacyView() } }
         .task { if !sub.productsAvailable { await sub.loadProducts() } }
