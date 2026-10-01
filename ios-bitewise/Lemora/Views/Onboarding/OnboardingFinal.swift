@@ -674,6 +674,11 @@ struct OBPaywallScreen: View {
     private var currencyCode: String { sub.annual?.priceFormatStyle.currencyCode ?? (m.currency) }
     /// Free-trial days on the yearly plan (from the App Store product), when this Apple ID is eligible.
     private var trialDays: Int? {
+        if SubscriptionService.isTestFlight {
+            // TestFlight purchases are free tests, so testers always see the yearly free-trial design,
+            // even on an Apple ID that already used the trial. The App Store build checks eligibility.
+            return sub.annual.flatMap { SubscriptionService.trialDays(of: $0) } ?? 3
+        }
         guard let product = sub.annual else { return nil }
         guard sub.isEligibleForTrial, let days = SubscriptionService.trialDays(of: product), days > 0 else { return nil }
         return days
@@ -793,7 +798,14 @@ struct OBPaywallScreen: View {
             .padding(.bottom, 8)
             .padding(.top, -6)
         }
-        .background(OB.cream.ignoresSafeArea())
+        .background {
+            // One gradient from the very top (status bar included) down into the cream, like the design.
+            ZStack {
+                OB.cream
+                LinearGradient(colors: [Color(hex: 0xFCEFB4), OB.cream], startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.36))
+            }
+            .ignoresSafeArea()
+        }
         .overlay(alignment: .topTrailing) {
             // TEMPORARY (beta): tester bypass for the hard paywall. Remove before public release.
             Button {
@@ -838,10 +850,6 @@ struct OBPaywallScreen: View {
         }
         .frame(minHeight: 190, maxHeight: 270)
         .frame(maxWidth: .infinity)
-        .background {
-            LinearGradient(colors: [Color(hex: 0xFCEFB4), OB.cream], startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea(edges: .top)
-        }
     }
 
     private func planCard(id: String, name: String, price: String, unit: String, terms: String, badge: String?) -> some View {

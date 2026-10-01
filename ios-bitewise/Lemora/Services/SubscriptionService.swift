@@ -11,6 +11,8 @@ final class SubscriptionService {
     static let annualId = "app.lemora.premium.annual"
     static let monthlyId = "app.lemora.premium.monthly"
     static let entitlementId = "lemora_pro"
+    /// TestFlight / sandbox build: purchases are free tests.
+    static var isTestFlight: Bool { Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt" }
 
     private(set) var products: [Product] = []
     private(set) var hasActiveSubscription = false
