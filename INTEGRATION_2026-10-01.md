@@ -14,4 +14,17 @@ Codex's server-backed Ask and live weekly-deal feed are integrated into that app
 - Both private functions return HTTP 401 without a Clerk session. No database reset, blanket migration push or user-record overwrite was performed.
 - No authenticated OpenAI conversation was run during these checks; installed-device answers still require a signed-in end-to-end test.
 
-The shared GitHub workflow records the final source commit/build number, rejects obsolete uploads and retains both agents' features. Its upload result and TestFlight processing state must be verified before reporting tester availability. The older `2610011001` archive is historical, not the synchronized release.
+## Integrated release
+
+- Source commit: `d4c167065829b8a92e5b8dbdafcfd786a585b64c`, shared `main`.
+- GitHub Actions run: https://github.com/juraf99/rork-Lemora/actions/runs/36907164181 — succeeded, including archive and upload.
+- Version/build: `1.0.0 (2610011829)`; App Store Connect received it on 1 October at 14:34 EDT. Processing completed; the build is assigned to `Internal Testing` (one tester). Verified on the build detail page: https://appstoreconnect.apple.com/teams/5472140c-2be4-4235-be97-fef27e947263/apps/6817623465/testflight/ios/88bbcfee-d12b-4c97-b427-8718c40117a1.
+- The local `lemora` checkout now follows the same shared `main`.
+
+The shared workflow records the source commit/build number, rejects obsolete uploads and retains both agents' features. The older `2610011001` archive is historical, not the synchronized release.
+
+## Remaining verification
+
+Flyer ingestion last succeeded at `2026-10-01 04:39 UTC` (623 items seen, 567 written). The ingestion function is deployed, but no scheduled GitHub ingestion workflow, local Codex automation, or installed Supabase `pg_cron`/`pg_net` extension was found. An external scheduler may exist; automatic refresh is not yet confirmed. Do not represent an active function as proof of scheduled execution, or copy server secrets into the application to enable it.
+
+An installed-device, signed-in Ask conversation still needs an end-to-end check. Recipe-tool tests and a successful upload do not establish the OpenAI account's current billing availability or conversational model behaviour.
