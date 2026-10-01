@@ -624,8 +624,8 @@ function agentFailure(error: unknown, locale: string) {
   if (/usage or billing limit|insufficient_quota|usage_limit_exceeded|spend_limit_exceeded|credit_balance_exhausted|billing quota|no balance left/.test(evidence)) {
     return {
       code: "ai_billing_unavailable", status: 503,
-      message: french ? "Zesty est momentanément indisponible. Ta question est conservée; réessaie plus tard."
-        : "Zesty is temporarily unavailable. Your question is saved; please try again later.",
+      message: french ? "Zesty est momentanément indisponible. Réessaie plus tard."
+        : "Zesty is temporarily unavailable. Please try again later.",
     };
   }
   if (/rate_limit_exceeded|slow_down|requests.per.minute|tokens.per.minute/.test(evidence)) {
@@ -638,14 +638,14 @@ function agentFailure(error: unknown, locale: string) {
   if (/timeout|timed out|agent_stream_ended_without_answer/.test(evidence)) {
     return {
       code: "ai_timeout", status: 504,
-      message: french ? "Zesty a pris trop de temps. Ta question est conservée; réessaie."
-        : "Zesty took too long. Your question is saved; please try again.",
+      message: french ? "Zesty a pris trop de temps. Réessaie dans un instant."
+        : "Zesty took too long. Please try again in a moment.",
     };
   }
   return {
     code: "ai_unavailable", status: 502,
-    message: french ? "Zesty n'a pas pu répondre. Ta question est conservée; réessaie."
-      : "Zesty couldn't answer. Your question is saved; please try again.",
+    message: french ? "Zesty n'a pas pu répondre. Réessaie dans un instant."
+      : "Zesty couldn't answer. Please try again in a moment.",
   };
 }
 

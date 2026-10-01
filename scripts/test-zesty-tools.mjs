@@ -96,7 +96,7 @@ assert.ok(priorTurn.endsWith("Latest user request: What is its nutrition?"));
 const billingFailure = scope.agentFailure(new Error("Your organization has reached a usage or billing limit"), "fr");
 assert.equal(billingFailure.code, "ai_billing_unavailable");
 assert.equal(billingFailure.status, 503);
-assert.ok(billingFailure.message.includes("question est conservée"));
+assert.ok(billingFailure.message.includes("Réessaie plus tard"));
 assert.equal(scope.agentFailure({ error: { code: "project_spend_limit_exceeded" } }, "en").code, "ai_billing_unavailable");
 assert.equal(scope.agentFailure({ code: "rate_limit_exceeded" }, "en").code, "ai_busy");
 assert.equal(scope.agentFailure(new Error("request timed out"), "en").code, "ai_timeout");
