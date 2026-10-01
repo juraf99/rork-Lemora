@@ -680,12 +680,12 @@ struct OBPaywallScreen: View {
         }
         if annual {
             return [("🔓", "Today", "Everything unlocked · \(annualPrice) billed"),
-                    ("🔁", "Every year", "Renews at \(annualPrice)"),
-                    ("✨", "Anytime", "Cancel in Settings in two taps")]
+                    ("🔔", "Every year", "Renews at \(annualPrice)"),
+                    ("⭐", "Anytime", "Cancel in Settings in two taps")]
         }
         return [("🔓", "Today", "Everything unlocked · \(monthlyPrice) billed"),
-                ("🔁", "Every month", "Renews at \(monthlyPrice)"),
-                ("✨", "Anytime", "Cancel in Settings in two taps")]
+                ("🔔", "Every month", "Renews at \(monthlyPrice)"),
+                ("⭐", "Anytime", "Cancel in Settings in two taps")]
     }
 
     private var cta: String {
@@ -741,13 +741,13 @@ struct OBPaywallScreen: View {
 
                 Spacer(minLength: 12)
 
-                HStack(alignment: .bottom, spacing: 10) {
+                OBWeightedRow(weights: [1.25, 1], spacing: 10) {
                     planCard(id: "annual", name: "Yearly", price: annualPrice, unit: "\(perMonth) / month",
                              terms: trialDays.map { "\($0) days free" } ?? "Billed yearly",
                              badge: savePercent > 0 ? "BEST VALUE · −\(savePercent)%" : "BEST VALUE")
-                        .layoutPriority(1.25)
                     planCard(id: "monthly", name: "Monthly", price: monthlyPrice, unit: "per month", terms: "No trial", badge: nil)
                 }
+                .padding(.top, 11)
                 .obIn(delay: 0.38, duration: 0.4)
 
                 OBPrimaryButton(title: cta, shine: true, loading: purchasing) { Task { await purchase() } }
@@ -827,7 +827,7 @@ struct OBPaywallScreen: View {
                 Text(unit).font(OB.font(11.5, 600)).foregroundStyle(on ? .white.opacity(0.72) : OB.sub).padding(.top, 2)
                 Text(terms).font(OB.font(11.5, 700)).foregroundStyle(on ? OB.lemon : OB.green).padding(.top, 8)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .padding(.horizontal, 16)
             .padding(.top, badge == nil ? 16 : 22)
             .padding(.bottom, 15)

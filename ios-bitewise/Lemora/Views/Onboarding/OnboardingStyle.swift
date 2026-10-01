@@ -85,6 +85,37 @@ struct OBPress: ButtonStyle {
 }
 
 /// Yellow pill CTA. `height` nil means padding-driven (17 pt vertical padding, like the design).
+/// Lays children out side by side with widths in proportion to `weights` (CSS flex: 1.25 / 1)
+/// and the same height (CSS align-items: stretch).
+struct OBWeightedRow: Layout {
+    var weights: [CGFloat]
+    var spacing: CGFloat = 10
+
+    private func widths(_ total: CGFloat, _ n: Int) -> [CGFloat] {
+        let w = (0..<n).map { $0 < weights.count ? weights[$0] : 1 }
+        let sum = w.reduce(0, +)
+        let free = max(0, total - spacing * CGFloat(max(0, n - 1)))
+        return w.map { free * $0 / sum }
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let total = proposal.width ?? 350
+        let ws = widths(total, subviews.count)
+        let h = zip(subviews, ws).map { $0.sizeThatFits(ProposedViewSize(width: $1, height: nil)).height }.max() ?? 0
+        return CGSize(width: total, height: h)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let ws = widths(bounds.width, subviews.count)
+        var x = bounds.minX
+        for (sv, w) in zip(subviews, ws) {
+            sv.place(at: CGPoint(x: x, y: bounds.minY), anchor: .topLeading,
+                     proposal: ProposedViewSize(width: w, height: bounds.height))
+            x += w + spacing
+        }
+    }
+}
+
 struct OBPrimaryButton: View {
     let title: String
     var enabled: Bool = true
@@ -97,7 +128,6 @@ struct OBPrimaryButton: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                if shine && enabled { OBSheen() }
                 Text(title)
                     .font(OB.font(fontSize, 800))
                     .foregroundStyle(enabled ? OB.ink : OB.disabledText)
@@ -108,6 +138,7 @@ struct OBPrimaryButton: View {
             .frame(height: height)
             .padding(.vertical, height == nil ? 17 : 0)
             .background(enabled ? OB.lemon : OB.track, in: .capsule)
+            .overlay { if shine && enabled { OBSheen() } }
             .clipShape(.capsule)
             .shadow(color: enabled ? OB.lemon.opacity(0.4) : .clear, radius: 8, x: 0, y: 6)
         }
