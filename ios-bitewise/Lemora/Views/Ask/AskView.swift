@@ -61,8 +61,8 @@ struct AskView: View {
             HStack(alignment: .center, spacing: 12) {
                 ZestyMascot(mood: .talking, size: 70, seedKey: "ask-intro")
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Ask Zesty anything").font(.bw(.title2)).foregroundStyle(BW.ink)
-                    Text("Recipes, deals, nutrition, your profile or how Lemora works.")
+                    Text("Ask Zesty about food & Lemora").font(.bw(.title2)).foregroundStyle(BW.ink)
+                    Text("Recipes, deals, nutrition, food and fitness, or how the app works.")
                         .font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
                     Text("Zesty AI · build \(appBuildNumber)")
                         .font(.bw(.caption2, weight: .semibold))
@@ -230,7 +230,7 @@ struct AskView: View {
                     .multilineTextAlignment(.center)
             }
             HStack(spacing: 10) {
-                TextField("Ask Zesty anything…", text: $input, axis: .vertical)
+                TextField("Ask Zesty about food or Lemora…", text: $input, axis: .vertical)
                     .lineLimit(1...4)
                     .focused($focused)
                     .font(.bw(.body, weight: .medium))
@@ -269,7 +269,8 @@ struct AskView: View {
         guard !store.askLimitReached else { return }
         input = ""
         focused = false
-        messages.append(AskMessage(isUser: true, text: query))
+        let userMessage = AskMessage(isUser: true, text: query)
+        messages.append(userMessage)
         isThinking = true
         Task {
             do {
@@ -286,6 +287,8 @@ struct AskView: View {
                 }
             } catch {
                 withAnimation(.spring(response: 0.4)) {
+                    messages.removeAll { $0.id == userMessage.id }
+                    input = query
                     messages.append(AskMessage(
                         isUser: false,
                         text: error.localizedDescription

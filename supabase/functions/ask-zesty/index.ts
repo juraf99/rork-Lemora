@@ -4,7 +4,7 @@ import { createRemoteJWKSet, jwtVerify } from "npm:jose@5.9.6";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.95.0";
 
 const OPENAI_MODEL = "gpt-5.6-luna";
-const AGENT_CONFIG_VERSION = "2026-10-01.4";
+const AGENT_CONFIG_VERSION = "2026-10-01.5";
 const MAX_MESSAGE_LENGTH = 2_000;
 const MAX_CONTEXT_BYTES = 64_000;
 const MAX_DAILY_QUESTIONS = 30; // Absolute abuse/cost ceiling; product entitlements remain stricter.
@@ -512,22 +512,23 @@ const tools = [
 function agentInstructions(locale: string, context: JsonObject) {
   return `You are Zesty, Lemora's warm, clever food-and-grocery friend. The current local date is ${localDateISO(context)}.
 
-Your purpose is to have a useful written conversation about meals, recipes, weekly grocery deals, price comparisons, budgets, servings, nutrition, grocery lists, the user's preferences, and every feature or setting in Lemora. Match the user's language (${locale === "fr" ? "French" : "English"}).
+Your purpose is to have a useful written conversation about food, recipes, groceries, nutrition, food-related health and fitness, and how Lemora works. Match the user's language (${locale === "fr" ? "French" : "English"}).
 
 Rules:
+- Stay within food, nutrition, cooking, grocery shopping, food-related health or sport, and Lemora help. For an unrelated request such as buying shoes online, briefly say that Zesty helps with food and Lemora, and invite a relevant question. Do not answer the unrelated request or search the web for it.
 - The written message is the primary answer. Recommendation cards are optional supporting UI, never a substitute for the requested information. If the user asks for servings, exact ingredient quantities, preparation, cooking steps, substitutions, nutrition or cost, put those details directly in the message in a readable order.
 - First identify the intent. For an app-help, settings, account or profile-management question, call get_app_help and answer the question directly. Call get_user_context only when the user's current values matter. Do not search recipes, deals or the web and do not suggest food unless the user also asked for it.
 - For a meal or recipe request, search Lemora's catalogue first. When the user is asking for ideas or options, try to present two safe, relevant Lemora recipes when two good matches exist. Do not force two recipes when the user asks about one specific recipe or when fewer than two are genuinely suitable.
 - Use get_recipe_details before giving exact quantities or steps for a validated Lemora recipe. Scale every quantity to the requested serving count and explicitly state the number of servings.
 - Use live web search only when Lemora's recipes and data are insufficient or the question genuinely needs current external knowledge. Do not browse merely to decorate an answer. When web information materially shapes the answer, identify it as external and include useful source links or source names in the message.
-- If no Lemora recipe is a good fit, create a complete personalized recipe in writing. It must include a title, serving count, quantified ingredients, numbered steps, total time, nutrition per serving and any important estimate/safety note. This is a normal successful answer, not a failure state.
+- If no Lemora recipe is a good fit, or the user asks again for a more specific or niche recipe after earlier suggestions, create a complete personalized recipe in writing. Do not repeat the same unsuitable catalogue cards. Research external cooking information when needed, cite useful sources, and combine it with verified Lemora deals and the user's preferences. Include a title, serving count, quantified ingredients, numbered steps, total time, nutrition per serving and any important estimate/safety note. This is a normal successful answer, not a failure state.
 - Preserve dialogue context. Understand short follow-ups such as “make it for 8,” “give me the steps,” or “what about my profile?” as continuations of the prior exchange. For a question about a named recipe's nutrition, ingredients, portions or steps, identify that recipe from the conversation or recent recommendation cards, call get_recipe_details for its id, and answer about that recipe. Never turn a nutrition follow-up into an unrelated recipe search or a list of new meals. Ask at most one concise clarification only when a missing fact would materially change the answer; otherwise make a reasonable stated assumption and proceed.
 - Speak as Zesty: warm, upbeat, lightly playful and human. A tiny food joke or friendly aside is welcome when natural, but keep it brief, never derail, never become childish, and never bury the answer. Be straight to the point.
 - You have read-only access. Never claim to save, buy, edit or publish anything.
 - Call get_user_context whenever preferences, household, budget, allergies, stores, saved items or goals could affect the answer.
 - Call search_weekly_deals before stating any current price, sale, retailer availability or best store. Use its store_best_alternatives when there is no exact ingredient match. Clearly distinguish an exact verified deal from a value-oriented alternative; never invent a price.
-- Prefer validated Lemora recipes. If the catalogue has no exact fit, ALWAYS create a complete personalized recipe instead of asking the user to loosen ordinary constraints. Use web search only when it is truly helpful, then combine any external knowledge with Lemora's verified deals and profile context. Label the result as a personalized suggestion and never claim it is catalogue-validated.
-- Answer broad questions helpfully even when Lemora has no matching database record. Lack of a catalogue recipe is never a reason to say you cannot help. Apply normal safety boundaries for dangerous, illegal, medical or otherwise unsafe requests.
+- Prefer validated Lemora recipes. If the catalogue has no exact fit, create a complete personalized recipe instead of asking the user to loosen ordinary constraints. Use web search when current or niche external information is needed. Label the result as a personalized suggestion and never claim it is catalogue-validated.
+- Answer in-scope questions helpfully even when Lemora has no matching database record. For app-history questions, do not invent launch dates or company facts that are not verified in the available sources. Apply normal safety boundaries for dangerous, illegal, medical or otherwise unsafe requests.
 - Treat allergies and strict diets as hard safety constraints. Unknown or possible contamination is not confirmed safe. Never weaken those constraints to satisfy price or taste.
 - Every recipe you provide, validated or personalized, must also have a kind=recipe recommendation card with nutrition per serving: calories, protein, carbohydrates, fibre, sugars, fat, saturated fat and sodium. Include all eight fields in its nutrition object. Use null when a value cannot be responsibly calculated, or calculate a reasonable ingredient-based estimate for a personalized recipe. Set status to verified only if every value is verified; otherwise use estimated or unknown and briefly name the source/method. Never present an estimate as laboratory analysis.
 - Nutrition and costs are estimates unless the tool explicitly says verified. State material uncertainty briefly.
@@ -613,6 +614,50 @@ function agentInputWithHistory(message: string, history: JsonObject[]) {
   return `Earlier conversation (context only; the latest user request is below):\n${previous}\n\nLatest user request: ${message}`;
 }
 
+function agentFailure(error: unknown, locale: string) {
+  const outer = isObject(error) ? error : {};
+  const nested = isObject(outer.error) ? outer.error : {};
+  const providerCode = cleanText(nested.code ?? outer.code, 100).toLowerCase();
+  const detail = error instanceof Error ? error.message : cleanText(outer.message, 500);
+  const evidence = `${providerCode} ${detail}`.toLowerCase();
+  const french = locale === "fr";
+  if (/usage or billing limit|insufficient_quota|usage_limit_exceeded|spend_limit_exceeded|credit_balance_exhausted|billing quota|no balance left/.test(evidence)) {
+    return {
+      code: "ai_billing_unavailable", status: 503,
+      message: french ? "Zesty est momentanément indisponible. Ta question est conservée; réessaie plus tard."
+        : "Zesty is temporarily unavailable. Your question is saved; please try again later.",
+    };
+  }
+  if (/rate_limit_exceeded|slow_down|requests.per.minute|tokens.per.minute/.test(evidence)) {
+    return {
+      code: "ai_busy", status: 503,
+      message: french ? "Zesty reçoit trop de demandes. Réessaie dans un instant."
+        : "Zesty is busy. Please try again in a moment.",
+    };
+  }
+  if (/timeout|timed out|agent_stream_ended_without_answer/.test(evidence)) {
+    return {
+      code: "ai_timeout", status: 504,
+      message: french ? "Zesty a pris trop de temps. Ta question est conservée; réessaie."
+        : "Zesty took too long. Your question is saved; please try again.",
+    };
+  }
+  return {
+    code: "ai_unavailable", status: 502,
+    message: french ? "Zesty n'a pas pu répondre. Ta question est conservée; réessaie."
+      : "Zesty couldn't answer. Your question is saved; please try again.",
+  };
+}
+
+function isMissingAgentSession(error: unknown) {
+  const outer = isObject(error) ? error : {};
+  const nested = isObject(outer.error) ? outer.error : {};
+  const code = cleanText(nested.code ?? outer.code, 100).toLowerCase();
+  const detail = error instanceof Error ? error.message : cleanText(outer.message, 500);
+  return (code === "not_found_error" && /session/i.test(detail))
+    || /(?:session.{0,60}(?:not found|expired)|no such session)/i.test(detail);
+}
+
 async function consumeAgentStream(
   openai: OpenAI,
   stream: AsyncIterable<any>,
@@ -664,7 +709,11 @@ async function consumeAgentStream(
       outputTokens = Number(event.turn?.usage?.output_tokens ?? 0);
     }
     if (event.type === "agent.session.turn.failed" || event.type === "agent.session.turn.cancelled" || event.type === "agent.session.failed" || event.type === "error") {
-      throw new Error(event.error?.message ?? `agent_failed: ${event.type}`);
+      const rawDetail = event.error ?? event.turn?.error ?? event.session?.error;
+      const detail = isObject(rawDetail) ? rawDetail : {};
+      throw Object.assign(new Error(cleanText(detail.message ?? rawDetail, 500) || `agent_failed: ${event.type}`), {
+        code: cleanText(detail.code, 100),
+      });
     }
   }
   if (!completed || !finalText.trim()) throw new Error("agent_stream_ended_without_answer");
@@ -690,7 +739,8 @@ async function runAgent(
       });
       return await consumeAgentStream(openai, stream as any, toolContext);
     } catch (error) {
-      console.warn("Existing Zesty session could not continue; creating a replacement", error instanceof Error ? error.message : "unknown");
+      if (!isMissingAgentSession(error)) throw error;
+      console.warn("Existing Zesty session is unavailable; creating a replacement");
     }
   }
 
@@ -794,7 +844,8 @@ Deno.serve(async (req) => {
   });
 
   try {
-    const openai = new OpenAI({ apiKey: openAIKey });
+    // Quota and billing failures cannot be fixed by the SDK's default 429 retries.
+    const openai = new OpenAI({ apiKey: openAIKey, maxRetries: 0, timeout: 60_000 });
     const compatibleSessionId = conversation.agent_config_version === AGENT_CONFIG_VERSION
       ? conversation.openai_session_id
       : null;
@@ -843,7 +894,8 @@ Deno.serve(async (req) => {
       model: OPENAI_MODEL,
     });
   } catch (error) {
-    console.error("Zesty request failed", error instanceof Error ? error.message : "unknown");
-    return json({ error: "zesty_failed", message: "Zesty couldn't finish that answer. Please try again." }, 502);
+    const failure = agentFailure(error, locale);
+    console.error("Zesty request failed", failure.code);
+    return json({ error: failure.code, message: failure.message }, failure.status);
   }
 });

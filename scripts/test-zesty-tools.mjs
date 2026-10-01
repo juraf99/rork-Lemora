@@ -9,7 +9,7 @@ const root = resolve(import.meta.dirname, "..");
 const source = stripTypeScriptTypes(readFileSync(resolve(root, "supabase/functions/ask-zesty/index.ts"), "utf8"));
 const scope = {};
 const start = source.indexOf("const isObject");
-const end = source.indexOf("async function consumeAgentStream");
+const end = source.indexOf("Deno.serve(async (req)");
 assert.ok(start >= 0 && end > start, "Production tool section must be present");
 vm.runInNewContext(source.slice(start, end), scope);
 
@@ -93,6 +93,38 @@ const priorTurn = scope.agentInputWithHistory("What is its nutrition?", [
 ]);
 assert.ok(priorTurn.includes(`Recipe cards: ${recipe.name} (recipe id: ${recipe.id})`));
 assert.ok(priorTurn.endsWith("Latest user request: What is its nutrition?"));
+const billingFailure = scope.agentFailure(new Error("Your organization has reached a usage or billing limit"), "fr");
+assert.equal(billingFailure.code, "ai_billing_unavailable");
+assert.equal(billingFailure.status, 503);
+assert.ok(billingFailure.message.includes("question est conservée"));
+assert.equal(scope.agentFailure({ error: { code: "project_spend_limit_exceeded" } }, "en").code, "ai_billing_unavailable");
+assert.equal(scope.agentFailure({ code: "rate_limit_exceeded" }, "en").code, "ai_busy");
+assert.equal(scope.agentFailure(new Error("request timed out"), "en").code, "ai_timeout");
+assert.equal(scope.isMissingAgentSession(new Error("session not found")), true);
+assert.equal(scope.isMissingAgentSession(new Error("Your organization has reached a usage or billing limit")), false);
+async function* failedStream(error) {
+  yield { type: "agent.session.turn.failed", turn: { error } };
+}
+await assert.rejects(
+  scope.consumeAgentStream({}, failedStream({ code: "usage_limit_exceeded", message: "Budget exhausted" }), ctx),
+  (error) => scope.agentFailure(error, "en").code === "ai_billing_unavailable",
+  "The agent's streamed turn error must retain its billing code",
+);
+await assert.rejects(
+  scope.consumeAgentStream({}, failedStream("Your organization has reached a usage or billing limit"), ctx),
+  (error) => scope.agentFailure(error, "en").code === "ai_billing_unavailable",
+  "String-shaped streamed errors must not lose the billing message",
+);
+let replacementSessions = 0;
+const billingAgent = { beta: { agents: { sessions: {
+  events: { stream: async () => { throw new Error("Your organization has reached a usage or billing limit"); } },
+  create: async () => { replacementSessions++; throw new Error("Unexpected replacement session"); },
+} } } };
+await assert.rejects(scope.runAgent(billingAgent, "old-session", "Hello", "en", ctx, []), /billing limit/);
+assert.equal(replacementSessions, 0, "Billing failure must not create a second paid agent session");
+const guidance = scope.agentInstructions("en", context);
+assert.ok(guidance.includes("buying shoes online"));
+assert.ok(guidance.includes("more specific or niche recipe"));
 assert.ok(scope.getAppHelp().profile_paths.meal_types.includes("Meal Types"));
 assert.equal(scope.safeUserContext(context).profile.mealTypes[0], "dinner");
 console.log("Zesty tool checks passed: actual Teriyaki quantities/steps, local IDs, safety filters, nutrition unknowns and meal preferences.");
