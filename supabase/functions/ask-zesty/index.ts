@@ -4,7 +4,7 @@ import { createRemoteJWKSet, jwtVerify } from "npm:jose@5.9.6";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.95.0";
 
 const OPENAI_MODEL = "gpt-5.6-luna";
-const AGENT_CONFIG_VERSION = "2026-10-01.3";
+const AGENT_CONFIG_VERSION = "2026-10-01.4";
 const MAX_MESSAGE_LENGTH = 2_000;
 const MAX_CONTEXT_BYTES = 64_000;
 const MAX_DAILY_QUESTIONS = 30; // Absolute abuse/cost ceiling; product entitlements remain stricter.
@@ -521,7 +521,7 @@ Rules:
 - Use get_recipe_details before giving exact quantities or steps for a validated Lemora recipe. Scale every quantity to the requested serving count and explicitly state the number of servings.
 - Use live web search only when Lemora's recipes and data are insufficient or the question genuinely needs current external knowledge. Do not browse merely to decorate an answer. When web information materially shapes the answer, identify it as external and include useful source links or source names in the message.
 - If no Lemora recipe is a good fit, create a complete personalized recipe in writing. It must include a title, serving count, quantified ingredients, numbered steps, total time, nutrition per serving and any important estimate/safety note. This is a normal successful answer, not a failure state.
-- Preserve dialogue context. Understand short follow-ups such as “make it for 8,” “give me the steps,” or “what about my profile?” as continuations of the prior exchange. Ask at most one concise clarification only when a missing fact would materially change the answer; otherwise make a reasonable stated assumption and proceed.
+- Preserve dialogue context. Understand short follow-ups such as “make it for 8,” “give me the steps,” or “what about my profile?” as continuations of the prior exchange. For a question about a named recipe's nutrition, ingredients, portions or steps, identify that recipe from the conversation or recent recommendation cards, call get_recipe_details for its id, and answer about that recipe. Never turn a nutrition follow-up into an unrelated recipe search or a list of new meals. Ask at most one concise clarification only when a missing fact would materially change the answer; otherwise make a reasonable stated assumption and proceed.
 - Speak as Zesty: warm, upbeat, lightly playful and human. A tiny food joke or friendly aside is welcome when natural, but keep it brief, never derail, never become childish, and never bury the answer. Be straight to the point.
 - You have read-only access. Never claim to save, buy, edit or publish anything.
 - Call get_user_context whenever preferences, household, budget, allergies, stores, saved items or goals could affect the answer.
@@ -557,7 +557,7 @@ function parseNutrition(value: unknown): NutritionSummary | undefined {
     protein_g: nullableNumber(value.protein_g),
     carbs_g: nullableNumber(value.carbs_g),
     fiber_g: nullableNumber(value.fiber_g),
-    sugars_g: nullableNumber(value.sugars_g),
+    sugars_g: nullableNumber(value.sugars_g ?? value.sugar_g),
     fat_g: nullableNumber(value.fat_g),
     saturated_fat_g: nullableNumber(value.saturated_fat_g),
     sodium_mg: nullableNumber(value.sodium_mg),
@@ -594,6 +594,23 @@ function parseAgentOutput(raw: string): ZestyOutput {
   }).filter((item) => item.title);
   const followUps = safeArray(obj.follow_up_suggestions).map((item) => cleanText(item, 180)).filter(Boolean).slice(0, 3);
   return { message, recommendations, follow_up_suggestions: followUps };
+}
+
+function agentInputWithHistory(message: string, history: JsonObject[]) {
+  if (history.length === 0) return message;
+  const previous = history.map((entry) => {
+    const role = entry.role === "assistant" ? "Zesty" : "User";
+    const suggestions = safeArray(entry.recommendations).filter(isObject).slice(0, 3)
+      .map((item) => {
+        const title = cleanText(item.title, 180);
+        const id = cleanText(item.recipe_id, 80);
+        return id ? `${title || "Recipe"} (recipe id: ${id})` : title;
+      })
+      .filter(Boolean);
+    const cards = suggestions.length ? `\nRecipe cards: ${suggestions.join("; ")}` : "";
+    return `${role}: ${cleanText(entry.content, 2_000)}${cards}`;
+  }).join("\n\n");
+  return `Earlier conversation (context only; the latest user request is below):\n${previous}\n\nLatest user request: ${message}`;
 }
 
 async function consumeAgentStream(
@@ -660,6 +677,7 @@ async function runAgent(
   message: string,
   locale: string,
   toolContext: ToolContext,
+  history: JsonObject[],
 ) {
   if (existingSessionId) {
     try {
@@ -684,7 +702,7 @@ async function runAgent(
       tools: tools as any,
     },
     environment: { type: "none" },
-    input: message,
+    input: agentInputWithHistory(message, history),
     stream: true,
   });
   return consumeAgentStream(openai, stream as any, toolContext);
@@ -759,6 +777,15 @@ Deno.serve(async (req) => {
     conversation = data;
   }
 
+  const { data: recentMessages, error: historyError } = await db.from("zesty_messages")
+    .select("role,content,recommendations")
+    .eq("conversation_id", conversation.id)
+    .eq("clerk_user_id", clerkUserId)
+    .order("created_at", { ascending: false })
+    .limit(8);
+  if (historyError) return json({ error: "conversation_history_failed" }, 500);
+  const history = safeArray(recentMessages).filter(isObject).reverse();
+
   await db.from("zesty_messages").insert({
     conversation_id: conversation.id,
     clerk_user_id: clerkUserId,
@@ -775,7 +802,7 @@ Deno.serve(async (req) => {
       db,
       clerkUserId,
       clientContext,
-    });
+    }, history);
     const output = parseAgentOutput(result.finalText);
 
     if (result.sessionId && result.sessionId !== conversation.openai_session_id) {

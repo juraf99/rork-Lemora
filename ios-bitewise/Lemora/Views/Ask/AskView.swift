@@ -21,7 +21,7 @@ struct AskView: View {
         "Chicken dinner under $5 with 40g protein",
         "Something spicy using Maxi deals",
         "I have rice, eggs and chicken",
-        "Vegetarian dinner under $5 per serving",
+        "How do I change my stores and diet?",
     ]
 
     var body: some View {
@@ -61,8 +61,8 @@ struct AskView: View {
             HStack(alignment: .center, spacing: 12) {
                 ZestyMascot(mood: .talking, size: 70, seedKey: "ask-intro")
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("What are you craving?").font(.bw(.title2)).foregroundStyle(BW.ink)
-                    Text("I already know your goal, diet, allergies and stores.")
+                    Text("Ask Zesty anything").font(.bw(.title2)).foregroundStyle(BW.ink)
+                    Text("Recipes, deals, nutrition, your profile or how Lemora works.")
                         .font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
                     Text("Zesty AI · build \(appBuildNumber)")
                         .font(.bw(.caption2, weight: .semibold))
@@ -230,7 +230,7 @@ struct AskView: View {
                     .multilineTextAlignment(.center)
             }
             HStack(spacing: 10) {
-                TextField("Ask for any meal…", text: $input, axis: .vertical)
+                TextField("Ask Zesty anything…", text: $input, axis: .vertical)
                     .lineLimit(1...4)
                     .focused($focused)
                     .font(.bw(.body, weight: .medium))

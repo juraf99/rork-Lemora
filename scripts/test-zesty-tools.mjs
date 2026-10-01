@@ -84,6 +84,15 @@ const output = scope.parseAgentOutput(JSON.stringify({ message: "Nutrition", rec
 assert.equal(output.recommendations[0].nutrition.calories, null);
 assert.equal(output.recommendations[0].nutrition.protein_g, 46);
 assert.equal(output.recommendations[0].nutrition.sodium_mg, null);
+assert.equal(scope.parseNutrition({ sugar_g: 5, is_estimate: true }).sugars_g, 5, "The published recipe column is sugar_g");
+const priorTurn = scope.agentInputWithHistory("What is its nutrition?", [
+  { role: "user", content: "Show me a chicken and rice dinner" },
+  { role: "assistant", content: "Try this one", recommendations: [
+    { title: recipe.name, recipe_id: recipe.id },
+  ] },
+]);
+assert.ok(priorTurn.includes(`Recipe cards: ${recipe.name} (recipe id: ${recipe.id})`));
+assert.ok(priorTurn.endsWith("Latest user request: What is its nutrition?"));
 assert.ok(scope.getAppHelp().profile_paths.meal_types.includes("Meal Types"));
 assert.equal(scope.safeUserContext(context).profile.mealTypes[0], "dinner");
 console.log("Zesty tool checks passed: actual Teriyaki quantities/steps, local IDs, safety filters, nutrition unknowns and meal preferences.");
