@@ -31,6 +31,7 @@ struct ProfileView: View {
                     NavigationLink { DietEditView() } label: { row("leaf", String(localized: "Diet"), profile.diets.map(\.title).sorted().joined(separator: ", ")) }
                     NavigationLink { AllergyEditView() } label: { row("allergens", String(localized: "Allergies"), allergyText) }
                     NavigationLink { DislikeEditView() } label: { row("hand.thumbsdown", String(localized: "Foods I Dislike"), profile.dislikeNames.isEmpty ? String(localized: "None") : profile.dislikeNames.joined(separator: ", ")) }
+                    NavigationLink { MealTypeEditView() } label: { row("fork.knife", String(localized: "Meal Types"), mealTypeText) }
                     NavigationLink { CuisineEditView() } label: { row("globe.americas", String(localized: "Cuisines"), profile.cuisines.isEmpty ? String(localized: "Any") : "\(profile.cuisines.count)") }
                     NavigationLink { BudgetEditView() } label: { row("dollarsign.circle", String(localized: "Budget"), profile.weeklyBudget.map { "\(Money.format($0))/wk" } ?? String(localized: "Flexible")) }
                 }
@@ -71,6 +72,11 @@ struct ProfileView: View {
                 Text("This removes your profile, swipes, saves and grocery lists.")
             }
         }
+    }
+
+    private var mealTypeText: String {
+        let picked = MealType.allCases.filter { profile.mealTypes.contains($0) }
+        return picked.isEmpty ? String(localized: "All") : picked.map(\.title).joined(separator: ", ")
     }
 
     private var allergyText: String {
@@ -143,6 +149,22 @@ struct DietEditView: View { var body: some View { ProfileEditor { DietStep(profi
 struct AllergyEditView: View { var body: some View { ProfileEditor { AllergyStep(profile: $0) } } }
 struct DislikeEditView: View { var body: some View { ProfileEditor { DislikeStep(profile: $0) } } }
 struct CuisineEditView: View { var body: some View { ProfileEditor { CuisineStep(profile: $0) } } }
+struct MealTypeEditView: View { var body: some View { ProfileEditor { MealTypeStep(profile: $0) } } }
+
+struct MealTypeStep: View {
+    @Binding var profile: UserProfile
+
+    var body: some View {
+        StepScaffold(title: String(localized: "What kind of recipes are you looking for?"),
+                     subtitle: String(localized: "Pick the meals you want ideas for. Pick none to see everything.")) {
+            ChipFlow(items: MealType.allCases) { meal in
+                ChoiceChip(title: meal.emoji + " " + meal.title, selected: profile.mealTypes.contains(meal)) {
+                    if profile.mealTypes.contains(meal) { profile.mealTypes.remove(meal) } else { profile.mealTypes.insert(meal) }
+                }
+            }
+        }
+    }
+}
 struct BudgetEditView: View { var body: some View { ProfileEditor { BudgetStep(profile: $0) } } }
 struct StoresEditView: View { var body: some View { ProfileEditor { StoresStep(profile: $0) } } }
 struct StrategyEditView: View { var body: some View { ProfileEditor { StrategyStep(profile: $0) } } }

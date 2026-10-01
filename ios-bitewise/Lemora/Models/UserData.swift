@@ -45,6 +45,8 @@ nonisolated struct UserProfile: Codable, Hashable, Sendable {
     var allergyRefs: [AllergyRef] = []
     var dislikedIngredients: [IngredientRef] = []
     var cuisines: Set<Cuisine> = []
+    /// Kinds of recipes the user wants (breakfast, snacks…). Empty means all of them.
+    var mealTypes: Set<MealType> = []
     /// Nil means "No strict budget".
     var weeklyBudget: Double? = 100
     var householdSize: Int = 1
@@ -96,6 +98,7 @@ nonisolated struct UserProfile: Codable, Hashable, Sendable {
         diets = (try? c.decodeIfPresent(Set<DietPreference>.self, forKey: .diets)) ?? []
         hasNoAllergies = try c.decodeIfPresent(Bool.self, forKey: .hasNoAllergies) ?? false
         cuisines = (try? c.decodeIfPresent(Set<Cuisine>.self, forKey: .cuisines)) ?? []
+        mealTypes = (try? c.decodeIfPresent(Set<MealType>.self, forKey: .mealTypes)) ?? []
         weeklyBudget = try c.decodeIfPresent(Double.self, forKey: .weeklyBudget)
         householdSize = try c.decodeIfPresent(Int.self, forKey: .householdSize) ?? 1
         storePreferences = try c.decodeIfPresent([String: StorePreference].self, forKey: .storePreferences) ?? [:]

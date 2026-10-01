@@ -286,8 +286,30 @@ nonisolated enum Cuisine: String, Codable, CaseIterable, Identifiable, Sendable 
     }
 }
 
-nonisolated enum MealType: String, Codable, Sendable {
-    case breakfast, lunch, dinner
+nonisolated enum MealType: String, Codable, CaseIterable, Identifiable, Sendable {
+    case breakfast, lunch, dinner, snack, dessert
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .breakfast: String(localized: "Breakfast")
+        case .lunch: String(localized: "Lunch")
+        case .dinner: String(localized: "Dinner")
+        case .snack: String(localized: "Snacks")
+        case .dessert: String(localized: "Desserts")
+        }
+    }
+
+    var emoji: String {
+        switch self {
+        case .breakfast: "🥞"
+        case .lunch: "🥪"
+        case .dinner: "🍝"
+        case .snack: "🍿"
+        case .dessert: "🍰"
+        }
+    }
 }
 
 /// UserShoppingStrategy. Raw values are stable storage keys.

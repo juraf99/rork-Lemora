@@ -94,6 +94,7 @@ nonisolated struct RecommendationEngine {
 
     func passesHardFilters(_ recipe: Recipe, profile: UserProfile) -> Bool {
         exclusionReason(for: recipe, profile: profile) == nil
+            && (profile.mealTypes.isEmpty || profile.mealTypes.contains(recipe.mealType))
     }
 
     // MARK: Taste

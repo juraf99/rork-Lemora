@@ -259,6 +259,7 @@ extension OnboardingModel {
         p.hasNoAllergies = a.noAllergy
         p.allergyRefs = a.allergies.map { AllergyRef(id: $0 == "tree_nut" ? "tree_nuts" : $0, name: allergenName($0), kind: .allergen) }
         p.dislikedIngredients = a.dislikes.map { IngredientRef(id: $0.id, name: $0.name) }
+        p.mealTypes = Set((a.meals ?? []).compactMap { MealType(rawValue: $0) })
         p.weeklyBudget = a.noBudget ? nil : Double(a.budget)
         p.householdSize = a.household
         switch a.strategy {

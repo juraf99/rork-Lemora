@@ -61,6 +61,14 @@ enum OBCatalog {
         .init(id: "kosher", icon: "🥯", label: "Kosher", sub: "Kosher only"),
     ]
 
+    static let meals: [Diet] = [
+        .init(id: "breakfast", icon: "🥞", label: "Breakfast", sub: "Start the day right"),
+        .init(id: "lunch", icon: "🥪", label: "Lunch", sub: "Easy midday meals"),
+        .init(id: "dinner", icon: "🍝", label: "Dinner", sub: "Weeknight & family"),
+        .init(id: "snack", icon: "🍿", label: "Snacks", sub: "Quick bites"),
+        .init(id: "dessert", icon: "🍰", label: "Desserts", sub: "Something sweet"),
+    ]
+
     static let dietLabel: [String: String] = {
         var d = Dictionary(uniqueKeysWithValues: diets.map { ($0.id, $0.label) })
         d["none"] = "No Specific Diet"

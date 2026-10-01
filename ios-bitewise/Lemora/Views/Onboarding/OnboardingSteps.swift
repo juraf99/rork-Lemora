@@ -207,6 +207,7 @@ struct OBStepScreen: View {
         case .diet: return ("Do you follow a specific diet?", "Pick all that apply. I’ll keep them compatible.", .talking)
         case .allergies: return ("Do you have any food allergies?", "These are strict. I’ll never show recipes with them.", .curious)
         case .dislikes: return ("Anything you’d rather not eat?", "Tap a few or search any ingredient.", .talking)
+        case .meals: return ("What kind of recipes are you looking for?", "Pick the meals you want ideas for.", .idea)
         case .location: return ("Where are you shopping from?", "I use this to find stores and deals near you.", .thinking)
         case .stores: return ("Where do you shop?", "Pick every store you’d go to.", .cart)
         case .budget: return ("What’s your weekly grocery budget?", "For your whole household. I started from \(hh) \(hh == 1 ? "person" : "people").", .thinking)
@@ -227,6 +228,8 @@ struct OBStepScreen: View {
             return a.noAllergy ? "Great, no restrictions to track." : "\(a.allergies.count) allergen\(a.allergies.count > 1 ? "s" : "") excluded, always."
         case .dislikes:
             return a.dislikes.isEmpty ? "Okay, anything goes." : "Noted. I’ll keep \(a.dislikes.count) food\(a.dislikes.count > 1 ? "s" : "") off your plate."
+        case .meals:
+            return (a.meals ?? []).isEmpty ? "Everything it is, breakfast to dessert." : "Got it. I’ll focus on " + m.mealList.joined(separator: ", ").lowercased() + "."
         case .stores: return "\(a.stores.count) store\(a.stores.count > 1 ? "s" : "") selected."
         case .budget: return a.noBudget ? "Fine by me. I’ll still find the best value." : "Nice. I’ll work with that."
         case .strategy: return OBCatalog.strategyReaction[a.strategy] ?? ""
@@ -336,6 +339,7 @@ struct OBStepScreen: View {
         case .diet: OBDietStep()
         case .allergies: OBAllergyStep()
         case .dislikes: OBDislikeStep()
+        case .meals: OBMealStep()
         case .location: OBLocationStep()
         case .stores: OBStoresStep()
         case .budget: OBBudgetStep()
@@ -598,6 +602,54 @@ struct OBDietStep: View {
                 ForEach(OBCatalog.diets) { d in
                     let on = m.a.diets.contains(d.id)
                     Button { m.pickDiet(d.id) } label: {
+                        VStack(alignment: .leading, spacing: 0) {
+                            HStack(alignment: .top) {
+                                Text(d.icon).font(.system(size: 20))
+                                Spacer()
+                                OBCheck(on: on)
+                            }
+                            Text(d.label).font(OB.font(13.5, 800)).foregroundStyle(OB.ink).padding(.top, 8)
+                                .lineLimit(1).minimumScaleFactor(0.8)
+                            Text(d.sub).font(OB.font(11, 500)).foregroundStyle(OB.sub).padding(.top, 2).lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .obCard(on, radius: 20)
+                        .scaleEffect(on ? 1.005 : 1)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+struct OBMealStep: View {
+    @Environment(OnboardingModel.self) private var m
+
+    var body: some View {
+        let picked = m.a.meals ?? []
+        VStack(spacing: 9) {
+            let allOn = picked.isEmpty
+            Button { m.allMeals() } label: {
+                HStack(spacing: 14) {
+                    Text("🍽️").font(.system(size: 22))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("All Meals").font(OB.font(15, 800)).foregroundStyle(OB.ink)
+                        Text("Show me every kind of recipe").font(OB.font(12, 500)).foregroundStyle(OB.sub)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    OBCheck(on: allOn)
+                }
+                .padding(.horizontal, 16).padding(.vertical, 14)
+                .obCard(allOn)
+            }
+            .buttonStyle(.plain)
+
+            LazyVGrid(columns: twoCols, spacing: 8) {
+                ForEach(OBCatalog.meals) { d in
+                    let on = picked.contains(d.id)
+                    Button { m.toggleMeal(d.id) } label: {
                         VStack(alignment: .leading, spacing: 0) {
                             HStack(alignment: .top) {
                                 Text(d.icon).font(.system(size: 20))

@@ -358,6 +358,7 @@ struct OBPlanScreen: View {
             ("🥗", "Diet", m.dietList.joined(separator: " + ")),
             ("🚫", "Allergies", a.noAllergy || a.allergies.isEmpty ? "None" : a.allergies.map { m.allergenName($0) }.joined(separator: ", ")),
             ("👎", "Dislikes", a.dislikes.isEmpty ? "None" : a.dislikes.map(\.name).joined(separator: ", ")),
+            ("🍽️", "Meals", m.mealList.joined(separator: ", ")),
             ("🛒", "Stores", a.stores.isEmpty ? "None yet" : a.stores.joined(separator: ", ")),
             ("💵", "Budget", a.noBudget ? "No strict budget" : OnboardingModel.money(Double(a.budget)) + " / week"),
             ("🧭", "Strategy", m.strategyTitle),

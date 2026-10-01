@@ -17,6 +17,8 @@ nonisolated struct OnboardingAnswers: Codable, Hashable, Sendable {
     var allergies: [String] = []
     var noAllergy: Bool = false
     var dislikes: [Dislike] = []
+    /// Recipe types wanted (breakfast, lunch, dinner, snack, dessert). nil or empty = all of them.
+    var meals: [String]? = nil
     var locMode: String? = nil
     var country: String = "CA"
     var postal: String = ""
@@ -47,14 +49,14 @@ nonisolated struct SavingsEstimate: Codable, Hashable, Sendable {
 @Observable
 final class OnboardingModel {
     enum Screen: String, Codable, CaseIterable {
-        case landing, signin, hear, goal, branch, people, diet, allergies, dislikes, location, stores, budget, strategy
+        case landing, signin, hear, goal, branch, people, diet, allergies, dislikes, meals, location, stores, budget, strategy
         case thanks, notif, ready, generating, savings, reminder, plan, account, email, verify, paywall, done
     }
 
     enum AuthContext { case new, existing, merge }
     enum EmailMode { case create, signin }
 
-    static let steps: [Screen] = [.hear, .goal, .branch, .people, .diet, .allergies, .dislikes, .location, .stores, .budget, .strategy]
+    static let steps: [Screen] = [.hear, .goal, .branch, .people, .diet, .allergies, .dislikes, .meals, .location, .stores, .budget, .strategy]
     private static let storageKey = "lemora-onboarding-v2"
     private static let screenKey = "lemora-onboarding-v2-screen"
 
@@ -246,6 +248,23 @@ final class OnboardingModel {
             a.dislikes.append(.init(id: id, name: name))
         }
         react()
+    }
+
+    func toggleMeal(_ id: String) {
+        var picked = a.meals ?? []
+        if picked.contains(id) { picked.removeAll { $0 == id } } else { picked.append(id) }
+        a.meals = picked
+        react()
+    }
+
+    func allMeals() {
+        a.meals = []
+        react()
+    }
+
+    var mealList: [String] {
+        let picked = a.meals ?? []
+        return picked.isEmpty ? ["All meals"] : OBCatalog.meals.filter { picked.contains($0.id) }.map(\.label)
     }
 
     func addDislike(_ r: OBSearchResult) {
