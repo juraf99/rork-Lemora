@@ -1,0 +1,297 @@
+name: Add meal types question
+
+# One-shot: adds the "What kind of recipes are you looking for?" question to onboarding v2
+# and a "Meal Types" row in Profile > My Lemora, then starts the TestFlight build. Deletes itself.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-meals.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Edit the Swift files
+        run: |
+          set -e
+          cat > /tmp/edits.py <<'PYEOF'
+          """Adds the 'meal types' question (breakfast, lunch, dinner, snacks, desserts) to onboarding v2 and the Profile."""
+          import sys
+
+          R = "ios-bitewise/Lemora/"
+          EDITS = []
+
+          def edit(path, old, new, count=1):
+              EDITS.append((R + path, old, new, count))
+
+          # --- Model -------------------------------------------------------------------
+          edit("Models/Preferences.swift",
+          """nonisolated enum MealType: String, Codable, Sendable {
+              case breakfast, lunch, dinner
+          }""",
+          """nonisolated enum MealType: String, Codable, CaseIterable, Identifiable, Sendable {
+              case breakfast, lunch, dinner, snack, dessert
+
+              var id: String { rawValue }
+
+              var title: String {
+                  switch self {
+                  case .breakfast: String(localized: "Breakfast")
+                  case .lunch: String(localized: "Lunch")
+                  case .dinner: String(localized: "Dinner")
+                  case .snack: String(localized: "Snacks")
+                  case .dessert: String(localized: "Desserts")
+                  }
+              }
+
+              var emoji: String {
+                  switch self {
+                  case .breakfast: "🥞"
+                  case .lunch: "🥪"
+                  case .dinner: "🍝"
+                  case .snack: "🍿"
+                  case .dessert: "🍰"
+                  }
+              }
+          }""")
+
+          edit("Models/UserData.swift",
+          """    var cuisines: Set<Cuisine> = []
+          """,
+          """    var cuisines: Set<Cuisine> = []
+              /// Kinds of recipes the user wants (breakfast, snacks…). Empty means all of them.
+              var mealTypes: Set<MealType> = []
+          """)
+
+          edit("Models/UserData.swift",
+          """        cuisines = (try? c.decodeIfPresent(Set<Cuisine>.self, forKey: .cuisines)) ?? []
+          """,
+          """        cuisines = (try? c.decodeIfPresent(Set<Cuisine>.self, forKey: .cuisines)) ?? []
+                  mealTypes = (try? c.decodeIfPresent(Set<MealType>.self, forKey: .mealTypes)) ?? []
+          """)
+
+          # --- Recommendations: only the meal types the user picked ---------------------
+          edit("Services/RecommendationEngine.swift",
+          """        exclusionReason(for: recipe, profile: profile) == nil
+              }""",
+          """        exclusionReason(for: recipe, profile: profile) == nil
+                      && (profile.mealTypes.isEmpty || profile.mealTypes.contains(recipe.mealType))
+              }""")
+
+          # --- Profile > My Lemora --------------------------------------------------------
+          edit("Views/Profile/ProfileView.swift",
+          """                    NavigationLink { CuisineEditView() }""",
+          """                    NavigationLink { MealTypeEditView() } label: { row("fork.knife", String(localized: "Meal Types"), mealTypeText) }
+                              NavigationLink { CuisineEditView() }""")
+
+          edit("Views/Profile/ProfileView.swift",
+          """    private var allergyText: String {""",
+          """    private var mealTypeText: String {
+                  let picked = MealType.allCases.filter { profile.mealTypes.contains($0) }
+                  return picked.isEmpty ? String(localized: "All") : picked.map(\\.title).joined(separator: ", ")
+              }
+
+              private var allergyText: String {""")
+
+          edit("Views/Profile/ProfileView.swift",
+          """struct CuisineEditView: View { var body: some View { ProfileEditor { CuisineStep(profile: $0) } } }
+          """,
+          """struct CuisineEditView: View { var body: some View { ProfileEditor { CuisineStep(profile: $0) } } }
+          struct MealTypeEditView: View { var body: some View { ProfileEditor { MealTypeStep(profile: $0) } } }
+
+          struct MealTypeStep: View {
+              @Binding var profile: UserProfile
+
+              var body: some View {
+                  StepScaffold(title: String(localized: "What kind of recipes are you looking for?"),
+                               subtitle: String(localized: "Pick the meals you want ideas for. Pick none to see everything.")) {
+                      ChipFlow(items: MealType.allCases) { meal in
+                          ChoiceChip(title: meal.emoji + " " + meal.title, selected: profile.mealTypes.contains(meal)) {
+                              if profile.mealTypes.contains(meal) { profile.mealTypes.remove(meal) } else { profile.mealTypes.insert(meal) }
+                          }
+                      }
+                  }
+              }
+          }
+          """)
+
+          # --- Onboarding v2 ----------------------------------------------------------------
+          O = "Views/Onboarding/"
+
+          edit(O + "OnboardingModel.swift",
+          """    var dislikes: [Dislike] = []
+          """,
+          """    var dislikes: [Dislike] = []
+              /// Recipe types wanted (breakfast, lunch, dinner, snack, dessert). nil or empty = all of them.
+              var meals: [String]? = nil
+          """)
+
+          edit(O + "OnboardingModel.swift",
+          """diet, allergies, dislikes, location,""",
+          """diet, allergies, dislikes, meals, location,""")
+
+          edit(O + "OnboardingModel.swift",
+          """.dislikes, .location, .stores, .budget, .strategy]""",
+          """.dislikes, .meals, .location, .stores, .budget, .strategy]""")
+
+          edit(O + "OnboardingModel.swift",
+          """    func addDislike(_ r: OBSearchResult) {""",
+          """    func toggleMeal(_ id: String) {
+                  var picked = a.meals ?? []
+                  if picked.contains(id) { picked.removeAll { $0 == id } } else { picked.append(id) }
+                  a.meals = picked
+                  react()
+              }
+
+              func allMeals() {
+                  a.meals = []
+                  react()
+              }
+
+              var mealList: [String] {
+                  let picked = a.meals ?? []
+                  return picked.isEmpty ? ["All meals"] : OBCatalog.meals.filter { picked.contains($0.id) }.map(\\.label)
+              }
+
+              func addDislike(_ r: OBSearchResult) {""")
+
+          edit(O + "LemoraOnboardingView.swift",
+          """.allergies, .dislikes, .location,""",
+          """.allergies, .dislikes, .meals, .location,""")
+
+          edit(O + "OnboardingCatalog.swift",
+          """    static let dietLabel: [String: String] = {""",
+          """    static let meals: [Diet] = [
+                  .init(id: "breakfast", icon: "🥞", label: "Breakfast", sub: "Start the day right"),
+                  .init(id: "lunch", icon: "🥪", label: "Lunch", sub: "Easy midday meals"),
+                  .init(id: "dinner", icon: "🍝", label: "Dinner", sub: "Weeknight & family"),
+                  .init(id: "snack", icon: "🍿", label: "Snacks", sub: "Quick bites"),
+                  .init(id: "dessert", icon: "🍰", label: "Desserts", sub: "Something sweet"),
+              ]
+
+              static let dietLabel: [String: String] = {""")
+
+          edit(O + "OnboardingSteps.swift",
+          """        case .location: return ("Where are you shopping from?",""",
+          """        case .meals: return ("What kind of recipes are you looking for?", "Pick the meals you want ideas for.", .idea)
+                  case .location: return ("Where are you shopping from?",""")
+
+          edit(O + "OnboardingSteps.swift",
+          """        case .stores: return "\\(a.stores.count) store""",
+          """        case .meals:
+                      return (a.meals ?? []).isEmpty ? "Everything it is, breakfast to dessert." : "Got it. I’ll focus on " + m.mealList.joined(separator: ", ").lowercased() + "."
+                  case .stores: return "\\(a.stores.count) store""")
+
+          edit(O + "OnboardingSteps.swift",
+          """        case .dislikes: OBDislikeStep()
+          """,
+          """        case .dislikes: OBDislikeStep()
+                  case .meals: OBMealStep()
+          """)
+
+          edit(O + "OnboardingSteps.swift",
+          """struct OBSearchField: View {""",
+          """struct OBMealStep: View {
+              @Environment(OnboardingModel.self) private var m
+
+              var body: some View {
+                  let picked = m.a.meals ?? []
+                  VStack(spacing: 9) {
+                      let allOn = picked.isEmpty
+                      Button { m.allMeals() } label: {
+                          HStack(spacing: 14) {
+                              Text("🍽️").font(.system(size: 22))
+                              VStack(alignment: .leading, spacing: 2) {
+                                  Text("All Meals").font(OB.font(15, 800)).foregroundStyle(OB.ink)
+                                  Text("Show me every kind of recipe").font(OB.font(12, 500)).foregroundStyle(OB.sub)
+                              }
+                              .frame(maxWidth: .infinity, alignment: .leading)
+                              OBCheck(on: allOn)
+                          }
+                          .padding(.horizontal, 16).padding(.vertical, 14)
+                          .obCard(allOn)
+                      }
+                      .buttonStyle(.plain)
+
+                      LazyVGrid(columns: twoCols, spacing: 8) {
+                          ForEach(OBCatalog.meals) { d in
+                              let on = picked.contains(d.id)
+                              Button { m.toggleMeal(d.id) } label: {
+                                  VStack(alignment: .leading, spacing: 0) {
+                                      HStack(alignment: .top) {
+                                          Text(d.icon).font(.system(size: 20))
+                                          Spacer()
+                                          OBCheck(on: on)
+                                      }
+                                      Text(d.label).font(OB.font(13.5, 800)).foregroundStyle(OB.ink).padding(.top, 8)
+                                          .lineLimit(1).minimumScaleFactor(0.8)
+                                      Text(d.sub).font(OB.font(11, 500)).foregroundStyle(OB.sub).padding(.top, 2).lineLimit(1)
+                                  }
+                                  .frame(maxWidth: .infinity, alignment: .leading)
+                                  .padding(12)
+                                  .obCard(on, radius: 20)
+                                  .scaleEffect(on ? 1.005 : 1)
+                              }
+                              .buttonStyle(.plain)
+                          }
+                      }
+                  }
+              }
+          }
+
+          struct OBSearchField: View {""")
+
+          edit(O + "OnboardingAuth.swift",
+          """        p.dislikedIngredients = a.dislikes.map { IngredientRef(id: $0.id, name: $0.name) }
+          """,
+          """        p.dislikedIngredients = a.dislikes.map { IngredientRef(id: $0.id, name: $0.name) }
+                  p.mealTypes = Set((a.meals ?? []).compactMap { MealType(rawValue: $0) })
+          """)
+
+          edit(O + "OnboardingFinal.swift",
+          """            ("👎", "Dislikes", a.dislikes.isEmpty ? "None" : a.dislikes.map(\\.name).joined(separator: ", ")),
+          """,
+          """            ("👎", "Dislikes", a.dislikes.isEmpty ? "None" : a.dislikes.map(\\.name).joined(separator: ", ")),
+                      ("🍽️", "Meals", m.mealList.joined(separator: ", ")),
+          """)
+
+          def main(root="."):
+              import os
+              files = {}
+              for path, old, new, count in EDITS:
+                  p = os.path.join(root, path)
+                  s = files.get(p) or open(p, encoding="utf-8").read()
+                  n = s.count(old)
+                  if n != count:
+                      sys.exit(f"Anchor found {n}x (expected {count}) in {path}:\n{old[:120]}")
+                  files[p] = s.replace(old, new)
+              for p, s in files.items():
+                  open(p, "w", encoding="utf-8").write(s)
+                  print("edited", p)
+
+          if __name__ == "__main__":
+              main(*sys.argv[1:])
+
+          PYEOF
+          python3 /tmp/edits.py .
+          # Workflow cleanup: testflight_1.yml is the build pipeline now.
+          git rm -f --ignore-unmatch .github/workflows/testflight.yml .github/workflows/apply-onboarding.yml .github/workflows/apply-meals.yml
+          git add -A
+          git status --short
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Add meal types question to onboarding and Profile (breakfast, lunch, dinner, snacks, desserts)"
+          git push
+      - name: Start TestFlight build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run testflight_1.yml --ref main --repo "${{ github.repository }}"
