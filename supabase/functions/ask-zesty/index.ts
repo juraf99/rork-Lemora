@@ -152,6 +152,7 @@ function safeUserContext(context: JsonObject) {
       allergyRefs: profile.allergyRefs,
       dislikedIngredients: profile.dislikedIngredients,
       cuisines: profile.cuisines,
+      mealTypes: profile.mealTypes,
       weeklyBudget: profile.weeklyBudget,
       householdSize: profile.householdSize,
       storePreferences: profile.storePreferences,
@@ -175,13 +176,14 @@ function safeUserContext(context: JsonObject) {
 async function getUserContext(ctx: ToolContext) {
   const { data: onboarding } = await ctx.db
     .from("onboarding_profiles")
-    .select("display_name,user_goal,cuisines,household_size,diet_preferences,no_allergies,allergies,disliked_ingredients,country_code,region_key,region_name,preferred_stores,weekly_budget,no_strict_budget,currency_code,shopping_strategy,onboarding_completed")
+    .select("display_name,user_goal,cuisines,household_size,diet_preferences,no_allergies,allergies,disliked_ingredients,country_code,region_key,region_name,preferred_stores,weekly_budget,no_strict_budget,currency_code,shopping_strategy,onboarding_completed,answers")
     .eq("clerk_user_id", ctx.clerkUserId)
     .maybeSingle();
 
+  const { answers, ...synced } = onboarding ?? {};
   return {
     current_user: safeUserContext(ctx.clientContext),
-    synced_onboarding: onboarding ?? null,
+    synced_onboarding: onboarding ? { ...synced, meal_types: isObject(answers) ? answers.meals : undefined } : null,
     note: "Client context is the freshest app snapshot. Synced onboarding is a server-side fallback.",
   };
 }
@@ -201,6 +203,7 @@ function getAppHelp() {
       diet: "Profile → My Lemora → Diet",
       allergies: "Profile → My Lemora → Allergies",
       disliked_foods: "Profile → My Lemora → Foods I Dislike",
+      meal_types: "Profile → My Lemora → Meal Types (breakfast, lunch, dinner, snacks, desserts; no selection means all)",
       cuisines: "Profile → My Lemora → Cuisines",
       budget: "Profile → My Lemora → Budget",
       stores: "Profile → Shopping → My Stores",
@@ -209,6 +212,7 @@ function getAppHelp() {
       metric_units: "Profile → App → Metric units",
       language: "Profile → App → Language (opens iOS app settings)",
       notifications: "Profile → App → Notifications",
+      subscription: "Profile → Subscription → Restore purchases. Lemora uses annual/monthly subscriptions through RevenueCat; the active onboarding flow includes the plan and paywall.",
       privacy: "Profile → App → Privacy",
       sign_out: "Profile → Sign Out",
       delete_account: "Profile → Delete Account, then confirm Delete everything",
@@ -482,6 +486,7 @@ Use an empty array when there are no recommendation cards. Include no more than 
 }
 
 function nullableNumber(value: unknown) {
+  if ((typeof value !== "number" && typeof value !== "string") || (typeof value === "string" && !value.trim())) return null;
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }

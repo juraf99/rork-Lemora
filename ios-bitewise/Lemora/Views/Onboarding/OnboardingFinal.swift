@@ -738,6 +738,7 @@ struct OBPaywallScreen: View {
                             }
                             .padding(.bottom, 12)
                         }
+                        .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 6)

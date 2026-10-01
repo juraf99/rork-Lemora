@@ -1,5 +1,7 @@
 # Zesty Ask deployment — build 2610011001
 
+Historical isolated build, created before integrating Claude's latest onboarding. Current releases must use the shared GitHub main workflow described in `COLLABORATION.md`.
+
 - App Store Connect app: Eat Smarter - Lemora
 - Bundle identifier: `app.rork.yuf0zn4n53irodch38mtc`
 - Apple team: `CV768N46QD`

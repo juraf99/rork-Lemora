@@ -53,7 +53,7 @@ struct BuildingPlanView: View {
                     .monospacedDigit()
                     .contentTransition(.numericText(value: percent))
                     .foregroundStyle(BW.ink)
-                Text(completed < tasks.count ? "Zest is building your plan…" : "Your plan is ready!")
+                Text(completed < tasks.count ? "Zesty is building your plan…" : "Your plan is ready!")
                     .font(.bw(.headline, weight: .bold))
                     .foregroundStyle(BW.inkSecondary)
                     .contentTransition(.opacity)

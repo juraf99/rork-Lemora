@@ -58,7 +58,7 @@ nonisolated enum Goal: String, Codable, CaseIterable, Identifiable, Sendable {
         self == .loseWeight || self == .buildMuscle || self == .gainWeight
     }
 
-    /// Zest's reaction when this goal is picked.
+    /// Zesty's reaction when this goal is picked.
     var reaction: String {
         switch self {
         case .saveMoney: String(localized: "Love it. Every plan will put savings first.")

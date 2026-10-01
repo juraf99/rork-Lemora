@@ -1,0 +1,11 @@
+project_id = "lemora"
+
+# These two functions verify Clerk JWTs against Clerk's JWKS inside their handlers.
+[functions.ask-zesty]
+verify_jwt = false
+
+[functions.onboarding-profile]
+verify_jwt = false
+
+[functions.flipp-flyer-ingest]
+verify_jwt = true

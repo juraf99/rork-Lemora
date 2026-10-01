@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Zest's illustrated poses, with normalized eye rects (measured from the artwork) for blinking.
+/// Zesty's illustrated poses, with normalized eye rects (measured from the artwork) for blinking.
 enum ZestPose {
     case wave, cheer, peek
 
@@ -32,7 +32,7 @@ enum ZestPose {
     }
 }
 
-/// Animated Zest: breathing, gentle sway, natural blinks, an occasional happy hop,
+/// Animated Zesty: breathing, gentle sway, natural blinks, an occasional happy hop,
 /// and a quick "talking" bounce. Motion is disabled with Reduce Motion (blinks stay).
 struct ZestView: View {
     var pose: ZestPose = .wave
@@ -152,7 +152,7 @@ private extension CGRect {
     var midYNormalized: CGFloat { origin.y }
 }
 
-/// Speech bubble that "types" Zest's line and reports when Zest is talking.
+/// Speech bubble that "types" Zesty's line and reports when Zesty is talking.
 struct ZestBubble: View {
     let text: String
     var tail: HorizontalEdge = .leading
@@ -220,7 +220,7 @@ private struct BubbleTail: Shape {
     }
 }
 
-/// Zest with a typed speech bubble; Zest bounces while "speaking".
+/// Zesty with a typed speech bubble; Zesty bounces while "speaking".
 struct ZestGuide: View {
     let text: String
     var pose: ZestPose = .wave
@@ -237,7 +237,7 @@ struct ZestGuide: View {
     }
 }
 
-/// Soft radial sun rays behind Zest. Rotates very slowly unless Reduce Motion is on.
+/// Soft radial sun rays behind Zesty. Rotates very slowly unless Reduce Motion is on.
 struct SunburstView: View {
     var rays: Int = 18
     var color: Color = Color(hex: 0xF6E39A)
@@ -425,6 +425,6 @@ struct LemoraWordmark: View {
 }
 
 extension EnvironmentValues {
-    /// True inside onboarding, where each question is introduced by Zest.
+    /// True inside onboarding, where each question is introduced by Zesty.
     @Entry var showsZestGuide: Bool = false
 }

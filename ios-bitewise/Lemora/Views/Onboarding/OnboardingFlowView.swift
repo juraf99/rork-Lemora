@@ -5,7 +5,7 @@ enum OnboardingStep: Hashable {
     case building, summary, account
 }
 
-/// Conversational onboarding guided by Zest: one question per screen, then Build My Plan,
+/// Conversational onboarding guided by Zesty: one question per screen, then Build My Plan,
 /// a personalized plan summary and account creation.
 struct OnboardingFlowView: View {
     @Environment(AppStore.self) private var store
@@ -84,7 +84,7 @@ struct OnboardingFlowView: View {
 
     private var zestLine: String? {
         switch step {
-        case .goal: String(localized: "Hi, I'm Zest! Let's build your plan together.")
+        case .goal: String(localized: "Hi, I'm Zesty! Let's build your plan together.")
         case .birthDate: String(localized: "Just so my suggestions make sense for you.")
         case .body: String(localized: "Only used to match meals to your goal.")
         case .diet: String(localized: "How do you eat? I'll only show what fits.")

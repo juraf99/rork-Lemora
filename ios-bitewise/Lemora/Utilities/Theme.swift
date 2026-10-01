@@ -22,7 +22,7 @@ enum BW {
     static let outline = Color(hex: 0xA9B3AC)
     static let hairline = Color(hex: 0xE9E1D1)
     static let danger = Color(hex: 0xC8553D)
-    /// Zest's skin tone, used for eyelids when blinking.
+    /// Zesty's skin tone, used for eyelids when blinking.
     static let zestSkin = Color(hex: 0xFEDE22)
 
     static let cardRadius: CGFloat = 22

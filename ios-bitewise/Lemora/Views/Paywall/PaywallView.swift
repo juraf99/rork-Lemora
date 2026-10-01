@@ -1,7 +1,7 @@
 import SwiftUI
 import StoreKit
 
-/// Lemora paywall (hard paywall, single paid plan). Layout follows the approved reference: sunny Zest hero, premium pill,
+/// Lemora paywall (hard paywall, single paid plan). Layout follows the approved reference: sunny Zesty hero, premium pill,
 /// "Unlock Your Full Plan Today", trial timeline card, yearly/monthly cards and a shining CTA.
 struct PaywallView: View {
     enum Context { case onboarding, upgrade }
