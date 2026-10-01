@@ -2,6 +2,7 @@ import Foundation
 import StoreKit
 import RevenueCat
 import OSLog
+import UIKit
 
 /// Subscriptions through RevenueCat (entitlement `lemora_pro`). StoreKit `Product`s are exposed
 /// for prices and the introductory offer; purchases, restores and entitlements go through RevenueCat.
@@ -17,6 +18,11 @@ final class SubscriptionService {
     private(set) var isLoading = false
     /// StoreKit's answer to whether this Apple ID can still redeem the introductory offer.
     private(set) var isEligibleForTrial = false
+    /// Current plan (from RevenueCat): product id, end of the paid period or trial, auto-renew, trial.
+    private(set) var activeProductId: String?
+    private(set) var expirationDate: Date?
+    private(set) var willRenew = true
+    private(set) var isInTrial = false
     @ObservationIgnored private var storeProducts: [String: StoreProduct] = [:]
     @ObservationIgnored private var updatesTask: Task<Void, Never>?
     private let logger = Logger(subsystem: "app.lemora", category: "subscriptions")
@@ -85,9 +91,31 @@ final class SubscriptionService {
     }
 
     private func apply(_ info: CustomerInfo) {
-        hasActiveSubscription = info.entitlements[Self.entitlementId]?.isActive == true
+        let ent = info.entitlements[Self.entitlementId]
+        hasActiveSubscription = ent?.isActive == true
             || !info.activeSubscriptions.isDisjoint(with: [Self.annualId, Self.monthlyId])
+        if let ent, ent.isActive {
+            activeProductId = ent.productIdentifier
+            expirationDate = ent.expirationDate
+            willRenew = ent.willRenew
+            isInTrial = ent.periodType == .trial
+        } else {
+            activeProductId = info.activeSubscriptions.first { [Self.annualId, Self.monthlyId].contains($0) }
+            expirationDate = activeProductId.flatMap { info.expirationDate(forProductIdentifier: $0) }
+            willRenew = true
+            isInTrial = false
+        }
         hasCheckedEntitlements = true
+    }
+
+    /// Apple's own subscription sheet: cancel (access stays until the end of the period) or change plan.
+    func showManageSubscriptions() async {
+        do {
+            try await Purchases.shared.showManageSubscriptions()
+        } catch {
+            if let url = URL(string: "https://apps.apple.com/account/subscriptions") { await UIApplication.shared.open(url) }
+        }
+        await refreshEntitlements()
     }
 
     private func refreshTrialEligibility() async {

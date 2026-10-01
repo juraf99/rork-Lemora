@@ -7,7 +7,7 @@ nonisolated enum TrialReminderService {
 
     /// Reminder is sent 2 days before the trial ends (day 5 of a 7-day trial).
     static func reminderDay(forTrialDays days: Int) -> Int {
-        max(1, days - 2)
+        max(1, days - (days > 3 ? 2 : 1))
     }
 
     static func schedule(trialDays: Int, priceText: String) async {
@@ -18,7 +18,9 @@ nonisolated enum TrialReminderService {
         let remaining = trialDays - day
         let content = UNMutableNotificationContent()
         content.title = String(localized: "Your Lemora free trial ends soon")
-        content.body = String(localized: "Your trial ends in \(remaining) days. After that, \(priceText)/year starts unless you cancel in Settings.")
+        content.body = remaining == 1
+            ? String(localized: "Your free trial ends tomorrow. After that, \(priceText)/year starts unless you cancel in Settings.")
+            : String(localized: "Your free trial ends in \(remaining) days. After that, \(priceText)/year starts unless you cancel in Settings.")
         content.sound = .default
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: Double(day) * 86_400, repeats: false)
         center.removePendingNotificationRequests(withIdentifiers: [identifier])

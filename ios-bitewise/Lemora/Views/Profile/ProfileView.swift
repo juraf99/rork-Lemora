@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 
 struct ProfileView: View {
     @Environment(AppStore.self) private var store
@@ -22,8 +23,7 @@ struct ProfileView: View {
                 }
 
                 Section("Subscription") {
-                    Label("Your Lemora plan is active", systemImage: "checkmark.seal.fill").foregroundStyle(BW.leafDeep)
-                    Button("Restore purchases") { Task { await store.subscription.restore() } }
+                    SubscriptionSummary()
                 }
 
                 Section("My Lemora") {
@@ -119,6 +119,80 @@ struct ProfileView: View {
             Label(title, systemImage: symbol)
             Spacer(minLength: 12)
             Text(value).foregroundStyle(BW.inkSecondary).lineLimit(1)
+        }
+    }
+}
+
+// MARK: - Subscription
+
+/// Current plan, renewal or trial date, monthly -> yearly switch, Apple's manage/cancel sheet and restore.
+struct SubscriptionSummary: View {
+    @Environment(AppStore.self) private var store
+    @State private var switching = false
+    @State private var message: String?
+
+    private var sub: SubscriptionService { store.subscription }
+    private var isYearly: Bool { sub.activeProductId == SubscriptionService.annualId }
+    private var isMonthly: Bool { sub.activeProductId == SubscriptionService.monthlyId }
+    private var date: String { sub.expirationDate?.formatted(date: .long, time: .omitted) ?? "" }
+
+    private var planName: String {
+        if isYearly { return sub.isInTrial ? String(localized: "Lemora Yearly · free trial") : String(localized: "Lemora Yearly") }
+        if isMonthly { return String(localized: "Lemora Monthly") }
+        return String(localized: "Your Lemora plan is active")
+    }
+
+    private var status: String? {
+        guard sub.expirationDate != nil else { return nil }
+        if sub.isInTrial {
+            return sub.willRenew
+                ? String(localized: "Free trial ends \(date). Cancel before then and you won’t be charged.")
+                : String(localized: "Free trial cancelled. You keep access until \(date).")
+        }
+        if !sub.willRenew { return String(localized: "Cancelled. You keep access until \(date).") }
+        return isYearly
+            ? String(localized: "Renews \(date). If you cancel, you keep access until then and the next year isn’t charged.")
+            : String(localized: "Renews \(date). Cancel anytime; you keep access until then.")
+    }
+
+    var body: some View {
+        Group {
+            VStack(alignment: .leading, spacing: 4) {
+                Label(planName, systemImage: "checkmark.seal.fill").foregroundStyle(BW.leafDeep)
+                if let status {
+                    Text(status).font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
+                }
+            }
+            .task { await sub.refreshEntitlements() }
+            if isMonthly, let annual = sub.annual {
+                Button {
+                    Task { await switchToYearly(annual) }
+                } label: {
+                    HStack {
+                        Text("Switch to yearly · \(annual.displayPrice)/year")
+                        Spacer()
+                        if switching { ProgressView() }
+                    }
+                }
+                .disabled(switching)
+            }
+            Button("Manage or cancel subscription") { Task { await sub.showManageSubscriptions() } }
+            Button("Restore purchases") { Task { await sub.restore() } }
+            if let message {
+                Text(message).font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
+            }
+        }
+    }
+
+    private func switchToYearly(_ annual: Product) async {
+        switching = true
+        defer { switching = false }
+        do {
+            if try await sub.purchase(annual) {
+                message = String(localized: "You’re on the yearly plan.")
+            }
+        } catch {
+            message = String(localized: "The change didn’t go through. Please try again.")
         }
     }
 }

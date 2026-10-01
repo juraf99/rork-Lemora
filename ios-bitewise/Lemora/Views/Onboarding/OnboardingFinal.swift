@@ -681,30 +681,40 @@ struct OBPaywallScreen: View {
     private var savePercent: Int { max(0, Int(((1 - annualValue / (monthlyValue * 12)) * 100).rounded())) }
     private var perMonth: String { (annualValue / 12).formatted(.currency(code: currencyCode).presentation(.narrow)) }
 
+    /// Copy from "Lemora Paywall 2.0". Prices are the App Store prices in the buyer's own currency.
     private var timeline: [(String, String, String)] {
         if annual, let days = trialDays {
             return [("🔓", "Today", "Everything unlocked: unlimited swipes, every deal"),
-                    ("🔔", "Day \(max(1, days - 2))", "We’ll remind you before the trial ends"),
+                    ("🔔", "Day \(TrialReminderService.reminderDay(forTrialDays: days))", "We’ll remind you before your free trial ends"),
                     ("⭐", "Day \(days)", "\(annualPrice)/year starts. Cancel anytime before.")]
         }
         if annual {
-            return [("🔓", "Today", "Everything unlocked · \(annualPrice) billed"),
-                    ("🔔", "Every year", "Renews at \(annualPrice)"),
-                    ("⭐", "Anytime", "Cancel in Settings in two taps")]
+            // This Apple ID already used its free trial: no "free" promise, same three steps.
+            return [("🔓", "Today", "Everything unlocked: unlimited swipes, every deal"),
+                    ("🔔", "Every year", "\(annualPrice)/year, renews until you cancel"),
+                    ("⭐", "Anytime", "Cancel in Settings. You keep access until the end of your year.")]
         }
         return [("🔓", "Today", "Everything unlocked · \(monthlyPrice) billed"),
-                ("🔔", "Every month", "Renews at \(monthlyPrice)"),
-                ("⭐", "Anytime", "Cancel in Settings in two taps")]
+                ("🔁", "Every month", "Renews at \(monthlyPrice)"),
+                ("✨", "Anytime", "Cancel in Settings in two taps")]
     }
 
     private var cta: String {
-        if annual { return trialDays == 7 ? "START MY FREE WEEK" : (trialDays.map { "START MY \($0)-DAY FREE TRIAL" } ?? "Continue · \(annualPrice)/yr") }
+        if annual { return trialDays.map { "START MY \($0)-DAY FREE TRIAL" } ?? "Continue · \(annualPrice)/yr" }
         return "Continue · \(monthlyPrice)/mo"
     }
 
     private var legal: String {
-        if annual, let days = trialDays { return "Free for \(days) days, then \(annualPrice) \(currencyCode)/year. Cancel anytime." }
+        if annual, let days = trialDays {
+            return "\(days) days free, then \(annualPrice)/year (\(currencyCode)). We’ll remind you before your free trial ends."
+        }
         return annual ? "\(annualPrice) \(currencyCode)/year. Renews until cancelled." : "\(monthlyPrice) \(currencyCode)/month. Renews until cancelled."
+    }
+
+    private var paywallSub: String {
+        let n = m.a.stores.count
+        return n > 0 ? "Tailored to your goal, your diet and \(n) store\(n != 1 ? "s" : "") near you."
+                     : "Tailored to your goal, your diet and the stores near you."
     }
 
     var body: some View {
@@ -716,7 +726,7 @@ struct OBPaywallScreen: View {
                     .background(OB.ink, in: .capsule)
                     .obIn(delay: 0.1, duration: 0.4)
                 OBText("Unlock Your Full Plan Today", 29, 800, tracking: -0.03).padding(.top, 10).obIn(delay: 0.18, duration: 0.4)
-                OBText("Tailored to your goal, your diet and \(m.a.stores.count) store\(m.a.stores.count != 1 ? "s" : "") near you.", 13.5, 400, color: OB.muted)
+                OBText(paywallSub, 13.5, 400, color: OB.muted)
                     .padding(.top, 6).obIn(delay: 0.24, duration: 0.4)
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(timeline.enumerated()), id: \.offset) { i, r in
@@ -750,6 +760,7 @@ struct OBPaywallScreen: View {
                 .animation(.snappy, value: m.a.plan)
 
                 Spacer(minLength: 12)
+                    .frame(maxHeight: 32)
 
                 OBWeightedRow(weights: [1.25, 1], spacing: 10) {
                     planCard(id: "annual", name: "Yearly", price: annualPrice, unit: "\(perMonth) / month",
@@ -812,19 +823,20 @@ struct OBPaywallScreen: View {
     private var hero: some View {
         GeometryReader { geo in
             let w = geo.size.width
+            let c = geo.size.height / 2 - 9
             ZStack(alignment: .top) {
                 OBRays(opacity: 0.42, inner: 0.18, outer: 0.62, duration: 30, filled: true, diameter: 460)
-                    .position(x: w / 2, y: 86)
-                OBTwinkle(color: OB.lemon, size: 10, delay: 0).position(x: 83, y: 47)
-                OBTwinkle(color: OB.leaf, size: 8, delay: 0.6).position(x: w - 88, y: 28)
-                OBTwinkle(color: OB.orange, size: 7, delay: 1.2).position(x: w - 67, y: 139)
+                    .position(x: w / 2, y: c)
+                OBTwinkle(color: OB.lemon, size: 10, delay: 0).position(x: 83, y: c - 39)
+                OBTwinkle(color: OB.leaf, size: 8, delay: 0.6).position(x: w - 88, y: c - 58)
+                OBTwinkle(color: OB.orange, size: 7, delay: 1.2).position(x: w - 67, y: c + 53)
                 ZestyMascot(mood: .happy, size: 132, seedKey: "pw")
-                    .padding(.top, 19)
+                    .padding(.top, max(0, c - 67))
                     .obPop(duration: 0.6)
             }
             .frame(width: w, height: geo.size.height)
         }
-        .frame(height: 190)
+        .frame(minHeight: 190, maxHeight: 270)
         .frame(maxWidth: .infinity)
         .background {
             LinearGradient(colors: [Color(hex: 0xFCEFB4), OB.cream], startPoint: .top, endPoint: .bottom)
