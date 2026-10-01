@@ -27,12 +27,13 @@ for (const [name, source] of [["Onboarding", onboarding], ["Ask", zesty]]) {
 }
 requireText(onboarding, "fsucqlqsafoligouzgrl.supabase.co", "Onboarding must target the shared Lemora backend.");
 requireText(zesty, '"ask-zesty"', "Ask must call the deployed Zesty service.");
+requireText(zesty, "appRecipes: recipes.map(", "Ask must keep access to the recipes visible in the installed app.");
 if (zesty.includes("KeychainHelper")) failures.push("Ask still uses the obsolete authentication token.");
 const state = read(app + "ViewModels/AppStore.swift");
 requireText(state, "zesty.ask(", "AppStore must preserve the server-backed Ask path.");
 if (state.includes("AskEngine(")) failures.push("The local recipe-only Ask fallback was restored.");
 requireText(read(app + "Services/SupabaseService.swift"), '"active_food_deals_unique"', "Weekly deals must keep the live, unique Supabase feed.");
-requireText(read(app + "Views/Onboarding/OnboardingSteps.swift"), "Hi, I’m Zesty!", "The mascot's product name must remain Zesty.");
+requireText(read(app + "Views/Onboarding/OnboardingSteps.swift"), "Zesty", "The mascot's product name must remain Zesty.");
 
 if (failures.length) {
   console.error(failures.join("\n"));

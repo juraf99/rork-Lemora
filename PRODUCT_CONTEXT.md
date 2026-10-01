@@ -14,6 +14,8 @@ The active entry point is `LemoraOnboardingView`, selected by `ContentView`. Pre
 
 Meal preferences include breakfast, lunch, dinner, snacks and desserts; an empty selection means all meal types. Saved onboarding answers are mapped into `UserProfile` and stored through `onboarding-profile`. An unfinished flow reopens at the landing page; an answered flow reopens at the plan. Completed users with a lapsed subscription return to the plan/paywall flow.
 
+Profile preference editors now reuse Claude's onboarding screens, including their cards, emoji and Zesty speech bubbles. Each editor writes back only the field it edits when the user leaves the screen. Preserve this design and its current preference values.
+
 Authentication uses Clerk, including Apple, Google and email verification. Onboarding and Ask must both obtain the current Clerk session with `Clerk.shared.auth.getToken()`. RevenueCat ties purchases to the Clerk user ID; the entitlement is `lemora_pro`, with annual and monthly products. Preserve the subscription routing implemented by Claude.
 
 Trial availability and displayed billing terms depend on the actual StoreKit product and the Apple account's eligibility. Preserve the trial/no-trial variants. Claude's downloaded `apply-timeline.yml` corrects the paywall connectors by sizing each timeline row to its content; that source change is included directly in this integration.
@@ -27,6 +29,8 @@ For meal ideas, try to reference two suitable app recipes when available. Give r
 Recipe nutrition includes calories, protein, carbohydrates, fibre, sugars, fat, saturated fat and sodium per serving. Distinguish verified values, ingredient-based estimates and unknowns. Ask has read-only access to relevant information for the authenticated user; it cannot edit accounts or see other users' private records.
 
 The selected model is `gpt-5.6-luna`. The backend is the `ask-zesty` Edge Function; do not restore the removed local `AskEngine` recipe-only fallback.
+
+The native app still has a bundled development recipe catalogue distinct from Supabase's published recipes. Ask sends the installed catalogue's ingredients, steps, local IDs, allergens and existing estimated nutrition with its context. Recipe tools search both sources and resolve local IDs without treating them as database UUIDs. Bundled fixtures are explicitly unverified; absent nutrition values stay unknown, and they provide no confirmed prices or certifications. This bridge is needed for follow-ups about a recipe shown in the app, such as `teriyaki_bowl`.
 
 ## Shared service identities
 

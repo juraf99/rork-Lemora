@@ -84,6 +84,89 @@ private nonisolated struct ZestyGroceryContext: Encodable, Sendable {
     let estimatedCost: Double
 }
 
+private nonisolated struct ZestyAppRecipeIngredient: Encodable, Sendable {
+    let ingredient_name: String
+    let normalized_name: String
+    let quantity: Double
+    let unit: String
+    let raw_text: String
+}
+
+private nonisolated struct ZestyAppRecipeStep: Encodable, Sendable {
+    let step_number: Int
+    let instruction: String
+}
+
+private nonisolated struct ZestyAppRecipeAllergen: Encodable, Sendable {
+    let allergen_key: String
+    let state: String
+}
+
+private nonisolated struct ZestyAppRecipeDiet: Encodable, Sendable {
+    let diet: String
+    let status: String
+}
+
+/// The catalogue visible in the installed app can differ from the published server catalogue.
+/// Preserve its details for dialogue, while clearly identifying the bundled fixture estimates.
+private nonisolated struct ZestyAppRecipeSnapshot: Encodable, Sendable {
+    let id: String
+    let name: String
+    let description: String
+    let servings: Int
+    let prep_time_minutes: Int
+    let cook_time_minutes: Int
+    let cuisine: String
+    let meal_type: String
+    let recipe_ingredients: [ZestyAppRecipeIngredient]
+    let recipe_steps: [ZestyAppRecipeStep]
+    let recipe_nutrition: [ZestyNutrition]
+    let recipe_allergens: [ZestyAppRecipeAllergen]
+    let recipe_diet_compatibility: [ZestyAppRecipeDiet]
+    let source_context = "bundled_app"
+    let validation_status = "unverified_development_fixture"
+
+    init(_ recipe: Recipe) {
+        id = recipe.id
+        name = recipe.title
+        description = recipe.summary
+        servings = recipe.servings
+        prep_time_minutes = recipe.prepMinutes
+        cook_time_minutes = recipe.cookMinutes
+        cuisine = recipe.cuisine.rawValue
+        meal_type = recipe.mealType.rawValue
+        recipe_ingredients = recipe.ingredients.map {
+            .init(ingredient_name: IngredientCatalog.name($0.ingredientId), normalized_name: $0.ingredientId,
+                  quantity: $0.quantity, unit: $0.unit.rawValue, raw_text: $0.rawText)
+        }
+        recipe_steps = recipe.steps.enumerated().map { .init(step_number: $0.offset + 1, instruction: $0.element) }
+        recipe_nutrition = [.init(
+            calories: Double(recipe.nutrition.calories), proteinG: Double(recipe.nutrition.protein),
+            carbsG: Double(recipe.nutrition.carbs), fiberG: recipe.nutrition.fiber.map(Double.init),
+            sugarsG: nil, fatG: Double(recipe.nutrition.fat), saturatedFatG: nil, sodiumMg: nil,
+            status: recipe.nutrition.status == .unknown ? "unknown" : "estimated",
+            source: "Bundled Lemora development catalogue: estimates, not laboratory-verified. Missing values are unknown."
+        )]
+        let engine = RecommendationEngine()
+        let allergens = engine.allergens(of: recipe)
+        recipe_allergens = allergens.contains.map { .init(allergen_key: $0.databaseId, state: "contains") }
+            + allergens.mayContain.map { .init(allergen_key: $0.databaseId, state: "may_contain") }
+        recipe_diet_compatibility = engine.compatibility(of: recipe).map { diet, state in
+            let key: String
+            switch diet {
+            case .glutenFree: key = "gluten_free"
+            case .dairyFree: key = "dairy_free"
+            case .highProtein: key = "high_protein"
+            default: key = diet.rawValue.lowercased()
+            }
+            // Bundled ingredients are not proof of halal certification or cross-contamination safety.
+            let certificationRequired = diet == .halal || diet == .glutenFree || diet == .dairyFree
+            let status = state == .no ? "no" : (state == .uncertain || certificationRequired ? "unknown" : "yes")
+            return .init(diet: key, status: status)
+        }
+    }
+}
+
 private nonisolated struct ZestyContextSnapshot: Encodable, Sendable {
     let displayName: String?
     let profile: UserProfile
@@ -92,6 +175,7 @@ private nonisolated struct ZestyContextSnapshot: Encodable, Sendable {
     let savedRecipeIds: [String]
     let groceryItems: [ZestyGroceryContext]
     let recentCookedRecipeIds: [String]
+    let appRecipes: [ZestyAppRecipeSnapshot]
     let timeZone: String
 }
 
@@ -117,6 +201,7 @@ nonisolated struct ZestyService: Sendable {
         message: String,
         conversationId: String?,
         data: AppData,
+        recipes: [Recipe],
         acceptedStoreIds: Set<String>,
         blockedStoreIds: Set<String>
     ) async throws -> ZestyAskResponse {
@@ -151,6 +236,7 @@ nonisolated struct ZestyService: Sendable {
                 )
             },
             recentCookedRecipeIds: data.cookLogs.sorted { $0.date > $1.date }.prefix(20).map(\.recipeId),
+            appRecipes: recipes.map(ZestyAppRecipeSnapshot.init),
             timeZone: TimeZone.current.identifier
         )
         let payload = ZestyAskRequest(

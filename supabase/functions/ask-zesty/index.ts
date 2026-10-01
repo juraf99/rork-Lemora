@@ -312,25 +312,37 @@ async function searchRecipes(ctx: ToolContext, args: JsonObject) {
     .eq("is_published", true)
     .order("updated_at", { ascending: false })
     .limit(100);
-  if (error) throw new Error(`recipe_lookup_failed: ${error.message}`);
+  const appRecipes = bundledAppRecipes(ctx.clientContext);
+  if (error && appRecipes.length === 0) throw new Error(`recipe_lookup_failed: ${error.message}`);
 
   const allergies = profileAllergies(ctx.clientContext);
   const diets = profileDiets(ctx.clientContext);
-  const rows = (data ?? []).filter((row: JsonObject) => {
+  const rows = [...appRecipes, ...(data ?? [])].filter((row: JsonObject) => {
     const total = Number(row.prep_time_minutes ?? 0) + Number(row.cook_time_minutes ?? 0);
     if (maxMinutes !== undefined && total > maxMinutes) return false;
     if (cuisine && cleanText(row.cuisine, 80).toLowerCase() !== cuisine) return false;
-    const nutrition = safeArray(row.recipe_nutrition)[0];
+    const nutrition = isObject(row.recipe_nutrition) ? row.recipe_nutrition : safeArray(row.recipe_nutrition)[0];
     const nutritionRow = isObject(nutrition) ? nutrition : {};
     if (minProtein !== undefined && Number(nutritionRow.protein_g ?? 0) < minProtein) return false;
     if (maxCalories !== undefined && Number(nutritionRow.calories ?? Number.MAX_VALUE) > maxCalories) return false;
     const ingredients = safeArray(row.recipe_ingredients);
-    const haystack = [row.name, row.description, row.cuisine, ...ingredients.flatMap((item) => isObject(item) ? [item.ingredient_name, item.normalized_name] : [])]
+    const haystack = [row.name, row.description, row.cuisine, row.meal_type, ...ingredients.flatMap((item) => isObject(item) ? [item.ingredient_name, item.normalized_name] : [])]
       .map((item) => cleanText(item, 300).toLowerCase()).join(" ");
     if (query && !haystack.includes(query) && !query.split(" ").some((term) => term.length > 2 && haystack.includes(term))) return false;
 
     const recipeAllergens = safeArray(row.recipe_allergens).map((item) => isObject(item) ? cleanText(item.allergen_key, 100).toLowerCase() : "");
     if (allergies.some((allergen) => recipeAllergens.includes(allergen))) return false;
+    const ingredientText = ingredients.flatMap((item) => isObject(item) ? [item.ingredient_name, item.normalized_name, item.raw_text] : [])
+      .map((item) => cleanText(item, 300).toLowerCase()).join(" ");
+    const profile = profileFrom(ctx.clientContext);
+    const ingredientExclusions = [
+      ...safeArray(profile.allergyRefs).filter((item) => isObject(item) && item.kind === "ingredient"),
+      ...safeArray(profile.dislikedIngredients),
+    ].filter(isObject);
+    if (ingredientExclusions.some((item) => [item.id, item.name].some((value) => {
+      const term = cleanText(value, 100).toLowerCase();
+      return term.length > 0 && ingredientText.includes(term);
+    }))) return false;
 
     const compatibility = safeArray(row.recipe_diet_compatibility).filter(isObject);
     const strictDiets = diets.filter((diet) => ["vegetarian", "vegan", "pescatarian", "keto", "glutenfree", "dairyfree", "lactosefree", "halal", "kosher"].includes(diet));
@@ -358,20 +370,65 @@ async function searchRecipes(ctx: ToolContext, args: JsonObject) {
   return {
     count: rows.length,
     recipes: rows,
-    safety_note: "Recipes failing a known strict diet or allergen constraint were excluded. Unknown compatibility is not treated as safe.",
+    safety_note: "Recipes failing a known strict diet or allergen constraint were excluded. Unknown compatibility is not treated as safe. Rows marked bundled_app are the recipes visible in the user's installed app; they are development fixtures, not server-validated catalogue records. Their supplied nutrition is estimated, missing fields are unknown, and they provide no verified current prices or certifications.",
+    server_catalogue_unavailable: Boolean(error),
   };
+}
+
+function bundledAppRecipes(context: JsonObject): JsonObject[] {
+  return safeArray(context.appRecipes).filter(isObject).slice(0, 40).map((row) => ({
+    id: cleanText(row.id, 80),
+    name: cleanText(row.name, 180),
+    description: cleanText(row.description, 500),
+    servings: numberArg(row.servings, 1, 50) ?? 1,
+    prep_time_minutes: numberArg(row.prep_time_minutes, 0, 600) ?? 0,
+    cook_time_minutes: numberArg(row.cook_time_minutes, 0, 600) ?? 0,
+    cuisine: cleanText(row.cuisine, 80),
+    meal_type: cleanText(row.meal_type, 40),
+    recipe_ingredients: safeArray(row.recipe_ingredients).filter(isObject).slice(0, 50).map((ingredient) => ({
+      ingredient_name: cleanText(ingredient.ingredient_name, 160),
+      normalized_name: cleanText(ingredient.normalized_name, 100),
+      quantity: nullableNumber(ingredient.quantity),
+      unit: cleanText(ingredient.unit, 30),
+      raw_text: cleanText(ingredient.raw_text, 200),
+    })),
+    recipe_steps: safeArray(row.recipe_steps).filter(isObject).slice(0, 50).map((step, index) => ({
+      step_number: index + 1,
+      instruction: cleanText(step.instruction, 1_000),
+    })),
+    recipe_nutrition: safeArray(row.recipe_nutrition).filter(isObject).slice(0, 1).map((nutrition) => ({
+      ...parseNutrition(nutrition),
+      status: nutrition.status === "unknown" ? "unknown" : "estimated",
+      is_estimate: true,
+      source: "Bundled Lemora development catalogue: estimates, not laboratory-verified. Missing values are unknown.",
+    })),
+    recipe_allergens: safeArray(row.recipe_allergens).filter(isObject).slice(0, 30).map((allergen) => ({
+      allergen_key: cleanText(allergen.allergen_key, 100),
+      state: allergen.state === "contains" ? "contains" : "may_contain",
+    })),
+    recipe_diet_compatibility: safeArray(row.recipe_diet_compatibility).filter(isObject).slice(0, 20).map((diet) => {
+      const key = cleanText(diet.diet, 80).toLowerCase();
+      const requiresConfirmation = ["halal", "kosher", "gluten_free", "dairy_free", "lactose_free"].includes(key);
+      return { diet: key, status: diet.status === "no" ? "no" : (diet.status === "yes" && !requiresConfirmation ? "yes" : "unknown") };
+    }),
+    source_context: "bundled_app",
+    validation_status: "unverified_development_fixture",
+  })).filter((row) => row.id && row.name);
 }
 
 async function getRecipeDetails(ctx: ToolContext, args: JsonObject) {
   const ids = safeArray(args.recipe_ids).map((item) => cleanText(item, 80)).filter(Boolean).slice(0, 8);
   if (ids.length === 0) return { recipes: [] };
+  const appRecipes = bundledAppRecipes(ctx.clientContext).filter((row) => ids.includes(String(row.id)));
+  const serverIds = ids.filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+  if (serverIds.length === 0) return { recipes: appRecipes };
   const { data, error } = await ctx.db
     .from("recipes")
     .select("id,name,description,servings,prep_time_minutes,cook_time_minutes,difficulty,cuisine,language,recipe_nutrition(*),recipe_ingredients(*),recipe_steps(*),recipe_allergens(*),recipe_diet_compatibility(*),recipe_media(*)")
-    .in("id", ids)
+    .in("id", serverIds)
     .eq("is_published", true);
-  if (error) throw new Error(`recipe_details_failed: ${error.message}`);
-  return { recipes: data ?? [] };
+  if (error && appRecipes.length === 0) throw new Error(`recipe_details_failed: ${error.message}`);
+  return { recipes: [...appRecipes, ...(data ?? [])], server_catalogue_unavailable: Boolean(error) };
 }
 
 async function executeTool(ctx: ToolContext, name: string, rawArgs: unknown) {
@@ -423,7 +480,7 @@ const tools = [
   {
     type: "function",
     name: "search_recipes",
-    description: "Search Lemora's validated recipe catalogue with deterministic diet, allergy, time, nutrition and serving filters. Quantities are scaled when servings is supplied.",
+    description: "Search recipes visible in the installed Lemora app plus the published server catalogue, with deterministic diet, allergy, time, nutrition and serving filters. Bundled app fixtures are explicitly unverified and have estimated nutrition, never verified prices. Quantities are scaled when servings is supplied.",
     parameters: {
       type: "object",
       properties: {
@@ -442,7 +499,7 @@ const tools = [
   {
     type: "function",
     name: "get_recipe_details",
-    description: "Retrieve complete validated ingredients, steps, nutrition, allergens, diet compatibility and media for specific Lemora recipe ids.",
+    description: "Retrieve ingredients, steps, nutrition, allergens and diet compatibility for specific recipe ids, including non-UUID ids of recipes visible in the app. Respect each record's validation/nutrition status.",
     parameters: {
       type: "object",
       properties: { recipe_ids: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 8 } },

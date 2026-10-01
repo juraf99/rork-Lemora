@@ -29,3 +29,5 @@ The deployed onboarding function and Ask function are independent of an iOS uplo
 3. Confirm Supabase project, function versions and required tables/views without changing user data.
 4. Publish the tested integration to main and let the shared publisher build it.
 5. Record the commit, workflow result and exact TestFlight build. Test one account through onboarding and an Ask follow-up on the installed integrated build.
+
+Run `node scripts/check-integration.mjs` to check the shared release paths. Run `node scripts/test-zesty-tools.mjs` with Node 24+ for the network-free recipe-tool regression checks; these do not call OpenAI or require an API key.

@@ -557,6 +557,7 @@ final class AppStore {
             message: query,
             conversationId: conversationId,
             data: data,
+            recipes: recipes,
             acceptedStoreIds: myStoreIds,
             blockedStoreIds: blockedStoreIds
         )

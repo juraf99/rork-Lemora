@@ -35,7 +35,7 @@ struct AskView: View {
                         }
                         if isThinking {
                             HStack(spacing: 8) {
-                                MascotView(name: BWImage.mascotPeek, size: 36)
+                                ZestyMascot(mood: .thinking, size: 36, seedKey: "ask-thinking")
                                 ProgressView().tint(BW.inkSecondary)
                             }
                             .id("thinking")
@@ -59,7 +59,7 @@ struct AskView: View {
     private var intro: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 12) {
-                MascotView(name: BWImage.mascotWave, size: 70, bob: true)
+                ZestyMascot(mood: .talking, size: 70, seedKey: "ask-intro")
                 VStack(alignment: .leading, spacing: 4) {
                     Text("What are you craving?").font(.bw(.title2)).foregroundStyle(BW.ink)
                     Text("I already know your goal, diet, allergies and stores.")
@@ -135,7 +135,20 @@ struct AskView: View {
         }
     }
 
+    @ViewBuilder
     private func recommendationCard(_ item: ZestyRecommendation) -> some View {
+        if let id = item.recipeId, store.recipes.contains(where: { $0.id == id }) {
+            NavigationLink(value: Route.recipe(id)) {
+                recommendationContent(item)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(Text("Open recipe"))
+        } else {
+            recommendationContent(item)
+        }
+    }
+
+    private func recommendationContent(_ item: ZestyRecommendation) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline) {
                 Text(item.title)
