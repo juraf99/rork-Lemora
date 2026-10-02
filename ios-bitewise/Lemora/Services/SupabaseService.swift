@@ -74,12 +74,26 @@ final class SupabaseService {
             postalCode: location.postalCode
         )
         let postalRegion = Self.regionKey(location.postalCode)
-        let local = Self.deduplicated(priorityRows.compactMap { row -> Deal? in
+        let legacyLocal = priorityRows.compactMap { row -> Deal? in
             guard let deal = row.deal, row.countryCode.uppercased() == countryCode else { return nil }
             if let regionCode, row.regionCodes.map({ $0.uppercased() }).contains(regionCode) { return deal }
             if let postalRegion, Self.regionKey(deal.sourcePostalCode) == postalRegion { return deal }
             return nil
-        })
+        }
+        var exactPostalDeals: [Deal] = []
+        let postalCode = location.postalCode.uppercased().filter { $0.isLetter || $0.isNumber }
+        if countryCode == "CA", Self.isFullCanadianPostalCode(postalCode) {
+            do {
+                let verifiedRows: [LiveDealRow] = try await client
+                    .rpc("active_food_deals_for_postal", params: ["p_postal": postalCode])
+                    .execute()
+                    .value
+                exactPostalDeals = verifiedRows.compactMap(\.deal)
+            } catch {
+                logger.error("Exact-postal flyer read failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        let local = Self.deduplicated(legacyLocal + exactPostalDeals)
         logger.info("Loaded \(local.count) live weekly flyer deals for \(countryCode, privacy: .public)-\(regionCode ?? postalRegion ?? "unknown", privacy: .private)")
         return local
     }
@@ -116,6 +130,13 @@ final class SupabaseService {
             return String(normalized.prefix(5)) // US ZIP code
         }
         return normalized
+    }
+
+    private static func isFullCanadianPostalCode(_ value: String) -> Bool {
+        value.range(
+            of: #"^[ABCEGHJ-NPRSTVXY][0-9][ABCEGHJ-NPRSTV-Z][0-9][ABCEGHJ-NPRSTV-Z][0-9]$"#,
+            options: .regularExpression
+        ) != nil
     }
 
     /// Profiles created by older builds may contain localized country/province names.
@@ -278,6 +299,8 @@ private nonisolated struct LiveDealRow: Decodable, Sendable {
     private static func normalizedRetailerId(_ value: String) -> String {
         switch value.lowercased() {
         case "super_c", "super-c", "super c": return "superc"
+        case "marches_tradition", "les_marches_tradition": return "tradition"
+        case "marche_richelieu": return "richelieu"
         default: return value.lowercased()
         }
     }

@@ -36,6 +36,12 @@ For latency, Ask now fetches relevant profile/recipe/deal context in parallel an
 
 The native app still has a bundled development recipe catalogue distinct from Supabase's published recipes. Ask sends the installed catalogue's ingredients, steps, local IDs, allergens and existing estimated nutrition with its context. Recipe tools search both sources and resolve local IDs without treating them as database UUIDs. Bundled fixtures are explicitly unverified; absent nutrition values stay unknown, and they provide no confirmed prices or certifications. This bridge is needed for follow-ups about a recipe shown in the app, such as `teriyaki_bowl`.
 
+## Canadian weekly flyers
+
+Apify's `yugenox/flipp-flyer-deals-scraper` is the ingestion source for the Canadian pilot; the iOS app does not scrape stores. A flyer edition has a stable source ID and validity dates, while exact observed postal coverage is recorded **per item** as well as per flyer. Never infer nationwide, provincial, FSA, or physical-store coverage from a single observed postal. The actor's flyer mode does not reliably provide store IDs, so `flyer_regions` and store mappings remain unverified until corroborated by a stronger source.
+
+New Apify v2 editions stay out of the legacy province/FSA feed. The iOS app calls `active_food_deals_for_postal` for a full Canadian postal code, combining approved, healthy, imaged offers with its existing feed. The October 2 No Frills/Toronto pilot stored 9 food candidates from 50 actor rows; one approved, imaged offer was visible at M5V 2T6 and none at a Vancouver postal. This is not nationwide coverage, a completed store map, or a scheduled production import. Put a monthly Apify spend ceiling and geographic batch plan in place before recurring nationwide scans.
+
 ## Shared service identities
 
 - GitHub source: `juraf99/rork-Lemora`, release branch `main`.

@@ -609,7 +609,7 @@ struct StoresStep: View {
             SearchField(text: $query, placeholder: String(localized: "Search grocery stores"))
 
             if query.isEmpty {
-                group(String(localized: "Popular near you"), tier: .featured)
+                group(String(localized: "Popular grocery stores"), tier: .featured)
                 if showMore { group(String(localized: "More grocery stores"), tier: .more) }
                 else { revealButton(String(localized: "See more grocery stores")) { showMore = true } }
                 if showSpecialty { group(String(localized: "Specialty & local markets"), tier: .specialty) }
