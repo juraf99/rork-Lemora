@@ -354,7 +354,7 @@ struct OBPlanScreen: View {
         let est = m.estimate
         let a = m.a
         let rows: [(String, String, String)] = [
-            ("🎯", "Goal", m.goalInfo.label),
+            ("🎯", m.selectedGoals.count > 1 ? "Goals" : "Goal", m.goalLabels),
             ("🥗", "Diet", m.dietList.joined(separator: " + ")),
             ("🚫", "Allergies", a.noAllergy || a.allergies.isEmpty ? "None" : a.allergies.map { m.allergenName($0) }.joined(separator: ", ")),
             ("👎", "Dislikes", a.dislikes.isEmpty ? "None" : a.dislikes.map(\.name).joined(separator: ", ")),

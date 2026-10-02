@@ -34,6 +34,8 @@ nonisolated struct AllergyRef: Codable, Hashable, Sendable, Identifiable {
 /// goal, diets, allergies (safety), dislikes (taste), location, stores, budget, strategy, referral.
 nonisolated struct UserProfile: Codable, Hashable, Sendable {
     var goal: Goal = .saveMoney
+    /// Every goal the user picked (multi-select). `goal` stays the first one; empty on older profiles.
+    var goals: Set<Goal> = []
     var birthDate: Date?
     var usesMetric: Bool = true
     var heightCm: Double?
@@ -60,6 +62,11 @@ nonisolated struct UserProfile: Codable, Hashable, Sendable {
     init() {}
 
     var postalCode: String { location.postalCode }
+
+    /// Primary goal first, then the other picked goals.
+    var allGoals: [Goal] {
+        [goal] + goals.filter { $0 != goal }.sorted { $0.rawValue < $1.rawValue }
+    }
 
     /// Core allergen flags covered by the user's allergies (used against recipe ingredient flags).
     var allergies: Set<Allergen> {
@@ -90,6 +97,7 @@ nonisolated struct UserProfile: Codable, Hashable, Sendable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         goal = try c.decodeIfPresent(Goal.self, forKey: .goal) ?? .saveMoney
+        goals = (try? c.decodeIfPresent(Set<Goal>.self, forKey: .goals)) ?? []
         birthDate = try c.decodeIfPresent(Date.self, forKey: .birthDate)
         usesMetric = try c.decodeIfPresent(Bool.self, forKey: .usesMetric) ?? true
         heightCm = try c.decodeIfPresent(Double.self, forKey: .heightCm)

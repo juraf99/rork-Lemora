@@ -241,6 +241,7 @@ extension OnboardingModel {
                                      "build_muscle": .buildMuscle, "gain_weight": .gainWeight, "maintain_weight": .maintain,
                                      "discover_meals": .discover, "meal_prep": .mealPrep]
         p.goal = goals[a.goal] ?? .saveMoney
+        p.goals = Set(selectedGoals.compactMap { goals[$0] })
         p.usesMetric = a.unit == "kg"
         if isBodyGoal {
             p.weightKg = Double(a.current) * 0.4536

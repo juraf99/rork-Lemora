@@ -147,10 +147,13 @@ nonisolated struct RecommendationEngine {
 
         // Goal
         var goalScore = 0.6
-        switch profile.goal {
+        var bestGoalScore = 0.0
+        for activeGoal in profile.allGoals {
+        goalScore = 0.6
+        switch activeGoal {
         case .buildMuscle, .gainWeight:
             goalScore = n.protein >= 40 ? 1 : (n.protein >= 30 ? 0.7 : 0.3)
-            if profile.goal == .gainWeight && n.calories >= 550 { goalScore = min(1, goalScore + 0.15) }
+            if activeGoal == .gainWeight && n.calories >= 550 { goalScore = min(1, goalScore + 0.15) }
             if n.protein >= 40 { reasons.append(.init(code: .highProteinGoal, text: String(localized: "High protein for your goal"))) }
         case .loseWeight:
             goalScore = n.calories <= 500 ? 1 : (n.calories <= 600 ? 0.7 : 0.35)
@@ -171,6 +174,9 @@ nonisolated struct RecommendationEngine {
         case .maintain, .discover, .other:
             goalScore = 0.6
         }
+        bestGoalScore = max(bestGoalScore, goalScore)
+        }
+        goalScore = bestGoalScore
         if profile.diets.contains(.highProtein) && n.protein >= 35 { goalScore = min(1, goalScore + 0.15) }
         if profile.diets.contains(.lowCarb) && n.carbs <= 40 { goalScore = min(1, goalScore + 0.15) }
 

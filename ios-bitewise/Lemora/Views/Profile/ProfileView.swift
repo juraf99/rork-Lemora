@@ -27,7 +27,7 @@ struct ProfileView: View {
                 }
 
                 Section("My Lemora") {
-                    NavigationLink { GoalEditView() } label: { row("target", String(localized: "My Goal"), profile.goal.title) }
+                    NavigationLink { GoalEditView() } label: { row("target", profile.allGoals.count > 1 ? String(localized: "My Goals") : String(localized: "My Goal"), profile.allGoals.map(\.title).joined(separator: ", ")) }
                     NavigationLink { DietEditView() } label: { row("leaf", String(localized: "Diet"), profile.diets.map(\.title).sorted().joined(separator: ", ")) }
                     NavigationLink { AllergyEditView() } label: { row("allergens", String(localized: "Allergies"), allergyText) }
                     NavigationLink { DislikeEditView() } label: { row("hand.thumbsdown", String(localized: "Foods I Dislike"), profile.dislikeNames.isEmpty ? String(localized: "None") : profile.dislikeNames.joined(separator: ", ")) }
@@ -263,6 +263,7 @@ extension OnboardingAnswers {
                                      .buildMuscle: "build_muscle", .gainWeight: "gain_weight", .maintain: "maintain_weight",
                                      .discover: "discover_meals", .mealPrep: "meal_prep"]
         goal = goals[p.goal] ?? "save_money"
+        self.goals = p.allGoals.compactMap { goals[$0] }
         unit = p.usesMetric ? "kg" : "lb"
         let cuisines: [Cuisine: String] = [.italian: "italian", .mexican: "mexican", .japanese: "japanese", .korean: "korean",
                                            .indian: "indian", .greek: "greek", .middleEastern: "lebanese", .french: "french",
@@ -317,10 +318,11 @@ private struct ProfileEditor<Content: View>: View {
 
 struct GoalEditView: View {
     var body: some View {
-        OnboardingPrefEditor(screen: .goal, title: "What’s your main goal?", subtitle: "This shapes everything I recommend.", mood: .idea,
+        OnboardingPrefEditor(screen: .goal, title: "What are your goals?", subtitle: "Pick all that apply. This shapes everything I recommend.", mood: .idea,
                              apply: { m, p in
                                  let new = m.makeProfile(base: p)
                                  p.goal = new.goal
+                                 p.goals = new.goals
                              }) {
             OBGoalStep()
         }

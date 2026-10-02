@@ -8,11 +8,13 @@ nonisolated struct OnboardingAnswers: Codable, Hashable, Sendable {
 
     var referral: String? = nil
     var goal: String = "save_money"
+    /// Every goal picked (multi-select); `goal` stays the first one. nil on older saves.
+    var goals: [String]? = nil
     var household: Int = 2
     var current: Int = 182
     var target: Int = 168
     var unit: String = "lb"
-    var cuisines: [String] = ["italian", "mexican"]
+    var cuisines: [String] = ["all"]
     var diets: [String] = ["none"]
     var allergies: [String] = []
     var noAllergy: Bool = false
@@ -216,7 +218,24 @@ final class OnboardingModel {
     // MARK: Answers
 
     func setReferral(_ id: String) { a.referral = id; react() }
-    func setGoal(_ id: String) { a.goal = id; react() }
+    /// Goals are multi-select; at least one always stays picked.
+    func setGoal(_ id: String) {
+        var picked = a.goals ?? [a.goal]
+        if picked.contains(id) {
+            if picked.count > 1 { picked.removeAll { $0 == id } }
+        } else {
+            picked.append(id)
+        }
+        a.goals = picked
+        a.goal = picked.first ?? id
+        react()
+    }
+
+    var selectedGoals: [String] { a.goals ?? [a.goal] }
+
+    var goalLabels: String {
+        selectedGoals.compactMap { id in OBCatalog.goals.first { $0.id == id }?.label }.joined(separator: ", ")
+    }
     func setHousehold(_ n: Int) { a.household = n; react() }
 
     func toggleCuisine(_ id: String) {
@@ -384,7 +403,7 @@ final class OnboardingModel {
     }
 
     var goalInfo: OBCatalog.Goal { OBCatalog.goals.first { $0.id == a.goal } ?? OBCatalog.goals[0] }
-    var isBodyGoal: Bool { ["lose_weight", "build_muscle", "gain_weight", "maintain_weight"].contains(a.goal) }
+    var isBodyGoal: Bool { selectedGoals.contains { ["lose_weight", "build_muscle", "gain_weight", "maintain_weight"].contains($0) } }
     var strategyTitle: String {
         (OBCatalog.strategies.first { $0.id == a.strategy } ?? OBCatalog.strategies[1]).label.lowercased().capitalizedFirst
     }

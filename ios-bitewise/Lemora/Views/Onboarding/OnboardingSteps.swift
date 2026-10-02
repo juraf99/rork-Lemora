@@ -199,7 +199,7 @@ struct OBStepScreen: View {
         let hh = max(1, m.a.household)
         switch m.screen {
         case .hear: return ("How did you hear about us?", "Just so I know who to thank.", .talking)
-        case .goal: return ("What’s your main goal?", "This shapes everything I recommend.", .idea)
+        case .goal: return ("What are your goals?", "Pick all that apply. This shapes everything I recommend.", .idea)
         case .branch:
             return m.isBodyGoal ? ("Let’s set your numbers", "Used to size portions and protein.", .idle)
                                 : ("What do you love eating?", "Pick a few. Swipes refine the rest.", .idle)
@@ -395,7 +395,7 @@ struct OBGoalStep: View {
     var body: some View {
         VStack(spacing: 8) {
             ForEach(OBCatalog.goals) { g in
-                let on = m.a.goal == g.id
+                let on = m.selectedGoals.contains(g.id)
                 Button { m.setGoal(g.id) } label: {
                     HStack(spacing: 14) {
                         Text(g.icon).font(.system(size: 18)).frame(width: 40, height: 40).background(Color(hex: g.iconBg), in: .circle)
@@ -404,7 +404,7 @@ struct OBGoalStep: View {
                             Text(g.sub).font(OB.font(12, 400)).foregroundStyle(OB.sub)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        OBRadio(on: on)
+                        OBCheck(on: on)
                     }
                     .padding(.horizontal, 16).padding(.vertical, 14)
                     .obCard(on)
