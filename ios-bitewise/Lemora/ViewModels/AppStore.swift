@@ -545,11 +545,8 @@ final class AppStore {
 
     // MARK: Ask
 
-    /// Hidden daily cap on Ask questions. The number is never shown in the UI.
-    private static let askDailyCap = 30
-
-    var askLimitReached: Bool {
-        (data.askUsage[dayKey(.now)] ?? 0) >= Self.askDailyCap
+    func zestyAllowance() async throws -> ZestyAllowance {
+        try await zesty.allowance()
     }
 
     func ask(_ query: String, conversationId: String?) async throws -> ZestyAskResponse {
@@ -561,8 +558,6 @@ final class AppStore {
             acceptedStoreIds: myStoreIds,
             blockedStoreIds: blockedStoreIds
         )
-        let key = dayKey(.now)
-        mutate { $0.askUsage[key, default: 0] += 1 }
         track("ask_query_sent", ["model": response.model])
         return response
     }

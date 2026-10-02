@@ -14,6 +14,7 @@ struct AskView: View {
     @State private var messages: [AskMessage] = []
     @State private var input: String = ""
     @State private var isThinking: Bool = false
+    @State private var allowance: ZestyAllowance?
     @AppStorage("zestyConversationID") private var conversationID: String = ""
     @FocusState private var focused: Bool
 
@@ -53,6 +54,7 @@ struct AskView: View {
             .navigationTitle("Ask")
             .safeAreaInset(edge: .bottom) { composer }
             .bitewiseDestinations()
+            .task { allowance = try? await store.zestyAllowance() }
         }
     }
 
@@ -68,6 +70,13 @@ struct AskView: View {
                         .font(.bw(.caption2, weight: .semibold))
                         .foregroundStyle(BW.inkSecondary)
                 }
+            }
+            if let allowance {
+                Text(allowance.phase == "trial"
+                     ? "\(allowance.remaining) of \(allowance.total) Zesty Ask messages remaining in your trial"
+                     : "\(allowance.remaining) of \(allowance.total) Zesty Ask messages remaining")
+                    .font(.bw(.caption, weight: .semibold))
+                    .foregroundStyle(BW.inkSecondary)
             }
             if messages.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
@@ -224,11 +233,6 @@ struct AskView: View {
 
     private var composer: some View {
         VStack(spacing: 6) {
-            if store.askLimitReached {
-                Text("You've asked too many questions for today. Come back tomorrow!")
-                    .font(.bw(.caption, weight: .semibold)).foregroundStyle(BW.inkSecondary)
-                    .multilineTextAlignment(.center)
-            }
             HStack(spacing: 10) {
                 TextField("Ask Zesty about food or Lemora…", text: $input, axis: .vertical)
                     .lineLimit(1...4)
@@ -256,7 +260,7 @@ struct AskView: View {
     }
 
     private var canSend: Bool {
-        !input.trimmingCharacters(in: .whitespaces).isEmpty && !isThinking && !store.askLimitReached
+        !input.trimmingCharacters(in: .whitespaces).isEmpty && !isThinking && (allowance?.remaining ?? 1) > 0
     }
 
     private var appBuildNumber: String {
@@ -266,7 +270,7 @@ struct AskView: View {
     private func send(_ text: String) {
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty, !isThinking else { return }
-        guard !store.askLimitReached else { return }
+        guard (allowance?.remaining ?? 1) > 0 else { return }
         input = ""
         focused = false
         let userMessage = AskMessage(isUser: true, text: query)
@@ -276,6 +280,11 @@ struct AskView: View {
             do {
                 let response = try await store.ask(query, conversationId: conversationID.isEmpty ? nil : conversationID)
                 conversationID = response.conversationId
+                if let remaining = response.remaining,
+                   let total = response.allowanceTotal,
+                   let phase = response.accessPhase {
+                    allowance = ZestyAllowance(phase: phase, remaining: remaining, total: total)
+                }
                 withAnimation(.spring(response: 0.4)) {
                     messages.append(AskMessage(
                         isUser: false,
@@ -286,6 +295,7 @@ struct AskView: View {
                     isThinking = false
                 }
             } catch {
+                allowance = try? await store.zestyAllowance()
                 withAnimation(.spring(response: 0.4)) {
                     messages.removeAll { $0.id == userMessage.id }
                     input = query

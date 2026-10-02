@@ -48,15 +48,25 @@ nonisolated struct ZestyAskResponse: Decodable, Sendable {
     let message: String
     let recommendations: [ZestyRecommendation]
     let followUpSuggestions: [String]
-    let remainingToday: Int?
+    let remaining: Int?
+    let allowanceTotal: Int?
+    let accessPhase: String?
     let model: String
 
     private enum CodingKeys: String, CodingKey {
         case message, recommendations, model
         case conversationId = "conversation_id"
         case followUpSuggestions = "follow_up_suggestions"
-        case remainingToday = "remaining_today"
+        case remaining
+        case allowanceTotal = "allowance_total"
+        case accessPhase = "access_phase"
     }
+}
+
+nonisolated struct ZestyAllowance: Decodable, Sendable {
+    let phase: String
+    let remaining: Int
+    let total: Int
 }
 
 nonisolated enum ZestyServiceError: LocalizedError, Sendable {
@@ -197,6 +207,26 @@ private nonisolated struct ZestyErrorResponse: Decodable, Sendable {
 }
 
 nonisolated struct ZestyService: Sendable {
+    func allowance() async throws -> ZestyAllowance {
+        guard let token = try? await Clerk.shared.auth.getToken(), !token.isEmpty else {
+            throw ZestyServiceError.signInRequired
+        }
+        let endpoint = LemoraBackend.projectURL.appending(path: "functions")
+            .appending(path: "v1").appending(path: "ask-zesty")
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 12
+        request.setValue(LemoraBackend.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (body, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw ZestyServiceError.invalidResponse }
+        guard (200..<300).contains(http.statusCode) else {
+            let server = try? JSONDecoder().decode(ZestyErrorResponse.self, from: body)
+            throw ZestyServiceError.server(message: server?.message ?? String(localized: "Zesty Ask is temporarily unavailable."))
+        }
+        return try JSONDecoder().decode(ZestyAllowance.self, from: body)
+    }
+
     func ask(
         message: String,
         conversationId: String?,
@@ -257,8 +287,8 @@ nonisolated struct ZestyService: Sendable {
             switch server?.error {
             case "unauthorized":
                 friendly = String(localized: "Your session expired. Sign in again to talk with Zesty.")
-            case "daily_safety_limit":
-                friendly = server?.message ?? String(localized: "Zesty has reached today's limit. Please try again tomorrow.")
+            case "trial_total_limit", "daily_limit", "weekly_limit", "period_limit", "subscription_required":
+                friendly = server?.message ?? String(localized: "Zesty Ask is temporarily unavailable.")
             case "zesty_not_configured":
                 friendly = String(localized: "Zesty is being configured. Please try again shortly.")
             default:

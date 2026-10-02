@@ -30,6 +30,10 @@ Recipe nutrition includes calories, protein, carbohydrates, fibre, sugars, fat, 
 
 The selected model is `gpt-5.6-luna`. The backend is the `ask-zesty` Edge Function; do not restore the removed local `AskEngine` recipe-only fallback.
 
+Ask access is checked server-side against RevenueCat's active `lemora_pro` entitlement for the authenticated Clerk user before every request. Trial users have 10 lifetime trial messages and 6 per rolling 24 hours. Paid users have 50 per rolling 30 days, 16 per rolling 7 days and 6 per rolling 24 hours. Trial events never count against paid allowances. Limits are configured in `zesty_usage_limits` and atomically reserved in `reserve_zesty_message`; per-request analytics live in `zesty_usage_events`. The app only displays the backend allowance and does not enforce a device-local quota. The actual trial duration still comes from the App Store product; the Ask quota does not change that product.
+
+For latency, Ask now fetches relevant profile/recipe/deal context in parallel and makes one Responses API call with optional web search instead of serial Agent tool turns. The existing conversation history is passed explicitly for follow-ups. The server function can be updated independently of an iOS build; the allowance display requires an integrated build.
+
 The native app still has a bundled development recipe catalogue distinct from Supabase's published recipes. Ask sends the installed catalogue's ingredients, steps, local IDs, allergens and existing estimated nutrition with its context. Recipe tools search both sources and resolve local IDs without treating them as database UUIDs. Bundled fixtures are explicitly unverified; absent nutrition values stay unknown, and they provide no confirmed prices or certifications. This bridge is needed for follow-ups about a recipe shown in the app, such as `teriyaki_bowl`.
 
 ## Shared service identities
