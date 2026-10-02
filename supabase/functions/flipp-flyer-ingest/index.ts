@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { assessFood } from "./food-policy.mjs";
 
 const ACTOR = "yugenox~flipp-flyer-deals-scraper";
 const APIFY_API = `https://api.apify.com/v2/acts/${ACTOR}`;
@@ -22,7 +23,6 @@ type Input = {
   maxItemsPerPostalCode?: number;
   language?: "en" | "fr";
   onlyValidNow?: boolean;
-  healthFocus?: boolean;
   dryRun?: boolean;
 };
 
@@ -149,14 +149,6 @@ function regionFor(postalCode: string): string {
   return ranges.find(([start, end]) => n >= start && n <= end)?.[2] ?? "US";
 }
 
-function healthPriority(name: string): number {
-  const value = name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  if (/(chips|croustille|cookie|biscuit|candy|bonbon|chocolat|soft drink|soda|liqueur|energy drink|boisson energ|frozen pizza|pizza surgelee|frozen meal|repas surgele|instant noodle|nouille instant|donut|beigne|cake|gateau|ice cream|creme glacee|hot dog|wiener|saucisse fumee)/.test(value)) return 15;
-  if (/(fruit|legume|vegetable|pomme|banane|orange|bleuet|fraise|avocat|tomate|brocoli|epinard|carotte|poivron|poulet|chicken|poisson|fish|saumon|salmon|thon|tuna|oeuf|egg|lentille|haricot|pois chiche|tofu|avoine|oat)/.test(value)) return 100;
-  if (/(lait|milk|yogourt|yogurt|riz|rice|pain|bread|pasta|pates|fromage|cheese|hummus|beurre d arachide|peanut butter|surgele|frozen|conserve|canned)/.test(value)) return 75;
-  return 45;
-}
-
 async function apifyJson(path: string, token: string, init?: RequestInit) {
   const response = await fetch(path, {
     ...init,
@@ -245,12 +237,14 @@ Deno.serve(async (req: Request) => {
       `https://api.apify.com/v2/datasets/${datasetId}/items?clean=true&format=json&limit=${maxItems}`,
       token,
     ) as FlippDeal[];
-    const healthFocus = body.healthFocus ?? true;
     const flyerDeals = deals.filter((deal) =>
-      deal.itemType === "flyer" && deal.name && deal.currentPrice != null
+      deal.itemType === "flyer" && deal.name && typeof deal.currentPrice === "number"
+      && Number.isFinite(deal.currentPrice) && deal.currentPrice > 0
       && deal.flyerId != null && deal.postalCode
       && countryFor(deal.postalCode) === "CA" && deal.currency === "CAD"
-      && (!healthFocus || healthPriority(deal.name) >= 50)
+      && Number.isFinite(Date.parse(deal.validFrom)) && Number.isFinite(Date.parse(deal.validTo))
+      && Date.parse(deal.validTo) > Date.parse(deal.validFrom)
+      && assessFood(deal.name).decision !== "rejected"
     );
     const publicationCache = new Map<string, string>();
     const chainCache = new Map<string, string>();
@@ -388,7 +382,23 @@ Deno.serve(async (req: Request) => {
         coverageCache.add(coverageKey);
       }
 
-      const payload = { ...deal, datasetId, apifyRunId: actorRun.id, healthPriorityScore: healthPriority(deal.name) };
+      const foodPolicy = assessFood(deal.name);
+      const payload = { ...deal, datasetId, apifyRunId: actorRun.id, foodPolicy };
+      // Preserve a previously reviewed import of the very same retailer item.
+      // Manual audit rows may have been keyed from the Apify export rather than
+      // the actor's itemId; a rerun must update them, not display a duplicate.
+      let dedupKey = semanticDealKey(deal);
+      if (deal.productUrl) {
+        const { data: priorItem, error: priorItemError } = await supabase.from("flyer_items")
+          .select("dedup_key")
+          .eq("flyer_publication_id", publicationId)
+          .eq("product_url", deal.productUrl)
+          .eq("raw_description", deal.name)
+          .eq("sale_price", deal.currentPrice)
+          .limit(1).maybeSingle();
+        if (priorItemError) throw priorItemError;
+        if (priorItem) dedupKey = priorItem.dedup_key;
+      }
       const { data: storedItem, error: itemError } = await supabase.from("flyer_items").upsert({
         flyer_publication_id: publicationId,
         raw_description: deal.name,
@@ -400,7 +410,7 @@ Deno.serve(async (req: Request) => {
         multi_buy_total_price: deal.multiBuy?.totalPrice ?? null,
         // Flipp can return the same promotion with a different itemId for every
         // queried postal code. This stable identity prevents those copies forever.
-        dedup_key: semanticDealKey(deal),
+        dedup_key: dedupKey,
         source_item_id: String(deal.itemId),
         source_locale: deal.locale ?? null,
         source_postal_code: postalCode,

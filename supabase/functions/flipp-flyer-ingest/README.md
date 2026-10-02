@@ -23,9 +23,17 @@ the old broad `active_food_deals_app` view. The iOS app calls
 `active_food_deals_for_postal` for a full Canadian postal; that read exposes
 only current, approved, healthy, imaged offers observed at that exact postal.
 
-The October 2 pilot with No Frills at M5V 2T6 returned 50 actor rows,
-stored 9 food candidates, and exposed 1 approved/imaged offer in the exact
-postal feed. The other candidates require classification or image review.
+The October 2 pilot with No Frills at M5V 2T6 returned 50 actor rows. After
+the owner's item-by-item review, 13 additional priced lines from that existing
+Apify export were imported into the exact-postal pilot; two previously stored
+prepared-food lines were marked rejected. The exact-postal feed currently
+returns four distinct, approved and imaged products: beef, broccoli, chicken
+breast, and tomatoes. Ambiguous multi-product lines remain under review.
+Items without a quoted current price (including points-only and coupon-only
+offers) are not deals; invalid date ranges are also rejected. The food policy
+is tested with `node scripts/test-flipp-food-policy.mjs` and cannot be bypassed
+by setting `healthFocus` to false. Other accepted foods still require a valid
+image and existing recommendation eligibility before they can be displayed.
 No nationwide coverage or scheduled ingestion is implied by this pilot.
 
 Apify's advertised per-deal price is not a reliable end-to-end budget. Actor
