@@ -57,6 +57,18 @@ deployed `flipp-flyer-ingest` version 21 rejects whipped dessert toppings and
 quarantines ambiguous multi-variant descriptions. National coverage and
 scheduled imports remain unverified and unimplemented.
 
+The owner's October 3 follow-up explicitly accepts regular milk (including
+Natrel fine-filtered), fresh fruit and vegetables, yogurt including drinkable
+Greek yogurt, cheese blocks, oatmeal, Barebells and Clif bars as *food
+candidates*. A named protein bar or yogurt is not a verified high-protein,
+low-sugar, allergen-safe or goal-compatible item. Different products or
+package sizes in one flyer line remain review-only, as do unpriced lines.
+The owner policy recognises those candidates in `flipp-flyer-ingest` version
+22, but the four-city discovery dataset remains unimported. The database
+normalizer now distinguishes fresh pineapple from apple; pineapple still
+needs its own canonical image and eligibility verification before it can
+appear in the app. No iOS/TestFlight release was made for this policy change.
+
 ## Shared service identities
 
 - GitHub source: `juraf99/rork-Lemora`, release branch `main`.

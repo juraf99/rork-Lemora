@@ -65,6 +65,32 @@ assert.equal(assessFood("LIME JUICE").decision, "review");
 assert.equal(assessFood("CANOLA OIL").decision, "rejected");
 assert.equal(assessFood("KRAFT Cool Whip Aerosol Whip Cream Topping").decision, "rejected");
 assert.equal(assessFood("ARMSTRONG Cheese", "600 g, Shreds 450-500 g or SAPUTO Mozzarellissima 600 g").decision, "review");
-assert.equal(assessFood("Armstrong cheese blocks 400 g", "Each. Selected varieties.").decision, "review");
+assert.equal(assessFood("Armstrong cheese blocks 400 g", "Each. Selected varieties.").decision, "accepted");
 assert.equal(assessFood("Family Size Extra Lean Ground Beef", "22.02/kg").decision, "accepted");
-console.log(`Passed ${cases.length} owner-reviewed flyer cases and 8 product-form checks.`);
+// October 3 owner feedback: eligible foods, not verified high-protein or
+// low-sugar claims, and not permission to merge different products.
+const newlyApproved = [
+  ["Natrel fine-filtered milk", "Each. Selected varieties."],
+  ["Your Fresh Market McIntosh apples", "Bag. Product of Canada."],
+  ["Bulk McIntosh apples", "$2.82/kg."],
+  ["Oikos high protein drinkable Greek yogurt", "Each. Selected varieties. 190 mL."],
+  ["Siggi's Skyr Yogurt Cups", "Each. Selected varieties. 4 x 100 g."],
+  ["Armstrong cheese blocks 400 g", "Each. Selected varieties."],
+  ["Bulk Gala apples", "2.16 $/kg"],
+  ["Golden pineapple", "Each. Product of Costa Rica."],
+  ["Quaker Oatmeal protein", "Each. 465 g."],
+  ["Barebells protein bars", "Pack. Selected varieties. 4 x 55 g."],
+  ["Clif Bars", "5-pack. Selected varieties."],
+  ["COMPLIMENTS Potatoes", "Canada no 1, 5 lb"],
+];
+for (const [name, description] of newlyApproved) {
+  assert.equal(assessFood(name, description).decision, "accepted", name);
+}
+assert.equal(assessFood("Milk-Bone dog biscuits").decision, "rejected");
+assert.equal(assessFood("Your Fresh Market apple turnover 8-pack").decision, "rejected");
+assert.equal(assessFood("Bulk cluster tomatoes or Roma tomatoes").decision, "review");
+assert.equal(assessFood("Your Fresh Market russet potatoes or yellow onions").decision, "review");
+assert.equal(assessFood("Dempster's Protein bread or bagels").decision, "review");
+assert.equal(assessFood("Ensure High Protein nutritional drink").decision, "review");
+assert.equal(assessFood("Milk chocolate truffles").decision, "rejected");
+console.log(`Passed ${cases.length} original cases, 12 newly approved foods and 15 product-form checks.`);

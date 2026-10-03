@@ -54,9 +54,19 @@ a complete weekly flyer or a basis for an 80% coverage claim.
 
 The owner policy now checks the item description as well as its title.
 Ambiguous `or`/selected-variety lines require review, and whipped dessert
-toppings are rejected; `review` is never automatic publication. The live
-function containing this change is version 21. The pilot still has no
+toppings are rejected; `review` is never automatic publication. That first
+description-aware filter shipped in version 21. The pilot still has no
 national schedule or verified store-to-flyer-region map.
+
+The owner's October 3 follow-up admits Natrel/other milk, fresh produce,
+yogurt, cheese blocks, oats, Barebells and Clif bars as food candidates.
+Version 22 applies this expanded family policy; it does not infer macros,
+low sugar, allergens or diet compatibility from a marketing name. A line
+with different products or package sizes stays under review. The independent
+database normalizer was corrected to keep pineapple distinct from apple.
+Neither this policy deployment nor that schema fix imports the truncated
+four-city dataset or publishes new app cards; the app feed also requires a
+verified postal, price, classification, goal eligibility and approved image.
 
 Expiry is separate from ingestion. Supabase Cron runs
 `lemora-expire-past-flyers` daily at 12:00 GMT and calls
