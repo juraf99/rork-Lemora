@@ -44,6 +44,8 @@ New Apify v2 editions stay out of the legacy province/FSA feed. The iOS app call
 
 Owner-reviewed food policy: prioritize whole/minimally processed produce and protein, especially extra-lean ground beef and chicken; allow olive/avocado oil, rice, plain dairy staples (including cheese, butter and cream), beans, tuna, broth and honey as cooking ingredients. Milk alternatives and yogurt are candidates, but sweetened variants require nutrition review. Sausage and sliced meat require processing/sodium review. Reject prepared soups, frozen entrées/pizza, breaded chicken bites/burgers, ice cream, regular soda, chips, sugar, coffee, stuffing and non-food. A flyer line containing different foods or brands/sizes is review-only until exact variants are resolved. Points and coupons with no current price do not become price deals. Do not claim nutritional superiority for honey or make sodium/sugar claims without verified data. The source of truth for the 50 reviewed examples is `scripts/test-flipp-food-policy.mjs`.
 
+Expired flyer editions are removed from the live app feed, **not physically deleted**: retain flyer, item, postal-coverage and price-history rows in Supabase. Supabase Cron runs `lemora-expire-past-flyers` daily at 12:00 GMT. `lemora_expire_past_flyers()` sets `is_stale` only when `valid_until` is strictly before the current Vancouver calendar date, a conservative Canada-wide boundary. Both legacy and exact-postal views use the same boundary so UTC rollover never hides a flyer still valid in western Canada. The ingestion function calls the same expiry routine; it must not use UTC's date to stale flyers.
+
 ## Shared service identities
 
 - GitHub source: `juraf99/rork-Lemora`, release branch `main`.

@@ -434,8 +434,10 @@ Deno.serve(async (req: Request) => {
       written += 1;
     }
 
-    await supabase.from("flyer_publications").update({ is_stale: true })
-      .lt("valid_until", new Date().toISOString().slice(0, 10));
+    // Use the same conservative Canadian cutoff as the scheduled database job.
+    // UTC's calendar date can already be tomorrow while a BC flyer is current.
+    const { error: expiryError } = await supabase.rpc("lemora_expire_past_flyers");
+    if (expiryError) throw expiryError;
     await supabase.from("ingestion_runs").update({
       status: "succeeded", finished_at: new Date().toISOString(), items_seen: deals.length,
       items_upserted: written, items_rejected: deals.length - written,

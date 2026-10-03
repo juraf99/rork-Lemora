@@ -36,6 +36,16 @@ by setting `healthFocus` to false. Other accepted foods still require a valid
 image and existing recommendation eligibility before they can be displayed.
 No nationwide coverage or scheduled ingestion is implied by this pilot.
 
+Expiry is separate from ingestion. Supabase Cron runs
+`lemora-expire-past-flyers` daily at 12:00 GMT and calls
+`lemora_expire_past_flyers()`. It marks a publication stale only when
+`valid_until` is **before** the current Vancouver calendar date. The same
+database function is called after an ingestion run. Both app deal views use
+that conservative Canadian cutoff, so a flyer valid today or in the future
+is never hidden early by UTC rollover. This is a soft expiry: flyers, items,
+postal evidence and price history remain in Supabase. The job can be checked
+in `cron.job` and its executions in `cron.job_run_details`.
+
 Apify's advertised per-deal price is not a reliable end-to-end budget. Actor
 runs, filtering, retries, and repeated postals can change the effective cost;
 measure actual console spend before setting a recurring schedule.
