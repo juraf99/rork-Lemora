@@ -69,6 +69,12 @@ normalizer now distinguishes fresh pineapple from apple; pineapple still
 needs its own canonical image and eligibility verification before it can
 appear in the app. No iOS/TestFlight release was made for this policy change.
 
+Ingest function version 23 requires an explicit Apify `maxTotalChargeUsd`
+for every paid run and records global/per-postal cap hits. Apify's 60-second
+run wait is followed by polling if the actor remains active. This is a
+per-run safeguard, not a monthly budget or evidence of complete coverage.
+No new flyer data was imported by this safety deployment.
+
 ## Shared service identities
 
 - GitHub source: `juraf99/rork-Lemora`, release branch `main`.

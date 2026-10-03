@@ -21,6 +21,7 @@ type Input = {
   maxItems?: number;
   maxPostalCodes?: number;
   maxItemsPerPostalCode?: number;
+  maxTotalChargeUsd?: number;
   language?: "en" | "fr";
   onlyValidNow?: boolean;
   dryRun?: boolean;
@@ -182,6 +183,12 @@ Deno.serve(async (req: Request) => {
   if (body.regionPresets?.some((preset) => preset !== "ca-major-cities")) {
     return Response.json({ ok: false, error: "Only ca-major-cities is supported" }, { status: 400 });
   }
+  // The dataset row cap is not a billing cap. Require Apify's independent
+  // per-run charge ceiling for every real collection.
+  if (!body.dryRun && (!Number.isFinite(body.maxTotalChargeUsd)
+    || (body.maxTotalChargeUsd ?? 0) <= 0 || (body.maxTotalChargeUsd ?? 0) > 10)) {
+    return Response.json({ ok: false, error: "Set maxTotalChargeUsd between 0 and 10 for each paid run" }, { status: 400 });
+  }
   // A bounded run keeps accidental nationwide sweeps within a small spend.
   // Expand only after cost/coverage are measured and a monthly budget is set.
   const maxItems = Math.min(Math.max(body.maxItems ?? 500, 1), 500);
@@ -226,10 +233,21 @@ Deno.serve(async (req: Request) => {
   if (runError) throw runError;
 
   try {
-    const started = await apifyJson(`${APIFY_API}/runs?waitForFinish=120`, token, {
+    const runUrl = new URL(`${APIFY_API}/runs`);
+    runUrl.searchParams.set("waitForFinish", "60");
+    runUrl.searchParams.set("maxTotalChargeUsd", String(body.maxTotalChargeUsd));
+    const started = await apifyJson(runUrl.toString(), token, {
       method: "POST", body: JSON.stringify(actorInput),
     });
-    const actorRun = started.data;
+    let actorRun = started.data;
+    // Apify's synchronous wait is capped at 60 seconds. RUNNING is not a
+    // failure; the paid run continues and must be polled before reading data.
+    for (let attempt = 0; attempt < 4 && ["READY", "RUNNING"].includes(actorRun.status); attempt++) {
+      const polled = await apifyJson(
+        `https://api.apify.com/v2/actor-runs/${actorRun.id}?waitForFinish=30`, token,
+      );
+      actorRun = polled.data;
+    }
     if (actorRun.status !== "SUCCEEDED") throw new Error(`Actor finished with status ${actorRun.status}`);
 
     const datasetId = actorRun.defaultDatasetId as string;
@@ -237,6 +255,24 @@ Deno.serve(async (req: Request) => {
       `https://api.apify.com/v2/datasets/${datasetId}/items?clean=true&format=json&limit=${maxItems}`,
       token,
     ) as FlippDeal[];
+    const postalCounts: Record<string, number> = {};
+    const flyerIds = new Set<string>();
+    for (const deal of deals) {
+      const postal = String(deal.postalCode ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+      if (postal) postalCounts[postal] = (postalCounts[postal] ?? 0) + 1;
+      if (deal.flyerId != null) flyerIds.add(`${deal.merchantId}:${deal.flyerId}`);
+    }
+    const perPostalCap = actorInput.maxItemsPerPostalCode;
+    const truncatedPostals = Object.entries(postalCounts)
+      .filter(([, count]) => count >= perPostalCap).map(([postal]) => postal);
+    const coverage = {
+      observedPostals: Object.keys(postalCounts).length,
+      observedFlyers: flyerIds.size,
+      postalCounts,
+      truncatedPostals,
+      hitGlobalItemCap: deals.length >= maxItems,
+      noKnownTruncation: deals.length < maxItems && truncatedPostals.length === 0,
+    };
     const flyerDeals = deals.filter((deal) =>
       deal.itemType === "flyer" && deal.name && typeof deal.currentPrice === "number"
       && Number.isFinite(deal.currentPrice) && deal.currentPrice > 0
@@ -441,10 +477,13 @@ Deno.serve(async (req: Request) => {
     await supabase.from("ingestion_runs").update({
       status: "succeeded", finished_at: new Date().toISOString(), items_seen: deals.length,
       items_upserted: written, items_rejected: deals.length - written,
-      notes: JSON.stringify({ apifyRunId: actorRun.id, datasetId, actorInput }),
+      notes: JSON.stringify({ apifyRunId: actorRun.id, datasetId, actorInput, coverage,
+        usageTotalUsd: actorRun.usageTotalUsd ?? null }),
     }).eq("id", run.id);
 
-    return Response.json({ ok: true, runId: run.id, apifyRunId: actorRun.id, datasetId, itemsSeen: deals.length, itemsWritten: written });
+    return Response.json({ ok: true, runId: run.id, apifyRunId: actorRun.id, datasetId,
+      itemsSeen: deals.length, itemsWritten: written, coverage,
+      usageTotalUsd: actorRun.usageTotalUsd ?? null });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await supabase.from("ingestion_runs").update({ status: "failed", finished_at: new Date().toISOString(), notes: message }).eq("id", run.id);

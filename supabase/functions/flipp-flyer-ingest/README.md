@@ -13,6 +13,13 @@ banners, but support and flyer availability must be measured per banner and
 postal. The actor response is capped at 500 items per call and 25 postals. A
 500-item cap is **not a Canada-wide scan**; a scheduler needs geographic
 batches, watermarks, and a monthly spend ceiling before expansion.
+Every live invocation must also specify `maxTotalChargeUsd` (greater than 0,
+at most US$10). This is passed to Apify's run API as a per-run hard charge
+ceiling; the item cap alone does not cap spending. The result records observed
+postal/item counts, unique flyer IDs, postals that hit their item cap, and
+whether the global cap was hit. `noKnownTruncation` does **not** establish
+complete banner or geographic coverage. There is still no recurring national
+schedule or monthly spend ceiling.
 
 The database uses stable source flyer IDs and validity dates to reuse a
 publication across runs, stores exact observed postals for both flyers and
