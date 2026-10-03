@@ -244,7 +244,7 @@ Deno.serve(async (req: Request) => {
       && countryFor(deal.postalCode) === "CA" && deal.currency === "CAD"
       && Number.isFinite(Date.parse(deal.validFrom)) && Number.isFinite(Date.parse(deal.validTo))
       && Date.parse(deal.validTo) > Date.parse(deal.validFrom)
-      && assessFood(deal.name).decision !== "rejected"
+      && assessFood(deal.name, deal.description).decision !== "rejected"
     );
     const publicationCache = new Map<string, string>();
     const chainCache = new Map<string, string>();
@@ -382,7 +382,7 @@ Deno.serve(async (req: Request) => {
         coverageCache.add(coverageKey);
       }
 
-      const foodPolicy = assessFood(deal.name);
+      const foodPolicy = assessFood(deal.name, deal.description);
       const payload = { ...deal, datasetId, apifyRunId: actorRun.id, foodPolicy };
       // Preserve a previously reviewed import of the very same retailer item.
       // Manual audit rows may have been keyed from the Apify export rather than

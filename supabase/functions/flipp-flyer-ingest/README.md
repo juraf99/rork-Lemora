@@ -36,6 +36,28 @@ by setting `healthFocus` to false. Other accepted foods still require a valid
 image and existing recommendation eligibility before they can be displayed.
 No nationwide coverage or scheduled ingestion is implied by this pilot.
 
+On October 3, a separately authorized Apify discovery run
+[`HFHSmWVQEi0gurDT6`](https://console.apify.com/actors/58sScnjADg9dhsVve/runs/HFHSmWVQEi0gurDT6)
+used Montreal H2X 1Y4, Vancouver V6B 1A1, Calgary T2P 1J9 and Halifax
+B3J 2K9, six requested merchants, `maxItems=200`,
+`maxItemsPerPostalCode=50`, cross-postal deduplication disabled, and a
+US$0.50 run ceiling. It cost US$0.40 and returned exactly 50 rows per postal:
+Walmart in Montreal, Vancouver and Halifax, and IGA in Calgary. The actor
+reported nine nearby flyers, but items came from only four flyer IDs. This
+**does not** prove that the other requested banners have no flyers: the
+per-postal cap truncated enumeration after an early flyer. Walmart's
+`Groceries` flyer category also included pet food, soap and other non-food.
+The discovery output was not imported or displayed in Lemora. Future coverage
+checks need per-banner/postal batches with explicit completeness checks, then
+owner-policy review before publication. A partial first-50-row sample is not
+a complete weekly flyer or a basis for an 80% coverage claim.
+
+The owner policy now checks the item description as well as its title.
+Ambiguous `or`/selected-variety lines require review, and whipped dessert
+toppings are rejected; `review` is never automatic publication. The live
+function containing this change is version 21. The pilot still has no
+national schedule or verified store-to-flyer-region map.
+
 Expiry is separate from ingestion. Supabase Cron runs
 `lemora-expire-past-flyers` daily at 12:00 GMT and calls
 `lemora_expire_past_flyers()`. It marks a publication stale only when

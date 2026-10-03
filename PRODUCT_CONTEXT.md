@@ -46,6 +46,17 @@ Owner-reviewed food policy: prioritize whole/minimally processed produce and pro
 
 Expired flyer editions are removed from the live app feed, **not physically deleted**: retain flyer, item, postal-coverage and price-history rows in Supabase. Supabase Cron runs `lemora-expire-past-flyers` daily at 12:00 GMT. `lemora_expire_past_flyers()` sets `is_stale` only when `valid_until` is strictly before the current Vancouver calendar date, a conservative Canada-wide boundary. Both legacy and exact-postal views use the same boundary so UTC rollover never hides a flyer still valid in western Canada. The ingestion function calls the same expiry routine; it must not use UTC's date to stale flyers.
 
+The October 3 paid discovery run (US$0.40, capped at US$0.50) sampled four
+postals in QC, BC, AB and NS. It hit exactly 50 items per postal and exposed
+only Walmart (QC/BC/NS) and IGA (AB) item rows, despite nine nearby flyers
+reported by Apify. This was a truncated discovery sample, not proof that other
+banners are absent or that these flyers are complete. It was not imported to
+Supabase or published in the app. Walmart's `Groceries` category includes
+non-food rows; title and description both need product-policy review. The
+deployed `flipp-flyer-ingest` version 21 rejects whipped dessert toppings and
+quarantines ambiguous multi-variant descriptions. National coverage and
+scheduled imports remain unverified and unimplemented.
+
 ## Shared service identities
 
 - GitHub source: `juraf99/rork-Lemora`, release branch `main`.
