@@ -1,0 +1,760 @@
+name: Saved collections and fixes
+
+# One-shot: Saved meals can be sorted into collections; cart badge fix; Zesty peeks over the Discover card. Commits, starts TestFlight, deletes itself.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-saved.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Edit the Swift files
+        run: |
+          set -e
+          cat > /tmp/edits.py <<'PYEOF'
+          """Saved: collections, search, filters and sort; cart badge fix; Zesty peeks over the Discover card."""
+          import sys, os
+          R = "ios-bitewise/Lemora/"
+
+          SAVED = r'''import SwiftUI
+
+          struct SavedView: View {
+              @Environment(AppStore.self) private var store
+              @State private var path: NavigationPath = NavigationPath()
+              @State private var showGrocery: Bool = false
+              @State private var showPaywall: Bool = false
+              @State private var cooking: CookingTarget? = nil
+              @State private var query: String = ""
+              @State private var filter: SavedFilter = .all
+              @State private var sort: SavedSort = .recent
+              @State private var organizing: OrganizeTarget? = nil
+              @State private var showNewCollection: Bool = false
+              @State private var editingCollection: RecipeCollection? = nil
+              @State private var deletingCollection: RecipeCollection? = nil
+
+              struct CookingTarget: Identifiable {
+                  let id: UUID
+                  let recipe: Recipe
+              }
+
+              struct OrganizeTarget: Identifiable {
+                  let id: String
+              }
+
+              enum SavedFilter: Hashable {
+                  case all, onSale, quick
+                  case collection(UUID)
+              }
+
+              enum SavedSort: String, CaseIterable, Identifiable {
+                  case recent, cheapest, quickest, savings
+                  var id: String { rawValue }
+                  var title: String {
+                      switch self {
+                      case .recent: String(localized: "Recently saved")
+                      case .cheapest: String(localized: "Cheapest per serving")
+                      case .quickest: String(localized: "Quickest")
+                      case .savings: String(localized: "Biggest savings")
+                      }
+                  }
+              }
+
+              struct SavedItem: Identifiable {
+                  var id: String { recipe.id }
+                  let entry: SavedRecipe
+                  let recipe: Recipe
+                  let price: RecipePrice
+              }
+
+              private var groceryCount: Int { store.data.grocery.filter { !$0.isChecked }.count }
+
+              private var allItems: [SavedItem] {
+                  store.activeSaved.compactMap { entry in
+                      guard let recipe = RecipeCatalog.byId[entry.recipeId] else { return nil }
+                      return SavedItem(entry: entry, recipe: recipe, price: store.price(for: recipe))
+                  }
+              }
+
+              private func matches(_ item: SavedItem, _ f: SavedFilter) -> Bool {
+                  switch f {
+                  case .all: return true
+                  case .onSale: return item.price.dealCount > 0
+                  case .quick: return item.recipe.totalMinutes <= 30
+                  case .collection(let id): return store.collection(id)?.recipeIds.contains(item.recipe.id) ?? false
+                  }
+              }
+
+              private var visibleItems: [SavedItem] {
+                  let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+                  let filtered = allItems.filter { item in
+                      guard matches(item, filter) else { return false }
+                      guard !q.isEmpty else { return true }
+                      if item.recipe.title.localizedCaseInsensitiveContains(q) { return true }
+                      if item.recipe.tags.contains(where: { $0.title.localizedCaseInsensitiveContains(q) }) { return true }
+                      return store.collections(containing: item.recipe.id).contains { $0.name.localizedCaseInsensitiveContains(q) }
+                  }
+                  switch sort {
+                  case .recent: return filtered
+                  case .cheapest: return filtered.sorted { $0.price.perServing < $1.price.perServing }
+                  case .quickest: return filtered.sorted { $0.recipe.totalMinutes < $1.recipe.totalMinutes }
+                  case .savings: return filtered.sorted { $0.price.savings > $1.price.savings }
+                  }
+              }
+
+              var body: some View {
+                  NavigationStack(path: $path) {
+                      ScrollView {
+                          VStack(alignment: .leading, spacing: 18) {
+                              groceryBanner
+                              if !store.has(.permanentSaves) && !store.activeSaved.isEmpty {
+                                  Button { showPaywall = true } label: {
+                                      HStack(spacing: 10) {
+                                          Image(systemName: "clock")
+                                          Text("Free saves last \(store.config.temporarySaveHours / 24) days. Save forever with Premium.")
+                                              .multilineTextAlignment(.leading)
+                                          Spacer(minLength: 0)
+                                          Image(systemName: "chevron.right").font(.caption.weight(.bold))
+                                      }
+                                      .font(.bw(.footnote, weight: .semibold))
+                                      .foregroundStyle(BW.ink)
+                                      .padding(14)
+                                      .background(BW.lemonSoft, in: .rect(cornerRadius: 16))
+                                  }
+                              }
+
+                              if store.activeSaved.isEmpty {
+                                  EmptyStateView(mascot: BWImage.mascotPeek, title: String(localized: "No saved meals yet"),
+                                                 message: String(localized: "Swipe right on meals you love in Discover and they'll land here."))
+                              } else {
+                                  collectionsBar
+                                  listHeader
+                                  let items = visibleItems
+                                  if items.isEmpty {
+                                      emptyFilter
+                                  } else {
+                                      LazyVStack(spacing: 14) {
+                                          ForEach(items) { item in
+                                              row(item)
+                                          }
+                                      }
+                                  }
+                              }
+                          }
+                          .padding(.horizontal, 20)
+                          .padding(.bottom, 24)
+                      }
+                      .scrollDismissesKeyboard(.immediately)
+                      .background(BW.canvas)
+                      .navigationTitle("Saved")
+                      .searchable(text: $query, prompt: Text("Search your saved meals"))
+                      .toolbar {
+                          ToolbarItem(placement: .topBarTrailing) {
+                              Button { showGrocery = true } label: { cartLabel }
+                                  .accessibilityLabel("Grocery list, \(groceryCount) items")
+                          }
+                      }
+                      .bitewiseDestinations()
+                      .sheet(isPresented: $showGrocery) { GroceryListView() }
+                      .sheet(isPresented: $showPaywall) { PaywallView(context: .upgrade) { showPaywall = false } }
+                      .sheet(item: $cooking) { target in CookedView(recipe: target.recipe, logId: target.id) }
+                      .sheet(item: $organizing) { target in CollectionPickerSheet(recipeId: target.id) }
+                      .sheet(isPresented: $showNewCollection) {
+                          CollectionEditorSheet(existing: nil) { name, emoji in
+                              let created = store.createCollection(name: name, emoji: emoji)
+                              withAnimation(.snappy) { filter = .collection(created.id) }
+                          }
+                      }
+                      .sheet(item: $editingCollection) { collection in
+                          CollectionEditorSheet(existing: collection) { name, emoji in
+                              store.updateCollection(collection.id, name: name, emoji: emoji)
+                          }
+                      }
+                      .alert(Text("Delete this collection?"),
+                             isPresented: Binding(get: { deletingCollection != nil }, set: { if !$0 { deletingCollection = nil } }),
+                             presenting: deletingCollection) { collection in
+                          Button("Delete", role: .destructive) {
+                              if filter == .collection(collection.id) { filter = .all }
+                              store.deleteCollection(collection.id)
+                          }
+                          Button("Cancel", role: .cancel) {}
+                      } message: { _ in
+                          Text("Your meals stay saved. Only the collection is removed.")
+                      }
+                  }
+              }
+
+              // MARK: Cart
+
+              private var cartLabel: some View {
+                  HStack(spacing: 6) {
+                      Image(systemName: "cart.fill")
+                          .font(.system(size: 16, weight: .semibold))
+                      if groceryCount > 0 {
+                          Text("\(groceryCount)")
+                              .font(.bw(size: 14, weight: .heavy))
+                              .monospacedDigit()
+                              .foregroundStyle(BW.ink)
+                              .padding(.horizontal, 7)
+                              .frame(minWidth: 24, minHeight: 24)
+                              .background(BW.lemon, in: .capsule)
+                              .contentTransition(.numericText())
+                      }
+                  }
+                  .foregroundStyle(BW.ink)
+                  .fixedSize()
+                  .animation(.snappy, value: groceryCount)
+              }
+
+              // MARK: Collections bar
+
+              private var collectionsBar: some View {
+                  let items = allItems
+                  return ScrollView(.horizontal, showsIndicators: false) {
+                      HStack(spacing: 8) {
+                          filterChip(.all, emoji: nil, title: String(localized: "All"), count: items.count)
+                          let onSale = items.filter { matches($0, .onSale) }.count
+                          if onSale > 0 {
+                              filterChip(.onSale, emoji: "🏷️", title: String(localized: "On sale"), count: onSale)
+                          }
+                          let quick = items.filter { matches($0, .quick) }.count
+                          if quick > 0 {
+                              filterChip(.quick, emoji: "⚡️", title: String(localized: "Under 30 min"), count: quick)
+                          }
+                          ForEach(store.collections) { collection in
+                              filterChip(.collection(collection.id), emoji: collection.emoji, title: collection.name,
+                                         count: items.filter { collection.recipeIds.contains($0.recipe.id) }.count)
+                                  .contextMenu {
+                                      Button("Edit", systemImage: "pencil") { editingCollection = collection }
+                                      Button("Delete", systemImage: "trash", role: .destructive) { deletingCollection = collection }
+                                  }
+                          }
+                          Button { showNewCollection = true } label: {
+                              Label("New collection", systemImage: "plus")
+                                  .font(.bw(.subheadline, weight: .bold))
+                                  .foregroundStyle(BW.ink)
+                                  .padding(.horizontal, 14)
+                                  .frame(minHeight: 40)
+                                  .overlay(Capsule().strokeBorder(BW.outline, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
+                          }
+                          .buttonStyle(BWPressableStyle())
+                      }
+                      .padding(.vertical, 2)
+                  }
+                  .scrollClipDisabled()
+              }
+
+              private func filterChip(_ f: SavedFilter, emoji: String?, title: String, count: Int) -> some View {
+                  let selected = filter == f
+                  return Button {
+                      withAnimation(.snappy) { filter = f }
+                  } label: {
+                      HStack(spacing: 6) {
+                          if let emoji { Text(emoji) }
+                          Text(title).lineLimit(1)
+                          Text("\(count)")
+                              .font(.bw(.caption, weight: .heavy)).monospacedDigit()
+                              .padding(.horizontal, 7).padding(.vertical, 2)
+                              .background(selected ? BW.lemon : BW.beigeSoft, in: .capsule)
+                              .foregroundStyle(BW.ink)
+                      }
+                      .font(.bw(.subheadline, weight: .bold))
+                      .foregroundStyle(selected ? Color.white : BW.ink)
+                      .padding(.leading, 14).padding(.trailing, 8)
+                      .frame(minHeight: 40)
+                      .background(selected ? BW.ink : BW.card, in: .capsule)
+                      .overlay(Capsule().strokeBorder(selected ? Color.clear : BW.hairline))
+                  }
+                  .buttonStyle(BWPressableStyle())
+                  .sensoryFeedback(.selection, trigger: selected)
+              }
+
+              private var listHeader: some View {
+                  HStack {
+                      Text(visibleItems.count == 1 ? String(localized: "1 meal") : String(localized: "\(visibleItems.count) meals"))
+                          .font(.bw(.subheadline, weight: .semibold)).foregroundStyle(BW.inkSecondary)
+                      Spacer()
+                      Menu {
+                          Picker("Sort by", selection: $sort) {
+                              ForEach(SavedSort.allCases) { Text($0.title).tag($0) }
+                          }
+                      } label: {
+                          Label(sort.title, systemImage: "arrow.up.arrow.down")
+                              .font(.bw(.subheadline, weight: .bold))
+                              .foregroundStyle(BW.ink)
+                      }
+                  }
+              }
+
+              @ViewBuilder
+              private var emptyFilter: some View {
+                  VStack(spacing: 10) {
+                      Image(systemName: query.isEmpty ? "folder" : "magnifyingglass")
+                          .font(.system(size: 30, weight: .semibold)).foregroundStyle(BW.amber)
+                      if !query.isEmpty {
+                          Text("No saved meal matches \"\(query)\"").font(.bw(.headline)).foregroundStyle(BW.ink)
+                      } else if case .collection = filter {
+                          Text("No meals in this collection yet").font(.bw(.headline)).foregroundStyle(BW.ink)
+                          Text("Tap the folder button on any saved meal to add it here.")
+                              .font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
+                      } else {
+                          Text("Nothing here right now").font(.bw(.headline)).foregroundStyle(BW.ink)
+                      }
+                  }
+                  .multilineTextAlignment(.center)
+                  .frame(maxWidth: .infinity)
+                  .padding(24)
+                  .bwCard()
+              }
+
+              private func row(_ item: SavedItem) -> some View {
+                  let recipe = item.recipe
+                  return SavedRow(recipe: recipe, entry: item.entry, timesCooked: store.timesCooked(recipe),
+                                  price: item.price,
+                                  collections: store.collections(containing: recipe.id),
+                                  onOpen: { path.append(Route.recipe(recipe.id)) },
+                                  onCook: { cooking = CookingTarget(id: store.cook(recipe).id, recipe: recipe) },
+                                  onOrganize: { organizing = OrganizeTarget(id: recipe.id) })
+                      .contextMenu {
+                          Button("Add to collection", systemImage: "folder.badge.plus") { organizing = OrganizeTarget(id: recipe.id) }
+                          Button("Add to grocery list", systemImage: "cart.badge.plus") {
+                              store.addToGrocery(recipe, servings: recipe.servings)
+                          }
+                          Button("Remove", systemImage: "trash", role: .destructive) { store.unsave(recipe) }
+                      }
+              }
+
+              private var groceryBanner: some View {
+                  Button { showGrocery = true } label: {
+                      HStack(spacing: 14) {
+                          Image(systemName: "cart.fill")
+                              .font(.title3).foregroundStyle(BW.ink)
+                              .frame(width: 48, height: 48).background(BW.lemon, in: .circle)
+                          VStack(alignment: .leading, spacing: 2) {
+                              Text("Grocery list").font(.bw(.headline)).foregroundStyle(BW.ink)
+                              Text(groceryCount == 0 ? String(localized: "Add ingredients from any recipe") : String(localized: "\(groceryCount) items to buy"))
+                                  .font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
+                          }
+                          Spacer()
+                          Image(systemName: "chevron.right").font(.subheadline.weight(.bold)).foregroundStyle(BW.outline)
+                      }
+                      .padding(14)
+                      .bwCard()
+                  }
+                  .buttonStyle(BWPressableStyle())
+              }
+          }
+
+          struct SavedRow: View {
+              let recipe: Recipe
+              let entry: SavedRecipe
+              let timesCooked: Int
+              let price: RecipePrice
+              var collections: [RecipeCollection] = []
+              let onOpen: () -> Void
+              let onCook: () -> Void
+              var onOrganize: () -> Void = {}
+
+              var body: some View {
+                  VStack(alignment: .leading, spacing: 0) {
+                      Button(action: onOpen) {
+                          ZStack(alignment: .bottomLeading) {
+                              FoodImage(name: recipe.imageName, height: 170, radius: 0)
+                              LinearGradient(colors: [.clear, .black.opacity(0.6)], startPoint: .center, endPoint: .bottom)
+                              VStack(alignment: .leading, spacing: 6) {
+                                  HStack(spacing: 6) {
+                                      if timesCooked > 0 {
+                                          Label("Cooked \(timesCooked)×", systemImage: "checkmark.circle.fill")
+                                              .font(.bw(.caption, weight: .bold)).foregroundStyle(.white)
+                                              .padding(.horizontal, 10).padding(.vertical, 5).background(BW.leaf, in: .capsule)
+                                      }
+                                      if price.dealCount > 0 {
+                                          SoftChip(text: String(localized: "Save \(Money.format(price.savings))"), symbol: "tag.fill", fill: .white.opacity(0.94))
+                                      }
+                                  }
+                                  Text(recipe.title).font(.bw(.title3, weight: .heavy)).foregroundStyle(.white).multilineTextAlignment(.leading)
+                              }
+                              .padding(14)
+                          }
+                      }
+                      .buttonStyle(.plain)
+
+                      VStack(alignment: .leading, spacing: 10) {
+                          if !collections.isEmpty {
+                              ScrollView(.horizontal, showsIndicators: false) {
+                                  HStack(spacing: 6) {
+                                      ForEach(collections) { c in
+                                          Text("\(c.emoji) \(c.name)")
+                                              .font(.bw(.caption, weight: .bold))
+                                              .foregroundStyle(BW.ink)
+                                              .padding(.horizontal, 10).padding(.vertical, 5)
+                                              .background(BW.lemonSoft, in: .capsule)
+                                      }
+                                  }
+                              }
+                          }
+                          HStack(spacing: 10) {
+                              VStack(alignment: .leading, spacing: 2) {
+                                  Text("\(Money.format(price.perServing)) / serving · \(recipe.totalMinutes) min")
+                                      .font(.bw(.subheadline, weight: .semibold)).monospacedDigit().foregroundStyle(BW.ink)
+                                      .lineLimit(1).minimumScaleFactor(0.8)
+                                  if let expiry = entry.expiresAt {
+                                      Text("Saved for \(expiry, format: .relative(presentation: .named))")
+                                          .font(.bw(.caption, weight: .medium)).foregroundStyle(BW.amber)
+                                  }
+                              }
+                              Spacer(minLength: 4)
+                              Button(action: onOrganize) {
+                                  Image(systemName: collections.isEmpty ? "folder.badge.plus" : "folder.fill")
+                                      .font(.system(size: 17, weight: .semibold))
+                                      .foregroundStyle(BW.ink)
+                                      .frame(width: 44, height: 44)
+                                      .background(BW.beigeSoft, in: .circle)
+                              }
+                              .buttonStyle(BWPressableStyle())
+                              .accessibilityLabel("Add to collection")
+                              Button(action: onCook) {
+                                  Label("I cooked this", systemImage: "frying.pan.fill")
+                                      .font(.bw(.subheadline, weight: .bold))
+                                      .foregroundStyle(BW.ink)
+                                      .lineLimit(1)
+                                      .padding(.horizontal, 14)
+                                      .frame(minHeight: 44)
+                                      .background(BW.lemon, in: .capsule)
+                              }
+                              .buttonStyle(BWPressableStyle())
+                          }
+                      }
+                      .padding(14)
+                  }
+                  .background(BW.card)
+                  .clipShape(.rect(cornerRadius: BW.cardRadius))
+                  .shadow(color: BW.ink.opacity(0.06), radius: 12, y: 5)
+              }
+          }
+          '''
+
+          COLLECTIONS = r'''import SwiftUI
+
+          /// A user-made folder of saved meals ("Weeknight dinners", "Meal prep"…).
+          nonisolated struct RecipeCollection: Codable, Identifiable, Hashable, Sendable {
+              var id: UUID = UUID()
+              var name: String
+              var emoji: String
+              var recipeIds: [String] = []
+              var createdAt: Date = .now
+          }
+
+          enum CollectionSuggestions {
+              static let all: [(emoji: String, name: String)] = [
+                  ("🌙", String(localized: "Weeknight dinners")),
+                  ("🥗", String(localized: "Healthy")),
+                  ("🍱", String(localized: "Meal prep")),
+                  ("💪", String(localized: "High protein")),
+                  ("🎉", String(localized: "Weekend")),
+                  ("👨‍👩‍👧", String(localized: "Family")),
+              ]
+              static let emojis = ["🍝", "🌙", "🥗", "🍱", "💪", "🎉", "👨‍👩‍👧", "🍲", "🌮", "🍣", "🥞", "🍰", "🔥", "❤️", "⭐️", "📁"]
+          }
+
+          extension AppStore {
+              var collections: [RecipeCollection] { data.collections ?? [] }
+
+              func collection(_ id: UUID) -> RecipeCollection? {
+                  collections.first { $0.id == id }
+              }
+
+              func collections(containing recipeId: String) -> [RecipeCollection] {
+                  collections.filter { $0.recipeIds.contains(recipeId) }
+              }
+
+              @discardableResult
+              func createCollection(name: String, emoji: String) -> RecipeCollection {
+                  let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                  let collection = RecipeCollection(name: clean.isEmpty ? String(localized: "My meals") : clean, emoji: emoji)
+                  mutate { d in
+                      var list = d.collections ?? []
+                      list.append(collection)
+                      d.collections = list
+                  }
+                  track("collection_created")
+                  return collection
+              }
+
+              func updateCollection(_ id: UUID, name: String, emoji: String) {
+                  let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                  mutate { d in
+                      guard var list = d.collections, let i = list.firstIndex(where: { $0.id == id }) else { return }
+                      if !clean.isEmpty { list[i].name = clean }
+                      list[i].emoji = emoji
+                      d.collections = list
+                  }
+              }
+
+              func deleteCollection(_ id: UUID) {
+                  mutate { d in d.collections?.removeAll { $0.id == id } }
+              }
+
+              func toggleRecipe(_ recipeId: String, in id: UUID) {
+                  mutate { d in
+                      guard var list = d.collections, let i = list.firstIndex(where: { $0.id == id }) else { return }
+                      if let j = list[i].recipeIds.firstIndex(of: recipeId) {
+                          list[i].recipeIds.remove(at: j)
+                      } else {
+                          list[i].recipeIds.insert(recipeId, at: 0)
+                      }
+                      d.collections = list
+                  }
+              }
+          }
+
+          /// Sheet: tick the collections a saved meal belongs to.
+          struct CollectionPickerSheet: View {
+              let recipeId: String
+              @Environment(AppStore.self) private var store
+              @Environment(\.dismiss) private var dismiss
+              @State private var showNew: Bool = false
+              @State private var tapped: Int = 0
+
+              var body: some View {
+                  NavigationStack {
+                      ScrollView {
+                          VStack(alignment: .leading, spacing: 10) {
+                              if let recipe = RecipeCatalog.byId[recipeId] {
+                                  Text(recipe.title)
+                                      .font(.bw(.subheadline, weight: .semibold))
+                                      .foregroundStyle(BW.inkSecondary)
+                                      .padding(.bottom, 4)
+                              }
+
+                              if store.collections.isEmpty {
+                                  Text("Start with one of these")
+                                      .font(.bw(.headline)).foregroundStyle(BW.ink)
+                                  ChipFlow(items: CollectionSuggestions.all.map(\.name)) { name in
+                                      let emoji = CollectionSuggestions.all.first { $0.name == name }?.emoji ?? "📁"
+                                      Button {
+                                          let c = store.createCollection(name: name, emoji: emoji)
+                                          store.toggleRecipe(recipeId, in: c.id)
+                                          tapped += 1
+                                      } label: {
+                                          Text("\(emoji) \(name)")
+                                              .font(.bw(.subheadline, weight: .bold))
+                                              .foregroundStyle(BW.ink)
+                                              .padding(.horizontal, 14).padding(.vertical, 10)
+                                              .background(BW.lemonSoft, in: .capsule)
+                                      }
+                                      .buttonStyle(BWPressableStyle())
+                                  }
+                              }
+
+                              ForEach(store.collections) { c in
+                                  let isIn = c.recipeIds.contains(recipeId)
+                                  Button {
+                                      store.toggleRecipe(recipeId, in: c.id)
+                                      tapped += 1
+                                  } label: {
+                                      HStack(spacing: 12) {
+                                          Text(c.emoji).font(.title2)
+                                              .frame(width: 46, height: 46)
+                                              .background(BW.lemonSoft, in: .circle)
+                                          VStack(alignment: .leading, spacing: 2) {
+                                              Text(c.name).font(.bw(.headline)).foregroundStyle(BW.ink)
+                                              Text(c.recipeIds.count == 1 ? String(localized: "1 meal") : String(localized: "\(c.recipeIds.count) meals"))
+                                                  .font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
+                                          }
+                                          Spacer()
+                                          Image(systemName: isIn ? "checkmark.circle.fill" : "circle")
+                                              .font(.title2)
+                                              .foregroundStyle(isIn ? BW.leafDeep : BW.outline)
+                                      }
+                                      .padding(14)
+                                      .background(isIn ? BW.leafSoft : BW.card, in: .rect(cornerRadius: 18))
+                                      .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(isIn ? BW.leafDeep.opacity(0.3) : BW.hairline))
+                                  }
+                                  .buttonStyle(BWPressableStyle())
+                              }
+
+                              Button { showNew = true } label: {
+                                  Label("New collection", systemImage: "plus")
+                              }
+                              .buttonStyle(BWSecondaryButtonStyle())
+                              .padding(.top, 6)
+                          }
+                          .padding(20)
+                      }
+                      .background(BW.canvas)
+                      .navigationTitle("Add to collection")
+                      .navigationBarTitleDisplayMode(.inline)
+                      .toolbar {
+                          ToolbarItem(placement: .confirmationAction) {
+                              Button("Done") { dismiss() }.fontWeight(.bold)
+                          }
+                      }
+                      .sensoryFeedback(.selection, trigger: tapped)
+                      .sheet(isPresented: $showNew) {
+                          CollectionEditorSheet(existing: nil) { name, emoji in
+                              let c = store.createCollection(name: name, emoji: emoji)
+                              store.toggleRecipe(recipeId, in: c.id)
+                          }
+                      }
+                  }
+                  .presentationDetents([.medium, .large])
+                  .presentationDragIndicator(.visible)
+              }
+          }
+
+          /// Sheet: create or rename a collection.
+          struct CollectionEditorSheet: View {
+              let existing: RecipeCollection?
+              let onSave: (String, String) -> Void
+              @Environment(\.dismiss) private var dismiss
+              @State private var name: String
+              @State private var emoji: String
+              @FocusState private var focused: Bool
+
+              init(existing: RecipeCollection?, onSave: @escaping (String, String) -> Void) {
+                  self.existing = existing
+                  self.onSave = onSave
+                  _name = State(initialValue: existing?.name ?? "")
+                  _emoji = State(initialValue: existing?.emoji ?? "🍝")
+              }
+
+              private var canSave: Bool { !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+              var body: some View {
+                  NavigationStack {
+                      ScrollView {
+                          VStack(alignment: .leading, spacing: 18) {
+                              HStack(spacing: 12) {
+                                  Text(emoji).font(.system(size: 30))
+                                      .frame(width: 56, height: 56)
+                                      .background(BW.lemon, in: .circle)
+                                  TextField("Collection name", text: $name)
+                                      .font(.bw(.title3, weight: .bold))
+                                      .foregroundStyle(BW.ink)
+                                      .focused($focused)
+                                      .submitLabel(.done)
+                                      .onSubmit { save() }
+                                      .padding(.horizontal, 16)
+                                      .frame(minHeight: 56)
+                                      .background(BW.card, in: .rect(cornerRadius: 16))
+                                      .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(BW.hairline))
+                              }
+
+                              Text("Icon").font(.bw(.headline)).foregroundStyle(BW.ink)
+                              LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 8), spacing: 8) {
+                                  ForEach(CollectionSuggestions.emojis, id: \.self) { e in
+                                      Button { emoji = e } label: {
+                                          Text(e).font(.title3)
+                                              .frame(width: 38, height: 38)
+                                              .background(emoji == e ? BW.lemon : BW.card, in: .circle)
+                                              .overlay(Circle().strokeBorder(emoji == e ? BW.amber : BW.hairline, lineWidth: emoji == e ? 2 : 1))
+                                      }
+                                      .buttonStyle(BWPressableStyle())
+                                  }
+                              }
+
+                              if existing == nil {
+                                  Text("Ideas").font(.bw(.headline)).foregroundStyle(BW.ink)
+                                  ChipFlow(items: CollectionSuggestions.all.map(\.name)) { idea in
+                                      let e = CollectionSuggestions.all.first { $0.name == idea }?.emoji ?? "📁"
+                                      Button {
+                                          name = idea
+                                          emoji = e
+                                      } label: {
+                                          Text("\(e) \(idea)")
+                                              .font(.bw(.subheadline, weight: .semibold))
+                                              .foregroundStyle(BW.ink)
+                                              .padding(.horizontal, 12).padding(.vertical, 8)
+                                              .background(BW.lemonSoft, in: .capsule)
+                                      }
+                                      .buttonStyle(BWPressableStyle())
+                                  }
+                              }
+
+                              Button(existing == nil ? String(localized: "Create collection") : String(localized: "Save changes")) { save() }
+                                  .buttonStyle(BWPrimaryButtonStyle())
+                                  .disabled(!canSave)
+                                  .opacity(canSave ? 1 : 0.5)
+                                  .padding(.top, 4)
+                          }
+                          .padding(20)
+                      }
+                      .background(BW.canvas)
+                      .navigationTitle(existing == nil ? String(localized: "New collection") : String(localized: "Edit collection"))
+                      .navigationBarTitleDisplayMode(.inline)
+                      .toolbar {
+                          ToolbarItem(placement: .cancellationAction) {
+                              Button("Cancel") { dismiss() }
+                          }
+                      }
+                      .onAppear { if existing == nil { focused = true } }
+                  }
+                  .presentationDetents([.large])
+              }
+
+              private func save() {
+                  guard canSave else { return }
+                  onSave(name, emoji)
+                  dismiss()
+              }
+          }
+          '''
+
+          REPLACE = [
+              ("Models/UserData.swift",
+               "    var notificationPreference: NotificationPreference?\n}",
+               "    var notificationPreference: NotificationPreference?\n    var collections: [RecipeCollection]?\n}"),
+              ("Views/Discover/DiscoverView.swift",
+               "MascotView(name: BWImage.mascotPeek, size: 84)\n                        .offset(x: -18, y: -50)",
+               "MascotView(name: BWImage.mascotPeek, size: 96)\n                        .offset(x: -30, y: -73)"),
+              ("Views/Discover/DiscoverView.swift",
+               "        .padding(.top, 52)\n        .frame(maxHeight: .infinity)",
+               "        .padding(.top, 64)\n        .frame(maxHeight: .infinity)"),
+          ]
+
+          def main(root="."):
+              for path, old, new in REPLACE:
+                  p = os.path.join(root, R + path)
+                  s = open(p, encoding="utf-8").read()
+                  if s.count(old) != 1:
+                      sys.exit(f"Anchor count {s.count(old)} in {path}: {old[:60]!r}")
+                  open(p, "w", encoding="utf-8").write(s.replace(old, new))
+                  print("edited", p)
+              p = os.path.join(root, R + "Views/Saved/SavedView.swift")
+              s = open(p, encoding="utf-8").read()
+              if s.count("struct SavedView: View {") != 1:
+                  sys.exit("SavedView marker missing")
+              open(p, "w", encoding="utf-8").write(SAVED)
+              print("replaced", p)
+              p = os.path.join(root, R + "ViewModels/RecipeCollections.swift")
+              if os.path.exists(p):
+                  sys.exit("RecipeCollections.swift already exists")
+              open(p, "w", encoding="utf-8").write(COLLECTIONS)
+              print("created", p)
+
+          if __name__ == "__main__":
+              main(*sys.argv[1:])
+          PYEOF
+          python3 /tmp/edits.py .
+          git rm -f .github/workflows/apply-saved.yml
+          git add -A
+          git status --short
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Saved: collections, search, filters and sort; readable cart count; Zesty leans on the Discover card"
+          git push
+      - name: Start TestFlight build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run testflight_1.yml --ref main --repo "${{ github.repository }}"
