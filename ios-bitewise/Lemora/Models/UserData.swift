@@ -231,4 +231,5 @@ nonisolated struct AppData: Codable, Sendable {
     var trialEndsAt: Date?
     var onboardingProgress: OnboardingProgress?
     var notificationPreference: NotificationPreference?
+    var collections: [RecipeCollection]?
 }

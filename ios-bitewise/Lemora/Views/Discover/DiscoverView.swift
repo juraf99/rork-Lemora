@@ -109,8 +109,8 @@ struct DiscoverView: View {
                 )
                 .onTapGesture { path.append(Route.recipe(top.id)) }
                 .overlay(alignment: .topTrailing) {
-                    MascotView(name: BWImage.mascotPeek, size: 84)
-                        .offset(x: -18, y: -50)
+                    MascotView(name: BWImage.mascotPeek, size: 96)
+                        .offset(x: -30, y: -73)
                         .allowsHitTesting(false)
                         .opacity(abs(drag.width) > 20 ? 0 : 1)
                         .animation(.easeOut(duration: 0.15), value: drag.width)
@@ -121,7 +121,7 @@ struct DiscoverView: View {
                 .accessibilityAction(named: Text("Pass")) { commit(.pass, top) }
         }
         .padding(.horizontal, 20)
-        .padding(.top, 52)
+        .padding(.top, 64)
         .frame(maxHeight: .infinity)
         .sheet(isPresented: $showWhy) {
             WhyThisSheet(item: top)
