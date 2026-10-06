@@ -208,22 +208,37 @@ struct DiscoverView: View {
     }
 }
 
-/// The hero swipe card: food first, stats overlaid, match + reason below the title.
+/// The hero swipe card: big price per serving, savings and the deal on top, match below the title.
 struct RecipeSwipeCard: View {
     let item: ScoredRecipe
     @Binding var showWhy: Bool
+
+    private var headline: Deal? { item.price.headlineDeal?.deal }
 
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .bottomLeading) {
                 FoodImage(name: item.recipe.imageName, height: geo.size.height, radius: BW.heroRadius)
-                LinearGradient(colors: [.clear, .clear, .black.opacity(0.55), .black.opacity(0.82)], startPoint: .top, endPoint: .bottom)
+                LinearGradient(colors: [.black.opacity(0.15), .clear, .clear, .black.opacity(0.55), .black.opacity(0.85)],
+                               startPoint: .top, endPoint: .bottom)
                     .clipShape(.rect(cornerRadius: BW.heroRadius))
                     .allowsHitTesting(false)
 
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(Money.format(item.price.perServing))
+                            .font(.bw(size: 54, weight: .heavy))
+                            .monospacedDigit()
+                            .foregroundStyle(BW.lemon)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        Text("/ serving")
+                            .font(.bw(.headline, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+
                     Text(item.recipe.title)
-                        .font(.bw(.title, weight: .heavy))
+                        .font(.bw(.title2, weight: .heavy))
                         .foregroundStyle(.white)
                         .lineLimit(2)
                         .minimumScaleFactor(0.8)
@@ -231,33 +246,49 @@ struct RecipeSwipeCard: View {
                     HStack(spacing: 12) {
                         stat("fork.knife", "\(item.recipe.nutrition.protein)g protein")
                         divider
-                        stat("tag", "\(Money.format(item.price.perServing)) / serving")
-                        divider
                         stat("clock", "\(item.recipe.totalMinutes) min")
                     }
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
 
-                    HStack(spacing: 8) {
+                    HStack(spacing: 10) {
                         MatchBadge(percent: item.matchPercent)
-                        if let reason = item.primaryReason {
-                            Button { showWhy = true } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: reason.code == .currentDeal ? "tag" : "sparkles")
-                                    Text(reason.text).lineLimit(1)
-                                    Image(systemName: "chevron.right").font(.caption2.weight(.bold))
-                                }
+                        Button { showWhy = true } label: {
+                            Text(item.primaryReason?.text ?? String(localized: "based on your preferences + your deals"))
                                 .font(.bw(.subheadline, weight: .medium))
-                                .foregroundStyle(BW.ink)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 9)
-                                .background(.white.opacity(0.94), in: .capsule)
-                            }
-                            .accessibilityLabel(Text("Why this? \(reason.text)"))
+                                .foregroundStyle(.white.opacity(0.92))
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
                         }
+                        .accessibilityLabel(Text("Why this?"))
                     }
                 }
                 .padding(20)
+            }
+            .overlay(alignment: .topLeading) {
+                VStack(alignment: .leading, spacing: 8) {
+                    if item.price.savings > 0.01 {
+                        Text("Save \(Money.format(item.price.savings)) total")
+                            .font(.bw(.subheadline, weight: .heavy))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(BW.leafDeep, in: .capsule)
+                    }
+                    if let deal = headline {
+                        HStack(spacing: 6) {
+                            StoreChip(retailerId: deal.retailerId, name: deal.retailerDisplayName)
+                            Text(DealTiming.endText(deal.validUntil))
+                                .font(.bw(.caption, weight: .bold))
+                                .foregroundStyle(BW.amber)
+                        }
+                        .padding(4)
+                        .padding(.trailing, 6)
+                        .background(.white.opacity(0.95), in: .capsule)
+                    }
+                }
+                .padding(16)
+                .allowsHitTesting(false)
             }
         }
         .shadow(color: BW.ink.opacity(0.14), radius: 20, y: 10)

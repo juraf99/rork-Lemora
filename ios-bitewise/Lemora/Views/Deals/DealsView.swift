@@ -11,8 +11,9 @@ struct DealsView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     header
                     storeToggle
+                    storesThisWeek
+                    seeAllBanner
                     worthIt
-                    steals
                     SamplePricesNote().padding(.horizontal, 20)
                 }
                 .padding(.bottom, 24)
@@ -28,13 +29,25 @@ struct DealsView: View {
         }
     }
 
+    // MARK: Header
+
+    private var storeCount: Int { Set(stealItems.map(\.retailerId)).count }
+
+    private var headerSubtitle: String {
+        if myStoresOnly && storeCount > 0 {
+            return storeCount == 1 ? String(localized: "From this week’s sales at your store")
+                                   : String(localized: "From this week’s sales at your \(storeCount) stores")
+        }
+        return String(localized: "From this week’s sales near you")
+    }
+
     private var header: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Fresh deals for you")
                     .font(.bw(.title, weight: .heavy))
                     .foregroundStyle(BW.ink)
-                Text("Updated this week").font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
+                Text(headerSubtitle).font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
             }
             Spacer()
             MascotView(name: BWImage.mascotWave, size: 76, bob: true)
@@ -70,41 +83,7 @@ struct DealsView: View {
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
-    // MARK: Worth It
-
-    private var worthItItems: [ScoredRecipe] { store.worthIt }
-
-    private var worthIt: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: String(localized: "Worth It This Week"), subtitle: String(localized: "Meals you'll love, cheaper right now")) {
-                path.append(Route.worthItAll)
-            }
-            .padding(.horizontal, 20)
-
-            if worthItItems.isEmpty {
-                Text("No deal-powered meals match your profile this week yet.")
-                    .font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
-                    .padding(.horizontal, 20)
-            } else {
-                ScrollView(.horizontal) {
-                    LazyHStack(spacing: 14) {
-                        ForEach(worthItItems) { item in
-                            NavigationLink(value: Route.recipe(item.id)) {
-                                WorthItCard(item: item)
-                            }
-                            .buttonStyle(BWPressableStyle())
-                        }
-                    }
-                    .scrollTargetLayout()
-                }
-                .contentMargins(.horizontal, 20)
-                .scrollTargetBehavior(.viewAligned)
-                .scrollIndicators(.hidden)
-            }
-        }
-    }
-
-    // MARK: Steals
+    // MARK: Stores this week
 
     private var stealItems: [Deal] { store.steals(myStoresOnly: myStoresOnly) }
 
@@ -117,63 +96,403 @@ struct DealsView: View {
         myStoresOnly = false
     }
 
-    private var steals: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: String(localized: "Steals of the Week"), subtitle: myStoresOnly ? String(localized: "At your stores") : String(localized: "At stores near you")) {
+    private var storeGroups: [StoreDeals] {
+        let grouped = Dictionary(grouping: stealItems, by: \.retailerId)
+        return grouped.map { entry in
+            StoreDeals(id: entry.key,
+                       name: entry.value.first?.retailerDisplayName ?? RetailerCatalog.name(entry.key),
+                       deals: entry.value.sorted { a, b in (a.discountPercent ?? 0) > (b.discountPercent ?? 0) })
+        }
+        .sorted { a, b in a.deals.count > b.deals.count }
+    }
+
+    private var storesThisWeek: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            SectionHeader(title: myStoresOnly ? String(localized: "Your stores this week") : String(localized: "Stores near you this week")) {
                 path.append(Route.stealsAll)
             }
+            .padding(.horizontal, 20)
 
-            if stealItems.isEmpty {
+            if storeGroups.isEmpty {
                 Text("No active deals at your stores right now. Try All Stores.")
                     .font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
             } else {
-                let visible = stealItems
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
-                    ForEach(visible) { deal in
-                        NavigationLink(value: Route.deal(deal.id)) {
-                            StealCard(deal: deal)
+                ScrollView(.horizontal) {
+                    LazyHStack(alignment: .top, spacing: 14) {
+                        ForEach(storeGroups) { group in
+                            StoreDealsCard(group: group)
+                        }
+                    }
+                    .scrollTargetLayout()
+                }
+                .contentMargins(.horizontal, 20)
+                .scrollTargetBehavior(.viewAligned)
+                .scrollIndicators(.hidden)
+            }
+        }
+    }
+
+    private var seeAllBanner: some View {
+        Button { path.append(Route.stealsAll) } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "tag.fill")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(BW.ink)
+                    .frame(width: 50, height: 50)
+                    .background(BW.lemon, in: .circle)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("See all foods on sale this week")
+                        .font(.bw(.headline)).foregroundStyle(.white)
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                    Text(myStoresOnly ? String(localized: "\(stealItems.count) deals at your stores")
+                                      : String(localized: "\(stealItems.count) deals near you"))
+                        .font(.bw(.subheadline, weight: .medium)).foregroundStyle(.white.opacity(0.75))
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right").font(.headline.weight(.heavy)).foregroundStyle(BW.lemon)
+            }
+            .padding(16)
+            .background(BW.ink, in: .rect(cornerRadius: BW.cardRadius))
+        }
+        .buttonStyle(BWPressableStyle())
+        .padding(.horizontal, 20)
+    }
+
+    // MARK: Worth It
+
+    private var worthItItems: [ScoredRecipe] { store.worthIt }
+
+    private var worthIt: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeader(title: String(localized: "Worth It This Week"), subtitle: String(localized: "Meals you'll love, built from these deals")) {
+                path.append(Route.worthItAll)
+            }
+            .padding(.horizontal, 20)
+
+            if worthItItems.isEmpty {
+                Text("No deal-powered meals match your profile this week yet.")
+                    .font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
+                    .padding(.horizontal, 20)
+            } else {
+                VStack(spacing: 16) {
+                    ForEach(Array(worthItItems.prefix(3))) { item in
+                        NavigationLink(value: Route.recipe(item.id)) {
+                            WorthItCard(item: item)
                         }
                         .buttonStyle(BWPressableStyle())
                     }
                 }
+                .padding(.horizontal, 20)
             }
         }
-        .padding(.horizontal, 20)
     }
 }
 
-struct WorthItCard: View {
-    let item: ScoredRecipe
+// MARK: - Store styling
+
+/// Store colors for chips and store cards. Unknown stores use the app's lemon palette.
+enum StoreStyle {
+    static func colors(_ id: String) -> (bg: Color, fg: Color) {
+        switch id {
+        case "maxi": return (Color(hex: 0xFCE44D), Color(hex: 0x1D4F91))
+        case "iga": return (Color(hex: 0xD7323A), .white)
+        case "metro": return (Color(hex: 0xC8102E), .white)
+        case "superc": return (Color(hex: 0xFFCB05), Color(hex: 0xC8102E))
+        case "provigo": return (Color(hex: 0xEE7623), .white)
+        case "walmart": return (Color(hex: 0x0071CE), Color(hex: 0xFFC220))
+        case "costco": return (Color(hex: 0x005DAA), .white)
+        case "adonis": return (Color(hex: 0x1E5B3A), .white)
+        default: return (BW.lemonSoft, BW.ink)
+        }
+    }
+}
+
+struct StoreChip: View {
+    let retailerId: String
+    let name: String
 
     var body: some View {
+        let c = StoreStyle.colors(retailerId)
+        Text(name)
+            .font(.bw(.caption, weight: .heavy))
+            .foregroundStyle(c.fg)
+            .lineLimit(1)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background(c.bg, in: .capsule)
+    }
+}
+
+enum DealTiming {
+    /// "Deal ends Sunday" this week, otherwise "Deal ends Oct 12".
+    static func endText(_ date: Date, plural: Bool = false) -> String {
+        let days = Calendar.current.dateComponents([.day], from: .now, to: date).day ?? 0
+        if days < 1 {
+            return plural ? String(localized: "Deals end today") : String(localized: "Deal ends today")
+        }
+        let when = days < 7 ? date.formatted(.dateTime.weekday(.wide)) : date.formatted(.dateTime.month(.abbreviated).day())
+        return plural ? String(localized: "Deals end \(when)") : String(localized: "Deal ends \(when)")
+    }
+}
+
+struct StoreDeals: Identifiable {
+    let id: String
+    let name: String
+    let deals: [Deal]
+}
+
+/// One store's best deals this week, and meals you can make with them.
+struct StoreDealsCard: View {
+    @Environment(AppStore.self) private var store
+    let group: StoreDeals
+
+    private var top: [Deal] { Array(group.deals.prefix(3)) }
+
+    private var meals: [ScoredRecipe] {
+        var seen = Set<ScoredRecipe.ID>()
+        var out: [ScoredRecipe] = []
+        for deal in top {
+            for item in store.recipesUsing(ingredientId: deal.ingredientId) where !seen.contains(item.id) {
+                seen.insert(item.id)
+                out.append(item)
+            }
+        }
+        return Array(out.sorted { a, b in a.price.savings > b.price.savings }.prefix(3))
+    }
+
+    var body: some View {
+        let c = StoreStyle.colors(group.id)
         VStack(alignment: .leading, spacing: 0) {
-            FoodImage(name: item.recipe.imageName, height: 180, radius: 0)
-            VStack(alignment: .leading, spacing: 8) {
-                Text(item.recipe.title)
-                    .font(.bw(.headline)).foregroundStyle(BW.ink).lineLimit(1)
-                HStack(spacing: 8) {
-                    MatchBadge(percent: item.matchPercent, compact: true)
-                    Text("\(Money.format(item.price.perServing))/serving")
-                        .font(.bw(.subheadline, weight: .medium)).monospacedDigit().foregroundStyle(BW.inkSecondary)
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(group.name)
+                        .font(.bw(size: 30, weight: .heavy))
+                        .foregroundStyle(c.fg)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                    if let end = group.deals.map(\.validUntil).min() {
+                        Label(DealTiming.endText(end, plural: true), systemImage: "timer")
+                            .font(.bw(.subheadline, weight: .bold))
+                            .foregroundStyle(c.fg.opacity(0.85))
+                    }
                 }
-                if let headline = item.price.headlineDeal, let deal = headline.deal {
-                    let otherNames = item.price.dealLines
-                        .filter { $0.ingredientId != headline.ingredientId }
-                        .map { IngredientCatalog.name($0.ingredientId) }
-                    let dealSummary = otherNames.isEmpty
-                        ? "\(IngredientCatalog.name(headline.ingredientId)) on sale at \(deal.retailerDisplayName)"
-                        : "\(IngredientCatalog.name(headline.ingredientId)) + \(otherNames.prefix(2).joined(separator: " + ")) on sale"
-                    Text(dealSummary)
-                        .font(.bw(.caption, weight: .semibold)).foregroundStyle(BW.leafDeep).lineLimit(1)
+                Spacer(minLength: 8)
+                Text(group.deals.count == 1 ? String(localized: "1 deal") : String(localized: "\(group.deals.count) deals"))
+                    .font(.bw(.caption, weight: .heavy))
+                    .foregroundStyle(BW.ink)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(.white.opacity(0.92), in: .capsule)
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(c.bg)
+
+            VStack(spacing: 0) {
+                ForEach(Array(top.enumerated()), id: \.element.id) { i, deal in
+                    NavigationLink(value: Route.deal(deal.id)) { dealRow(deal) }
+                        .buttonStyle(BWPressableStyle())
+                    if i < top.count - 1 {
+                        Rectangle().fill(BW.hairline).frame(height: 1)
+                    }
                 }
             }
-            .padding(14)
+            .padding(.horizontal, 16)
+
+            if meals.isEmpty {
+                Color.clear.frame(height: 8)
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("With these, you can make")
+                        .font(.bw(.subheadline, weight: .bold))
+                        .foregroundStyle(BW.ink)
+                    HStack(alignment: .top, spacing: 8) {
+                        ForEach(meals) { item in
+                            NavigationLink(value: Route.recipe(item.id)) { mealTile(item) }
+                                .buttonStyle(BWPressableStyle())
+                        }
+                    }
+                }
+                .padding(16)
+            }
         }
-        .frame(width: 280)
+        .frame(width: 300)
         .background(BW.card)
         .clipShape(.rect(cornerRadius: BW.cardRadius))
         .shadow(color: BW.ink.opacity(0.07), radius: 14, y: 6)
         .padding(.vertical, 8)
+    }
+
+    private func dealRow(_ deal: Deal) -> some View {
+        HStack(spacing: 12) {
+            DealArtwork(deal: deal, height: 56, radius: 14)
+                .frame(width: 56)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(IngredientCatalog.name(deal.ingredientId))
+                    .font(.bw(.subheadline, weight: .bold))
+                    .foregroundStyle(BW.ink)
+                    .lineLimit(1)
+                if let regular = deal.regularPrice {
+                    Text(Money.format(regular))
+                        .font(.bw(.caption, weight: .medium))
+                        .strikethrough()
+                        .foregroundStyle(BW.inkSecondary)
+                }
+            }
+            Spacer(minLength: 6)
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(deal.priceText)
+                    .font(.bw(.headline, weight: .heavy))
+                    .monospacedDigit()
+                    .foregroundStyle(BW.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                if let pct = deal.discountPercent {
+                    Text("-\(pct)%")
+                        .font(.bw(.caption, weight: .heavy))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(BW.leafDeep, in: .capsule)
+                }
+            }
+        }
+        .padding(.vertical, 12)
+        .contentShape(.rect)
+    }
+
+    private func mealTile(_ item: ScoredRecipe) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            FoodImage(name: item.recipe.imageName, height: 64, radius: 0)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.recipe.title)
+                    .font(.bw(.caption, weight: .bold))
+                    .foregroundStyle(BW.ink)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                if item.price.savings > 0.01 {
+                    Text("Save \(Money.format(item.price.savings))")
+                        .font(.bw(.caption, weight: .heavy))
+                        .foregroundStyle(BW.leafDeep)
+                }
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity)
+        .background(BW.beigeSoft)
+        .clipShape(.rect(cornerRadius: 14))
+    }
+}
+
+/// Worth It card: savings and stores on the photo, then every deal ingredient with its store and price.
+struct WorthItCard: View {
+    let item: ScoredRecipe
+
+    private struct StoreRef: Hashable { let id: String; let name: String }
+
+    private var lines: [PriceLine] {
+        Array(item.price.dealLines.sorted { a, b in a.savings > b.savings }.prefix(3))
+    }
+
+    private var stores: [StoreRef] {
+        var seen = Set<String>()
+        var out: [StoreRef] = []
+        for line in item.price.dealLines {
+            if let deal = line.deal, !seen.contains(deal.retailerId) {
+                seen.insert(deal.retailerId)
+                out.append(StoreRef(id: deal.retailerId, name: deal.retailerDisplayName))
+            }
+        }
+        return out
+    }
+
+    private var endDate: Date? { item.price.dealLines.compactMap { $0.deal?.validUntil }.min() }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            FoodImage(name: item.recipe.imageName, height: 190, radius: 0)
+                .overlay(alignment: .topLeading) {
+                    if item.price.savings > 0.01 {
+                        Text("Save \(Money.format(item.price.savings)) total")
+                            .font(.bw(.subheadline, weight: .heavy))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(BW.leafDeep, in: .capsule)
+                            .padding(12)
+                    }
+                }
+                .overlay(alignment: .topTrailing) {
+                    HStack(spacing: 4) {
+                        ForEach(Array(stores.prefix(3)), id: \.self) { s in
+                            StoreChip(retailerId: s.id, name: s.name)
+                        }
+                    }
+                    .padding(12)
+                }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text(item.recipe.title)
+                    .font(.bw(.title3, weight: .heavy))
+                    .foregroundStyle(BW.ink)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                HStack(spacing: 8) {
+                    MatchBadge(percent: item.matchPercent, compact: true)
+                    Text("based on your preferences + your deals")
+                        .font(.bw(.caption, weight: .medium))
+                        .foregroundStyle(BW.inkSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                if !lines.isEmpty {
+                    VStack(spacing: 6) {
+                        ForEach(lines) { line in
+                            HStack(spacing: 8) {
+                                if let deal = line.deal {
+                                    StoreChip(retailerId: deal.retailerId, name: deal.retailerDisplayName)
+                                }
+                                Text(IngredientCatalog.name(line.ingredientId))
+                                    .font(.bw(.subheadline, weight: .bold))
+                                    .foregroundStyle(BW.ink)
+                                    .lineLimit(1)
+                                Spacer(minLength: 6)
+                                Text(Money.format(line.regularCost))
+                                    .font(.bw(.caption, weight: .medium))
+                                    .strikethrough()
+                                    .foregroundStyle(BW.inkSecondary)
+                                Text(Money.format(line.cost))
+                                    .font(.bw(.subheadline, weight: .heavy))
+                                    .monospacedDigit()
+                                    .foregroundStyle(BW.leafDeep)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                            .background(BW.leafSoft.opacity(0.6), in: .rect(cornerRadius: 12))
+                        }
+                    }
+                }
+                HStack {
+                    Text("\(Money.format(item.price.perServing))/serving · \(item.recipe.totalMinutes) min")
+                        .font(.bw(.subheadline, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(BW.inkSecondary)
+                    Spacer(minLength: 8)
+                    if let endDate {
+                        Label(DealTiming.endText(endDate), systemImage: "timer")
+                            .font(.bw(.caption, weight: .bold))
+                            .foregroundStyle(BW.amber)
+                    }
+                }
+            }
+            .padding(16)
+        }
+        .background(BW.card)
+        .clipShape(.rect(cornerRadius: BW.cardRadius))
+        .shadow(color: BW.ink.opacity(0.07), radius: 14, y: 6)
     }
 }
 

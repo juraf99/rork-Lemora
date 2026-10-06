@@ -7,7 +7,10 @@ struct RecipeDetailView: View {
     @State private var cookedLog: CookLog? = nil
     @State private var addedToList: Int = 0
     @State private var showAddedToast: Bool = false
+    @State private var toastText: String = ""
     @State private var showPaywall: Bool = false
+    @State private var showGrocery: Bool = false
+    @State private var tonightSet: Bool = false
 
     init(recipe: Recipe) {
         self.recipe = recipe
@@ -16,6 +19,22 @@ struct RecipeDetailView: View {
 
     private var price: RecipePrice { store.price(for: recipe, servings: servings) }
     private var scored: ScoredRecipe { store.scored(recipe) }
+    private var hasSavings: Bool { price.savings > 0.01 && !price.dealLines.isEmpty }
+    private var dealEnd: Date? { price.dealLines.compactMap { $0.deal?.validUntil }.min() }
+    private var regularPerServing: Double { price.regularTotal / Double(max(price.servings, 1)) }
+
+    /// Unique stores that have a deal in this recipe, in order of appearance.
+    private var dealStores: [(id: String, name: String)] {
+        var seen = Set<String>()
+        var out: [(id: String, name: String)] = []
+        for line in price.dealLines {
+            if let deal = line.deal, !seen.contains(deal.retailerId) {
+                seen.insert(deal.retailerId)
+                out.append((id: deal.retailerId, name: deal.retailerDisplayName))
+            }
+        }
+        return out
+    }
 
     var body: some View {
         ScrollView {
@@ -23,22 +42,21 @@ struct RecipeDetailView: View {
                 hero
                 VStack(alignment: .leading, spacing: 20) {
                     titleBlock
-                    macros
+                    statTiles
+                    if hasSavings { savingsCard }
                     if let exclusion = store.exclusionReason(for: recipe) {
                         warning(exclusion)
                     }
-                    if let headline = price.headlineDeal, let deal = headline.deal {
-                        MascotTip(text: String(localized: "\(IngredientCatalog.name(headline.ingredientId)) is on sale at \(deal.retailerDisplayName). Great time to cook this!"))
-                    }
                     servingsStepper
                     ingredients
+                    macros
                     steps
                     compatibility
                     sourceNote
                 }
                 .padding(.horizontal, 20)
             }
-            .padding(.bottom, 120)
+            .padding(.bottom, 160)
         }
         .background(BW.canvas)
         .ignoresSafeArea(edges: .top)
@@ -58,29 +76,59 @@ struct RecipeDetailView: View {
         .sheet(isPresented: $showPaywall) {
             PaywallView(context: .upgrade) { showPaywall = false }
         }
+        .sheet(isPresented: $showGrocery) { GroceryListView() }
         .overlay(alignment: .top) {
             if showAddedToast {
-                Label("Added to your grocery list", systemImage: "checkmark.circle.fill")
+                Label(toastText, systemImage: "checkmark.circle.fill")
                     .font(.bw(.subheadline, weight: .semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 18).padding(.vertical, 12)
                     .background(BW.leafDeep, in: .capsule)
                     .padding(.top, 60)
+                    .padding(.horizontal, 20)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .onAppear { store.track("recipe_opened", ["recipe": recipe.id]) }
     }
 
+    // MARK: Hero
+
     private var hero: some View {
         FoodImage(name: recipe.imageName, height: 340, radius: 0)
             .overlay(alignment: .bottomLeading) {
-                HStack(spacing: 8) {
-                    MatchBadge(percent: scored.matchPercent, compact: true)
-                    ForEach(Array(recipe.tags.sorted { $0.rawValue < $1.rawValue }.prefix(2)), id: \.self) { tag in
-                        SoftChip(text: tag.title, fill: .white.opacity(0.94))
+                VStack(alignment: .leading, spacing: 8) {
+                    if tonightSet {
+                        Label("Tonight's dinner is set", systemImage: "checkmark.circle.fill")
+                            .font(.bw(.subheadline, weight: .heavy))
+                            .foregroundStyle(BW.ink)
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .background(BW.lemon, in: .capsule)
+                            .transition(.scale.combined(with: .opacity))
+                    }
+                    HStack(spacing: 8) {
+                        MatchBadge(percent: scored.matchPercent, compact: true)
+                        ForEach(Array(recipe.tags.sorted { $0.rawValue < $1.rawValue }.prefix(2)), id: \.self) { tag in
+                            SoftChip(text: tag.title, fill: .white.opacity(0.94))
+                        }
                     }
                 }
+                .padding(16)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                Button {
+                    if store.isSaved(recipe) { store.unsave(recipe) } else { store.save(recipe) }
+                } label: {
+                    Image(systemName: store.isSaved(recipe) ? "heart.fill" : "heart")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(store.isSaved(recipe) ? BW.danger : BW.ink)
+                        .frame(width: 48, height: 48)
+                        .background(.white, in: .circle)
+                        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+                }
+                .buttonStyle(BWPressableStyle())
+                .accessibilityLabel(store.isSaved(recipe) ? "Remove from saved" : "Save")
+                .sensoryFeedback(.impact(weight: .light), trigger: store.isSaved(recipe))
                 .padding(16)
             }
     }
@@ -89,26 +137,120 @@ struct RecipeDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(recipe.title).font(.bw(.title, weight: .heavy)).foregroundStyle(BW.ink)
             Text(recipe.summary).font(.bw(.body, weight: .regular)).foregroundStyle(BW.inkSecondary)
-            HStack(spacing: 14) {
-                Label("\(recipe.totalMinutes) min", systemImage: "clock")
-                Label("Serves \(servings)", systemImage: "person.2")
-                Spacer()
-                VStack(alignment: .trailing, spacing: 0) {
-                    Text("\(Money.format(price.perServing))")
-                        .font(.bw(.title2, weight: .heavy)).monospacedDigit().foregroundStyle(BW.ink)
+        }
+    }
+
+    // MARK: Stat tiles (protein · per serving · minutes)
+
+    private var statTiles: some View {
+        HStack(spacing: 10) {
+            statTile(value: "\(recipe.nutrition.protein)g", label: String(localized: "protein"),
+                     fill: BW.card, valueColor: BW.ink)
+            VStack(spacing: 2) {
+                Text(Money.format(price.perServing))
+                    .font(.bw(size: 26, weight: .heavy)).monospacedDigit()
+                    .foregroundStyle(BW.leafDeep)
+                    .contentTransition(.numericText())
+                    .minimumScaleFactor(0.7).lineLimit(1)
+                if hasSavings {
+                    Text(Money.format(regularPerServing))
+                        .font(.bw(.caption, weight: .semibold)).monospacedDigit()
+                        .strikethrough().foregroundStyle(BW.inkSecondary)
+                }
+                Text("per serving").font(.bw(.caption, weight: .semibold)).foregroundStyle(BW.leafDeep)
+            }
+            .frame(maxWidth: .infinity, minHeight: 92)
+            .background(BW.leafSoft, in: .rect(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(BW.leafDeep.opacity(0.25), lineWidth: 1.5))
+            statTile(value: "\(recipe.totalMinutes)", label: String(localized: "minutes"),
+                     fill: BW.card, valueColor: BW.ink)
+        }
+        .animation(.snappy, value: servings)
+    }
+
+    private func statTile(value: String, label: String, fill: Color, valueColor: Color) -> some View {
+        VStack(spacing: 2) {
+            Text(value).font(.bw(size: 26, weight: .heavy)).monospacedDigit().foregroundStyle(valueColor)
+                .minimumScaleFactor(0.7).lineLimit(1)
+            Text(label).font(.bw(.caption, weight: .semibold)).foregroundStyle(BW.inkSecondary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 92)
+        .background(fill, in: .rect(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(BW.hairline))
+    }
+
+    // MARK: Savings card
+
+    private var savingsCard: some View {
+        let count = price.dealLines.count
+        let storeNames = dealStores.map(\.name).joined(separator: ", ")
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("You save").font(.bw(.subheadline, weight: .semibold)).foregroundStyle(.white.opacity(0.7))
+                    Text(Money.format(price.savings))
+                        .font(.bw(size: 46, weight: .heavy)).monospacedDigit()
+                        .foregroundStyle(.white)
                         .contentTransition(.numericText())
-                    Text("per serving").font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
+                }
+                Spacer(minLength: 8)
+                if let end = dealEnd {
+                    Label(DealTiming.endText(end), systemImage: "timer")
+                        .font(.bw(.caption, weight: .heavy))
+                        .foregroundStyle(BW.lemon)
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(.white.opacity(0.1), in: .capsule)
                 }
             }
-            .font(.bw(.subheadline, weight: .medium))
-            .foregroundStyle(BW.inkSecondary)
-            .padding(.top, 4)
+
+            Text(count == 1
+                 ? String(localized: "1 ingredient in this meal is on sale at \(storeNames)")
+                 : String(localized: "\(count) ingredients in this meal are on sale at \(storeNames)"))
+                .font(.bw(.subheadline, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: 8) {
+                ForEach(price.dealLines) { line in
+                    if let deal = line.deal {
+                        HStack(spacing: 10) {
+                            StoreChip(retailerId: deal.retailerId, name: deal.retailerDisplayName)
+                            Text("\(IngredientCatalog.emoji(line.ingredientId)) \(IngredientCatalog.name(line.ingredientId))")
+                                .font(.bw(.subheadline, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                            Spacer(minLength: 6)
+                            Text(Money.format(line.regularCost))
+                                .font(.bw(.footnote, weight: .medium)).monospacedDigit()
+                                .strikethrough().foregroundStyle(.white.opacity(0.5))
+                            Text(Money.format(line.cost))
+                                .font(.bw(.title3, weight: .heavy)).monospacedDigit()
+                                .foregroundStyle(BW.lemon)
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 10)
+                        .background(.white.opacity(0.08), in: .rect(cornerRadius: 14))
+                    }
+                }
+            }
+
+            HStack(spacing: 6) {
+                Image(systemName: "fork.knife")
+                Text("\(Money.format(price.perServing)) per serving instead of \(Money.format(regularPerServing))")
+                    .monospacedDigit()
+            }
+            .font(.bw(.caption, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.7))
         }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BW.ink, in: .rect(cornerRadius: BW.cardRadius))
+        .animation(.snappy, value: servings)
     }
 
     private var macros: some View {
         let n = recipe.nutrition
         return VStack(alignment: .leading, spacing: 8) {
+            Text("Nutrition").font(.bw(.title3)).foregroundStyle(BW.ink)
             HStack(spacing: 8) {
                 macro("\(n.protein)g", String(localized: "protein"), highlight: true)
                 macro("\(n.carbs)g", String(localized: "carbs"))
@@ -161,39 +303,63 @@ struct RecipeDetailView: View {
         .sensoryFeedback(.selection, trigger: servings)
     }
 
+    // MARK: Ingredients with store + sale price
+
     private var ingredients: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
+            HStack(alignment: .firstTextBaseline) {
                 Text("Ingredients").font(.bw(.title3)).foregroundStyle(BW.ink)
                 Spacer()
-                Text("~\(Money.format(price.total)) total").font(.bw(.subheadline, weight: .semibold)).monospacedDigit().foregroundStyle(BW.inkSecondary)
+                if hasSavings {
+                    Text(Money.format(price.regularTotal))
+                        .font(.bw(.footnote, weight: .medium)).monospacedDigit()
+                        .strikethrough().foregroundStyle(BW.inkSecondary)
+                }
+                Text("~\(Money.format(price.total)) total").font(.bw(.subheadline, weight: .heavy)).monospacedDigit()
+                    .foregroundStyle(hasSavings ? BW.leafDeep : BW.inkSecondary)
             }
             VStack(spacing: 0) {
                 ForEach(Array(price.lines.enumerated()), id: \.element.id) { idx, line in
-                    HStack(spacing: 12) {
-                        Text(IngredientCatalog.emoji(line.ingredientId)).font(.title3).frame(width: 32)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(IngredientCatalog.name(line.ingredientId)).font(.bw(.body, weight: .semibold)).foregroundStyle(BW.ink)
-                            Text(line.unit.format(line.quantity)).font(.bw(.footnote, weight: .regular)).foregroundStyle(BW.inkSecondary)
-                        }
-                        Spacer()
-                        if let deal = line.deal, line.savings > 0.01 {
-                            VStack(alignment: .trailing, spacing: 3) {
-                                DealTag(text: String(localized: "On sale at \(deal.retailerDisplayName)"), symbol: "tag.fill")
-                                Text(Money.format(line.cost)).font(.bw(.caption, weight: .bold)).monospacedDigit().foregroundStyle(BW.leafDeep)
-                            }
-                        } else {
-                            Text(Money.format(line.cost)).font(.bw(.subheadline, weight: .medium)).monospacedDigit().foregroundStyle(BW.inkSecondary)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    ingredientRow(line)
                     if idx < price.lines.count - 1 { Divider().overlay(BW.hairline).padding(.leading, 60) }
                 }
             }
             .bwCard()
             if price.usesSampleData { SamplePricesNote() }
         }
+    }
+
+    @ViewBuilder
+    private func ingredientRow(_ line: PriceLine) -> some View {
+        let onSale = line.deal != nil && line.savings > 0.01
+        HStack(spacing: 12) {
+            Text(IngredientCatalog.emoji(line.ingredientId)).font(.title3).frame(width: 32)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(IngredientCatalog.name(line.ingredientId)).font(.bw(.body, weight: .semibold)).foregroundStyle(BW.ink)
+                HStack(spacing: 6) {
+                    Text(line.unit.format(line.quantity)).font(.bw(.footnote, weight: .regular)).foregroundStyle(BW.inkSecondary)
+                    if onSale, let deal = line.deal {
+                        StoreChip(retailerId: deal.retailerId, name: deal.retailerDisplayName)
+                    }
+                }
+            }
+            Spacer()
+            if onSale {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(Money.format(line.regularCost))
+                        .font(.bw(.caption, weight: .medium)).monospacedDigit()
+                        .strikethrough().foregroundStyle(BW.inkSecondary)
+                    Text(Money.format(line.cost))
+                        .font(.bw(.headline, weight: .heavy)).monospacedDigit()
+                        .foregroundStyle(BW.leafDeep)
+                }
+            } else {
+                Text(Money.format(line.cost)).font(.bw(.subheadline, weight: .medium)).monospacedDigit().foregroundStyle(BW.inkSecondary)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(onSale ? BW.leafSoft : Color.clear)
     }
 
     private var steps: some View {
@@ -235,27 +401,51 @@ struct RecipeDetailView: View {
             .font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
     }
 
+    // MARK: Bottom actions
+
+    private func toast(_ text: String) {
+        toastText = text
+        withAnimation(.spring) { showAddedToast = true }
+        Task {
+            try? await Task.sleep(for: .seconds(1.8))
+            withAnimation { showAddedToast = false }
+        }
+    }
+
     private var actionBar: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             if let entry = store.savedEntry(recipe), let expiry = entry.expiresAt {
                 Button { showPaywall = true } label: {
                     Text("Saved for \(expiry, format: .relative(presentation: .named)) · Save forever with Premium")
                         .font(.bw(.caption, weight: .semibold)).foregroundStyle(BW.inkSecondary)
                 }
             }
-            HStack(spacing: 10) {
-                Button {
-                    if store.isSaved(recipe) { store.unsave(recipe) } else { store.save(recipe) }
-                } label: {
-                    Image(systemName: store.isSaved(recipe) ? "bookmark.fill" : "bookmark")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(BW.ink)
-                        .frame(width: 56, height: 56)
-                        .background(BW.card, in: .circle)
-                        .overlay(Circle().strokeBorder(BW.hairline))
+
+            Button {
+                store.addToGrocery(recipe, servings: servings)
+                store.track("cook_tonight", ["recipe": recipe.id])
+                addedToList += 1
+                withAnimation(.spring) { tonightSet = true }
+                toast(String(localized: "Tonight's dinner is set · added to your list"))
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: tonightSet ? "checkmark.circle.fill" : "fork.knife")
+                    if hasSavings {
+                        Text("Cook this tonight · save \(Money.format(price.savings))").monospacedDigit()
+                    } else {
+                        Text("Cook this tonight")
+                    }
                 }
-                .accessibilityLabel(store.isSaved(recipe) ? "Remove from saved" : "Save")
-                .sensoryFeedback(.impact(weight: .light), trigger: store.isSaved(recipe))
+                .lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .buttonStyle(BWPrimaryButtonStyle())
+            .sensoryFeedback(.success, trigger: addedToList)
+
+            HStack(spacing: 10) {
+                Button { showGrocery = true } label: {
+                    Label("View grocery list", systemImage: "cart")
+                }
+                .buttonStyle(BWSecondaryButtonStyle())
 
                 Button {
                     cookedLog = store.cook(recipe)
@@ -268,20 +458,6 @@ struct RecipeDetailView: View {
                         .overlay(Circle().strokeBorder(BW.hairline))
                 }
                 .accessibilityLabel("I cooked this")
-
-                Button {
-                    store.addToGrocery(recipe, servings: servings)
-                    addedToList += 1
-                    withAnimation(.spring) { showAddedToast = true }
-                    Task {
-                        try? await Task.sleep(for: .seconds(1.8))
-                        withAnimation { showAddedToast = false }
-                    }
-                } label: {
-                    Label("Add to Grocery List", systemImage: "cart.badge.plus")
-                }
-                .buttonStyle(BWPrimaryButtonStyle())
-                .sensoryFeedback(.success, trigger: addedToList)
             }
         }
         .padding(.horizontal, 20)
