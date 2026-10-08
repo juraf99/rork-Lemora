@@ -41,7 +41,6 @@ final class AppStore {
         config = await configProvider.fetch()
         await subscription.start()
         await loadLiveDeals()
-        markActive()
         analytics.track("app_opened", [:])
     }
 
@@ -64,7 +63,6 @@ final class AppStore {
 
     func signIn(name: String, email: String) {
         mutate { $0.account = Account(name: name, email: email, createdAt: .now) }
-        markActive()
         track("account_created")
     }
 
@@ -335,8 +333,10 @@ final class AppStore {
             $0.swipes.append(event)
             $0.tasteWeights = learned
         }
-        if direction == .like { save(item.recipe) }
-        markActive()
+        if direction == .like {
+            save(item.recipe)
+            markActive()
+        }
         refreshRanking()
         track(direction == .like ? "recipe_swiped_right" : "recipe_swiped_left", ["recipe": item.id])
     }
