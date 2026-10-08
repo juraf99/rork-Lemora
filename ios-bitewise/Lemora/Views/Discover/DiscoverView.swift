@@ -48,10 +48,8 @@ struct DiscoverView: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(greeting)
-                    .font(.bw(.title, weight: .heavy))
-                    .foregroundStyle(BW.ink)
-                Text(subtitle)
+                LemoraWordmark(size: 44, color: BW.ink)
+                Text("\(greeting) \(subtitle)")
                     .font(.bw(.subheadline, weight: .regular))
                     .foregroundStyle(BW.inkSecondary)
             }

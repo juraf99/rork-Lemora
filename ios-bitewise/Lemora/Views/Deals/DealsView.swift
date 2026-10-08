@@ -35,18 +35,16 @@ struct DealsView: View {
 
     private var headerSubtitle: String {
         if myStoresOnly && storeCount > 0 {
-            return storeCount == 1 ? String(localized: "From this week’s sales at your store")
-                                   : String(localized: "From this week’s sales at your \(storeCount) stores")
+            return storeCount == 1 ? String(localized: "Fresh deals from this week’s sales at your store")
+                                   : String(localized: "Fresh deals from this week’s sales at your \(storeCount) stores")
         }
-        return String(localized: "From this week’s sales near you")
+        return String(localized: "Fresh deals from this week’s sales near you")
     }
 
     private var header: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("Fresh deals for you")
-                    .font(.bw(.title, weight: .heavy))
-                    .foregroundStyle(BW.ink)
+                LemoraWordmark(size: 44, color: BW.ink)
                 Text(headerSubtitle).font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
             }
             Spacer()
