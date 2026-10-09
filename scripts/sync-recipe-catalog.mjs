@@ -8,6 +8,19 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(here, '..');
 const workspaceRoot = path.resolve(appRoot, '..');
 const catalogueRoot = path.join(workspaceRoot, 'recipe-photos');
+
+// Scheduled local runs load their Supabase credentials from the ignored project
+// .env file. Explicit environment variables still take precedence in CI or shells.
+const envPath = path.join(appRoot, '.env');
+if (fs.existsSync(envPath)) {
+  for (const line of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
+    const match = line.match(/^([A-Z][A-Z0-9_]*)=(.*)$/);
+    if (!match || process.env[match[1]]) continue;
+    const value = match[2].trim().replace(/^(['"])(.*)\1$/, '$2');
+    process.env[match[1]] = value;
+  }
+}
+
 const projectUrl = process.env.SUPABASE_URL ?? 'https://fsucqlqsafoligouzgrl.supabase.co';
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const dryRun = process.argv.includes('--dry-run');

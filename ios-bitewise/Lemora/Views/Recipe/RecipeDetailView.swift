@@ -21,7 +21,7 @@ struct RecipeDetailView: View {
     private var scored: ScoredRecipe { store.scored(recipe) }
     private var hasSavings: Bool { price.savings > 0.01 && !price.dealLines.isEmpty }
     private var dealEnd: Date? { price.dealLines.compactMap { $0.deal?.validUntil }.min() }
-    private var regularPerServing: Double { price.regularTotal / Double(max(price.servings, 1)) }
+    private var regularPerServing: Double? { price.regularTotal.map { $0 / Double(max(price.servings, 1)) } }
 
     /// Unique stores that have a deal in this recipe, in order of appearance.
     private var dealStores: [(id: String, name: String)] {
@@ -144,7 +144,7 @@ struct RecipeDetailView: View {
 
     private var statTiles: some View {
         HStack(spacing: 10) {
-            statTile(value: "\(recipe.nutrition.protein)g", label: String(localized: "protein"),
+            statTile(value: recipe.nutrition.protein.map { "\($0)g" } ?? "—", label: String(localized: "protein"),
                      fill: BW.card, valueColor: BW.ink)
             VStack(spacing: 2) {
                 Text(Money.format(price.perServing))
@@ -252,13 +252,13 @@ struct RecipeDetailView: View {
         return VStack(alignment: .leading, spacing: 8) {
             Text("Nutrition").font(.bw(.title3)).foregroundStyle(BW.ink)
             HStack(spacing: 8) {
-                macro("\(n.protein)g", String(localized: "protein"), highlight: true)
-                macro("\(n.carbs)g", String(localized: "carbs"))
-                macro("\(n.fat)g", String(localized: "fat"))
-                macro("\(n.calories)", String(localized: "kcal"))
+                macro(n.protein.map { "\($0)g" } ?? "—", String(localized: "protein"), highlight: true)
+                macro(n.carbs.map { "\($0)g" } ?? "—", String(localized: "carbs"))
+                macro(n.fat.map { "\($0)g" } ?? "—", String(localized: "fat"))
+                macro(n.calories.map(String.init) ?? "—", String(localized: "kcal"))
             }
             if n.status != .verified {
-                Text("Nutrition is estimated per serving.").font(.bw(.caption2, weight: .medium)).foregroundStyle(BW.inkSecondary)
+                Text(n.status == .unknown ? "Nutrition is not yet verified." : "Nutrition is estimated per serving.").font(.bw(.caption2, weight: .medium)).foregroundStyle(BW.inkSecondary)
             }
         }
     }
@@ -315,7 +315,8 @@ struct RecipeDetailView: View {
                         .font(.bw(.footnote, weight: .medium)).monospacedDigit()
                         .strikethrough().foregroundStyle(BW.inkSecondary)
                 }
-                Text("~\(Money.format(price.total)) total").font(.bw(.subheadline, weight: .heavy)).monospacedDigit()
+                Text(price.total.map { "~\(Money.format($0)) total" } ?? String(localized: "Price unknown"))
+                    .font(.bw(.subheadline, weight: .heavy)).monospacedDigit()
                     .foregroundStyle(hasSavings ? BW.leafDeep : BW.inkSecondary)
             }
             VStack(spacing: 0) {

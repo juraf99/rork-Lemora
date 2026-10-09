@@ -242,7 +242,7 @@ struct RecipeSwipeCard: View {
                         .minimumScaleFactor(0.8)
 
                     HStack(spacing: 12) {
-                        stat("fork.knife", "\(item.recipe.nutrition.protein)g protein")
+                        stat("fork.knife", item.recipe.nutrition.protein.map { "\($0)g protein" } ?? String(localized: "Nutrition unknown"))
                         divider
                         stat("clock", "\(item.recipe.totalMinutes) min")
                     }

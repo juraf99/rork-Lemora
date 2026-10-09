@@ -177,3 +177,24 @@ $$;
 
 revoke all on function public.sync_lemora_catalog_recipe(jsonb) from public, anon, authenticated;
 grant execute on function public.sync_lemora_catalog_recipe(jsonb) to service_role;
+
+-- Public app clients only need the lossless payload and its primary image URL.
+-- Keeping this behind a stable function prevents mobile builds from depending on
+-- the normalized table layout or broad table permissions.
+create or replace function public.get_lemora_recipe_catalog()
+returns table (catalogue_id text, catalogue_payload jsonb, image_url text)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select r.catalogue_id, r.catalogue_payload, m.url
+  from public.recipes r
+  join public.recipe_media m on m.recipe_id = r.id and m.is_primary = true
+  where r.catalogue_id is not null
+    and r.catalogue_payload is not null
+  order by r.catalogue_id;
+$$;
+
+revoke all on function public.get_lemora_recipe_catalog() from public;
+grant execute on function public.get_lemora_recipe_catalog() to anon, authenticated, service_role;

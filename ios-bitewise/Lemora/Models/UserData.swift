@@ -183,7 +183,7 @@ nonisolated struct GroceryItem: Codable, Identifiable, Sendable {
     var isChecked: Bool = false
     var dealId: String?
     var retailerId: String?
-    var estimatedCost: Double
+    var estimatedCost: Double?
 }
 
 nonisolated struct CookLog: Codable, Identifiable, Sendable {

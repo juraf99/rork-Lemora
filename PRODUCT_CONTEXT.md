@@ -34,7 +34,7 @@ Ask access is checked server-side against RevenueCat's active `lemora_pro` entit
 
 For latency, Ask now fetches relevant profile/recipe/deal context in parallel and makes one Responses API call with optional web search instead of serial Agent tool turns. The existing conversation history is passed explicitly for follow-ups. The server function can be updated independently of an iOS build; the allowance display requires an integrated build.
 
-The native app still has a bundled development recipe catalogue distinct from Supabase's published recipes. Ask sends the installed catalogue's ingredients, steps, local IDs, allergens and existing estimated nutrition with its context. Recipe tools search both sources and resolve local IDs without treating them as database UUIDs. Bundled fixtures are explicitly unverified; absent nutrition values stay unknown, and they provide no confirmed prices or certifications. This bridge is needed for follow-ups about a recipe shown in the app, such as `teriyaki_bowl`.
+The native app loads the permanent recipe catalogue from Supabase at startup and keeps the bundled development fixtures only as an offline fallback. Ask sends the active catalogue's ingredients, steps, stable catalogue IDs, allergens and available nutrition with its context. Recipe tools resolve catalogue IDs without treating them as database UUIDs. Missing nutrition and prices stay unknown, and the app makes no unverified certification claims.
 
 ## Shared service identities
 
@@ -45,7 +45,9 @@ use deterministic UUIDs for existing app relations. Local compatibility
 `yes`/`no` maps to database `true`/`false`; uncertainty remains excluded by
 the catalogue's “doubt means no” policy. Recipe images live in the public
 `recipe-photos` bucket under `catalogue/<catalogue_id>.webp`. The synchronizer
-only inserts missing catalogue IDs and never changes existing recipes.
+only inserts missing catalogue IDs and never changes existing recipes. Local
+scheduled runs read `SUPABASE_SERVICE_ROLE_KEY` from the ignored project `.env`
+file when the variable is not already provided by the environment.
 
 - GitHub source: `juraf99/rork-Lemora`, release branch `main`.
 - iOS project/scheme: `ios-bitewise/Lemora.xcodeproj`, `Lemora`.

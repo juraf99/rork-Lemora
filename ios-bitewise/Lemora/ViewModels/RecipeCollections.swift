@@ -84,7 +84,7 @@ struct CollectionPickerSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    if let recipe = RecipeCatalog.byId[recipeId] {
+                    if let recipe = store.recipes.first(where: { $0.id == recipeId }) {
                         Text(recipe.title)
                             .font(.bw(.subheadline, weight: .semibold))
                             .foregroundStyle(BW.inkSecondary)

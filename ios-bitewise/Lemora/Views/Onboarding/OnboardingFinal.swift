@@ -416,7 +416,7 @@ struct OBPlanScreen: View {
                                 VStack(alignment: .leading, spacing: 0) {
                                     Color(hex: 0xEFE6D2)
                                         .frame(height: 78)
-                                        .overlay { Image(p.recipe.imageName).resizable().scaledToFill() }
+                                        .overlay { FoodImage(name: p.recipe.imageName, height: 80, radius: 16).allowsHitTesting(false) }
                                         .clipped()
                                     Text(p.recipe.title).font(OB.font(11, 700)).foregroundStyle(OB.ink).lineSpacing(1)
                                         .lineLimit(3)

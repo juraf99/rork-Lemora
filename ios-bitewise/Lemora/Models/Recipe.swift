@@ -37,7 +37,7 @@ nonisolated struct RecipeIngredient: Hashable, Sendable, Identifiable {
     let quantity: Double
     let unit: IngredientUnit
     /// Estimated regular cost (CAD) of the quantity used. Development fixture value.
-    let estimatedCost: Double
+    let estimatedCost: Double?
 }
 
 nonisolated enum NutritionStatus: String, Codable, Sendable {
@@ -45,10 +45,10 @@ nonisolated enum NutritionStatus: String, Codable, Sendable {
 }
 
 nonisolated struct Nutrition: Hashable, Sendable {
-    let calories: Int
-    let protein: Int
-    let carbs: Int
-    let fat: Int
+    let calories: Int?
+    let protein: Int?
+    let carbs: Int?
+    let fat: Int?
     let fiber: Int?
     let status: NutritionStatus
 }
@@ -101,6 +101,11 @@ nonisolated struct Recipe: Identifiable, Hashable, Sendable {
     let nutrition: Nutrition
     let tags: Set<RecipeTag>
     let source: RecipeSource
+    var verifiedDietKeys: Set<String> = []
+    var rejectedDietKeys: Set<String> = []
+    var identifiedAllergenKeys: Set<String> = []
+    var possibleAllergenKeys: Set<String> = []
+    var priceStatus: NutritionStatus = .estimated
 
     var totalMinutes: Int { prepMinutes + cookMinutes }
 

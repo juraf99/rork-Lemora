@@ -43,6 +43,13 @@ nonisolated struct RecommendationEngine {
     func exclusionReason(for recipe: Recipe, profile: UserProfile) -> String? {
         let ingredients = recipe.ingredients.compactMap { IngredientCatalog.ingredient($0.ingredientId) }
 
+        for allergen in profile.allergies where recipe.identifiedAllergenKeys.contains(allergen.databaseId) {
+            return "Contains \(allergen.title)"
+        }
+        for allergen in profile.allergies where recipe.possibleAllergenKeys.contains(allergen.databaseId) {
+            return "May contain \(allergen.title)"
+        }
+
         for allergen in profile.allergies {
             if ingredients.contains(where: { $0.contains.contains(allergen) }) { return "Contains \(allergen.title)" }
             if ingredients.contains(where: { $0.mayContain.contains(allergen) }) { return "May contain \(allergen.title)" }
@@ -68,6 +75,11 @@ nonisolated struct RecommendationEngine {
         let animals = Set(ingredients.map(\.animal))
         let hasAllergen: (Allergen) -> Bool = { a in ingredients.contains { $0.contains.contains(a) || $0.mayContain.contains(a) } }
         for diet in profile.diets where diet.isStrict {
+            let remoteKey = Self.databaseDietKey(diet)
+            if !recipe.verifiedDietKeys.isEmpty || !recipe.rejectedDietKeys.isEmpty {
+                if !recipe.verifiedDietKeys.contains(remoteKey) { return "Diet compatibility not verified" }
+                continue
+            }
             switch diet {
             case .vegetarian:
                 if !animals.isDisjoint(with: [.meat, .pork, .poultry, .fish, .shellfish]) { return "Not vegetarian" }
@@ -80,7 +92,8 @@ nonisolated struct RecommendationEngine {
             case .dairyFree, .lactoseFree:
                 if hasAllergen(.milk) { return "Contains dairy" }
             case .keto:
-                if recipe.nutrition.carbs > 25 { return "Too many carbs for keto" }
+                guard let carbs = recipe.nutrition.carbs else { return "Keto compatibility not verified" }
+                if carbs > 25 { return "Too many carbs for keto" }
             case .halal:
                 if animals.contains(.pork) { return "Not halal" }
             case .kosher:
@@ -90,6 +103,17 @@ nonisolated struct RecommendationEngine {
             }
         }
         return nil
+    }
+
+    private static func databaseDietKey(_ diet: DietPreference) -> String {
+        switch diet {
+        case .glutenFree: "gluten_free"
+        case .dairyFree: "dairy_free"
+        case .lactoseFree: "lactose_free"
+        case .lowCarb: "low_carb"
+        case .highProtein: "high_protein"
+        default: diet.rawValue.lowercased()
+        }
     }
 
     func passesHardFilters(_ recipe: Recipe, profile: UserProfile) -> Bool {
@@ -132,6 +156,8 @@ nonisolated struct RecommendationEngine {
                seen: Set<String>, weights: RecommendationWeights) -> ScoredRecipe {
         var reasons: [RecommendationReason] = []
         let n = recipe.nutrition
+        let protein = n.protein
+        let calories = n.calories
 
         // Taste
         let keys = Self.tasteKeys(for: recipe)
@@ -152,16 +178,20 @@ nonisolated struct RecommendationEngine {
         goalScore = 0.6
         switch activeGoal {
         case .buildMuscle, .gainWeight:
-            goalScore = n.protein >= 40 ? 1 : (n.protein >= 30 ? 0.7 : 0.3)
-            if activeGoal == .gainWeight && n.calories >= 550 { goalScore = min(1, goalScore + 0.15) }
-            if n.protein >= 40 { reasons.append(.init(code: .highProteinGoal, text: String(localized: "High protein for your goal"))) }
+            goalScore = protein.map { $0 >= 40 ? 1 : ($0 >= 30 ? 0.7 : 0.3) } ?? 0.6
+            if activeGoal == .gainWeight, let calories, calories >= 550 { goalScore = min(1, goalScore + 0.15) }
+            if let protein, protein >= 40 { reasons.append(.init(code: .highProteinGoal, text: String(localized: "High protein for your goal"))) }
         case .loseWeight:
-            goalScore = n.calories <= 500 ? 1 : (n.calories <= 600 ? 0.7 : 0.35)
-            if n.protein >= 35 { goalScore = min(1, goalScore + 0.1) }
-            if n.calories <= 500 { reasons.append(.init(code: .lightMealGoal, text: String(localized: "Lighter meal that still fills you up"))) }
+            goalScore = calories.map { $0 <= 500 ? 1 : ($0 <= 600 ? 0.7 : 0.35) } ?? 0.6
+            if let protein, protein >= 35 { goalScore = min(1, goalScore + 0.1) }
+            if let calories, calories <= 500 { reasons.append(.init(code: .lightMealGoal, text: String(localized: "Lighter meal that still fills you up"))) }
         case .saveMoney:
-            goalScore = price.perServing <= 3.5 ? 1 : (price.perServing <= 5 ? 0.7 : 0.4)
-            if price.perServing <= 4 { reasons.append(.init(code: .lowCost, text: String(localized: "Low cost per serving"))) }
+            if let perServing = price.perServing {
+                goalScore = perServing <= 3.5 ? 1 : (perServing <= 5 ? 0.7 : 0.4)
+                if perServing <= 4 { reasons.append(.init(code: .lowCost, text: String(localized: "Low cost per serving"))) }
+            } else {
+                goalScore = 0.6
+            }
         case .eatHealthier:
             let fiber = n.fiber ?? 0
             goalScore = fiber >= 10 ? 1 : (fiber >= 6 ? 0.7 : 0.4)
@@ -177,8 +207,8 @@ nonisolated struct RecommendationEngine {
         bestGoalScore = max(bestGoalScore, goalScore)
         }
         goalScore = bestGoalScore
-        if profile.diets.contains(.highProtein) && n.protein >= 35 { goalScore = min(1, goalScore + 0.15) }
-        if profile.diets.contains(.lowCarb) && n.carbs <= 40 { goalScore = min(1, goalScore + 0.15) }
+        if profile.diets.contains(.highProtein), let protein = n.protein, protein >= 35 { goalScore = min(1, goalScore + 0.15) }
+        if profile.diets.contains(.lowCarb), let carbs = n.carbs, carbs <= 40 { goalScore = min(1, goalScore + 0.15) }
 
         // Deals
         let dealScore = min(1, price.savingsFraction * 2.5)
@@ -188,9 +218,9 @@ nonisolated struct RecommendationEngine {
 
         // Budget
         var budgetScore = 0.6
-        if let budget = profile.weeklyBudget, budget > 0 {
+        if let budget = profile.weeklyBudget, budget > 0, let perServing = price.perServing {
             let target = budget / Double(max(1, profile.householdSize) * 14)
-            let ratio = price.perServing / target
+            let ratio = perServing / target
             budgetScore = ratio <= 0.8 ? 1 : (ratio <= 1.1 ? 0.7 : 0.3)
             if ratio <= 1 { reasons.append(.init(code: .fitsBudget, text: String(localized: "Fits your weekly budget"))) }
         }
@@ -216,6 +246,13 @@ nonisolated struct RecommendationEngine {
     // MARK: Diet compatibility (display)
 
     func compatibility(of recipe: Recipe) -> [(DietPreference, TriState)] {
+        if !recipe.verifiedDietKeys.isEmpty || !recipe.rejectedDietKeys.isEmpty {
+            let displayed: [DietPreference] = [.vegetarian, .vegan, .pescatarian, .keto, .lowCarb, .highProtein, .glutenFree, .dairyFree, .lactoseFree, .halal, .kosher]
+            return displayed.map { diet in
+                let key = Self.databaseDietKey(diet)
+                return (diet, recipe.verifiedDietKeys.contains(key) ? .yes : .no)
+            }
+        }
         let ingredients = recipe.ingredients.compactMap { IngredientCatalog.ingredient($0.ingredientId) }
         let animals = Set(ingredients.map(\.animal))
         func allergenState(_ a: Allergen) -> TriState {
@@ -229,15 +266,28 @@ nonisolated struct RecommendationEngine {
             (.vegan, animals.isSubset(of: [.none]) ? .yes : .no),
             (.glutenFree, allergenState(.wheat)),
             (.dairyFree, allergenState(.milk)),
-            (.highProtein, recipe.nutrition.protein >= 30 ? .yes : .no),
+            (.highProtein, recipe.nutrition.protein.map { $0 >= 30 ? .yes : .no } ?? .uncertain),
             (.halal, animals.contains(.pork) ? .no : (hasCertifiableMeat ? .uncertain : .yes)),
         ]
     }
 
     func allergens(of recipe: Recipe) -> (contains: [Allergen], mayContain: [Allergen]) {
         let ingredients = recipe.ingredients.compactMap { IngredientCatalog.ingredient($0.ingredientId) }
-        let contains = Set(ingredients.flatMap(\.contains))
-        let may = Set(ingredients.flatMap(\.mayContain)).subtracting(contains)
+        var contains = Set(ingredients.flatMap(\.contains))
+        var may = Set(ingredients.flatMap(\.mayContain))
+        for allergen in Allergen.allCases {
+            let aliases = Self.allergenKeys(allergen)
+            if !aliases.isDisjoint(with: recipe.identifiedAllergenKeys) { contains.insert(allergen) }
+            if !aliases.isDisjoint(with: recipe.possibleAllergenKeys) { may.insert(allergen) }
+        }
+        may.subtract(contains)
         return (Allergen.allCases.filter { contains.contains($0) }, Allergen.allCases.filter { may.contains($0) })
+    }
+
+    private static func allergenKeys(_ allergen: Allergen) -> Set<String> {
+        switch allergen {
+        case .shellfish: ["shellfish", "molluscs", "mollusk", "crustaceans"]
+        default: [allergen.databaseId]
+        }
     }
 }

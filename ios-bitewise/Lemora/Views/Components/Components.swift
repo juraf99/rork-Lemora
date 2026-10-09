@@ -33,10 +33,21 @@ struct FoodImage: View {
             .frame(height: height)
             .frame(maxWidth: .infinity)
             .overlay {
-                Image(name)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
+                if let url = URL(string: name), url.scheme == "https" {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image): image.resizable().aspectRatio(contentMode: .fill)
+                        case .failure: Image(systemName: "fork.knife").font(.largeTitle).foregroundStyle(BW.inkSecondary)
+                        default: ProgressView().tint(BW.leaf)
+                        }
+                    }
                     .allowsHitTesting(false)
+                } else {
+                    Image(name)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .allowsHitTesting(false)
+                }
             }
             .clipShape(.rect(cornerRadius: radius))
             .accessibilityHidden(true)

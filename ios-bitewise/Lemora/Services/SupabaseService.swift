@@ -47,6 +47,18 @@ final class SupabaseService {
         }
     }
 
+    /// Loads the permanent catalogue through a narrow read-only RPC. The complete
+    /// bilingual source payload stays in Supabase so the client does not lose fields.
+    func fetchRecipeCatalogue() async throws -> [Recipe] {
+        let rows: [RemoteRecipeEnvelope] = try await client
+            .rpc("get_lemora_recipe_catalog")
+            .execute()
+            .value
+        let recipes = rows.compactMap(\.recipe)
+        logger.info("Loaded \(recipes.count) recipes from the permanent catalogue")
+        return recipes
+    }
+
     /// Loads current food-only flyer deals. The database view already excludes coupons,
     /// non-food items, stale flyers, and expired offers.
     func fetchActiveDeals(location: UserLocation) async throws -> [Deal] {
@@ -144,6 +156,189 @@ final class SupabaseService {
         default: return value.uppercased()
         }
     }
+}
+
+private nonisolated struct RemoteRecipeEnvelope: Decodable, Sendable {
+    let catalogueId: String
+    let cataloguePayload: RemoteRecipePayload
+    let imageUrl: String
+
+    enum CodingKeys: String, CodingKey {
+        case catalogueId = "catalogue_id"
+        case cataloguePayload = "catalogue_payload"
+        case imageUrl = "image_url"
+    }
+
+    var recipe: Recipe? {
+        let payload = cataloguePayload
+        guard !catalogueId.isEmpty, payload.servings > 0 else { return nil }
+        let useFrench = Locale.current.identifier.lowercased().hasPrefix("fr")
+        let ingredients = payload.ingredients.map { item in
+            let name = useFrench ? item.name.fr : item.name.en
+            let unit = Self.unit(item.unit)
+            return RecipeIngredient(
+                ingredientId: item.normalizedName,
+                rawText: "\(unit.format(item.quantity)) \(name)",
+                quantity: item.quantity,
+                unit: unit,
+                estimatedCost: nil
+            )
+        }
+        let dietEntries = payload.dietClassification.filter {
+            !["status", "criteria_version", "cross_contact"].contains($0.key)
+        }
+        let verified = Set(dietEntries.compactMap { $0.value == "yes" ? $0.key : nil })
+        let rejected = Set(dietEntries.compactMap { $0.value == "no" ? $0.key : nil })
+        let total = payload.totalMinutes ?? (payload.prepMinutes + payload.cookMinutes + (payload.restMinutes ?? 0))
+        var tags = Set<RecipeTag>()
+        if total <= 30 { tags.insert(.quick) }
+        if verified.contains("high_protein") { tags.insert(.highProtein) }
+        if verified.contains("vegetarian") { tags.insert(.vegetarianFriendly) }
+        if payload.categories.contains(where: { $0.localizedCaseInsensitiveContains("meal prep") }) { tags.insert(.mealPrep) }
+        if payload.categories.contains(where: { $0.localizedCaseInsensitiveContains("bowl") }) { tags.insert(.bowl) }
+
+        return Recipe(
+            id: catalogueId,
+            title: useFrench ? payload.title.fr : payload.title.en,
+            summary: useFrench ? (payload.description?.fr ?? "") : (payload.description?.en ?? ""),
+            imageName: imageUrl,
+            cuisine: Self.cuisine(payload.cuisine),
+            mealType: Self.mealType(payload.mealType),
+            mainProtein: payload.classification?.proteinSources.first ?? payload.ingredients.first?.normalizedName ?? "",
+            servings: payload.servings,
+            prepMinutes: payload.prepMinutes,
+            cookMinutes: payload.cookMinutes + (payload.restMinutes ?? 0),
+            ingredients: ingredients,
+            steps: useFrench ? payload.instructions.fr : payload.instructions.en,
+            nutrition: Nutrition(
+                calories: payload.nutrition.calories,
+                protein: payload.nutrition.protein,
+                carbs: payload.nutrition.carbohydrates,
+                fat: payload.nutrition.fat,
+                fiber: payload.nutrition.fiber,
+                status: NutritionStatus(rawValue: payload.nutrition.status) ?? .unknown
+            ),
+            tags: tags,
+            source: payload.sourceType == "generated_suggestion" ? .generatedSuggestion : .external,
+            verifiedDietKeys: verified,
+            rejectedDietKeys: rejected,
+            identifiedAllergenKeys: Set(payload.knownAllergens),
+            possibleAllergenKeys: Set(payload.possibleAllergens),
+            priceStatus: NutritionStatus(rawValue: payload.price?.status ?? "unknown") ?? .unknown
+        )
+    }
+
+    private static func unit(_ value: String) -> IngredientUnit {
+        switch value.lowercased() {
+        case "g", "gram", "grams": .g
+        case "ml", "milliliter", "milliliters": .ml
+        case "tbsp", "tablespoon", "tablespoons": .tbsp
+        case "tsp", "teaspoon", "teaspoons": .tsp
+        case "cup", "cups": .cup
+        case "can", "cans": .can
+        case "clove", "cloves": .clove
+        default: .unit
+        }
+    }
+
+    private static func mealType(_ value: String) -> MealType {
+        switch value.lowercased() {
+        case "breakfast": .breakfast
+        case "lunch": .lunch
+        case "snack": .snack
+        case "dessert": .dessert
+        default: .dinner
+        }
+    }
+
+    private static func cuisine(_ value: String) -> Cuisine {
+        let key = value.lowercased()
+        if key.contains("ital") { return .italian }
+        if key.contains("mex") { return .mexican }
+        if key.contains("japan") { return .japanese }
+        if key.contains("korean") { return .korean }
+        if key.contains("india") { return .indian }
+        if key.contains("greek") { return .greek }
+        if key.contains("middle") || key.contains("levant") { return .middleEastern }
+        if key.contains("french") { return .french }
+        if key.contains("thai") { return .thai }
+        if key.contains("vietnam") { return .vietnamese }
+        if key.contains("caribbean") { return .caribbean }
+        if key.contains("mediterr") { return .mediterranean }
+        return .american
+    }
+}
+
+private nonisolated struct RemoteRecipePayload: Decodable, Sendable {
+    let sourceType: String
+    let title: RemoteLocalizedText
+    let description: RemoteLocalizedText?
+    let mealType: String
+    let cuisine: String
+    let servings: Int
+    let prepMinutes: Int
+    let cookMinutes: Int
+    let restMinutes: Int?
+    let totalMinutes: Int?
+    let categories: [String]
+    let ingredients: [RemoteIngredient]
+    let instructions: RemoteInstructions
+    let knownAllergens: [String]
+    let possibleAllergens: [String]
+    let dietClassification: [String: String]
+    let nutrition: RemoteNutrition
+    let price: RemotePrice?
+    let classification: RemoteClassification?
+
+    enum CodingKeys: String, CodingKey {
+        case sourceType = "source_type"
+        case title, description
+        case mealType = "meal_type"
+        case cuisine, servings
+        case prepMinutes = "prep_minutes"
+        case cookMinutes = "cook_minutes"
+        case restMinutes = "rest_minutes"
+        case totalMinutes = "total_minutes"
+        case categories, ingredients, instructions
+        case knownAllergens = "known_allergens"
+        case possibleAllergens = "possible_allergens"
+        case dietClassification = "diet_classification"
+        case nutrition, price, classification
+    }
+}
+
+private nonisolated struct RemoteLocalizedText: Decodable, Sendable { let fr: String; let en: String }
+private nonisolated struct RemoteInstructions: Decodable, Sendable { let fr: [String]; let en: [String] }
+private nonisolated struct RemoteIngredient: Decodable, Sendable {
+    let normalizedName: String
+    let name: RemoteLocalizedText
+    let quantity: Double
+    let unit: String
+    enum CodingKeys: String, CodingKey {
+        case normalizedName = "normalized_name"
+        case name, quantity, unit
+    }
+}
+private nonisolated struct RemoteNutrition: Decodable, Sendable {
+    let status: String
+    let calories: Int?
+    let protein: Int?
+    let carbohydrates: Int?
+    let fiber: Int?
+    let fat: Int?
+    enum CodingKeys: String, CodingKey {
+        case status
+        case calories = "calories_kcal"
+        case protein = "protein_g"
+        case carbohydrates = "carbohydrates_g"
+        case fiber = "fiber_g"
+        case fat = "fat_g"
+    }
+}
+private nonisolated struct RemotePrice: Decodable, Sendable { let status: String? }
+private nonisolated struct RemoteClassification: Decodable, Sendable {
+    let proteinSources: [String]
+    enum CodingKeys: String, CodingKey { case proteinSources = "protein_sources" }
 }
 
 private nonisolated struct ConnectionProbe: Decodable, Sendable {

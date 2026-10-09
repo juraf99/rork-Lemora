@@ -14,7 +14,9 @@ final class AppStore {
     private(set) var dealLoadError: String?
 
     let subscription = SubscriptionService()
-    let recipes: [Recipe] = RecipeCatalog.all
+    private(set) var recipes: [Recipe] = RecipeCatalog.all
+    private(set) var recipeCatalogueLoaded = false
+    private(set) var recipeCatalogueError: String?
 
     private let repository: UserDataRepository
     private let analytics: AnalyticsTracking
@@ -40,8 +42,22 @@ final class AppStore {
     func bootstrap() async {
         config = await configProvider.fetch()
         await subscription.start()
+        await loadRecipeCatalogue()
         await loadLiveDeals()
         analytics.track("app_opened", [:])
+    }
+
+    func loadRecipeCatalogue() async {
+        do {
+            let fetched = try await SupabaseService.shared.fetchRecipeCatalogue()
+            if !fetched.isEmpty { recipes = fetched }
+            recipeCatalogueLoaded = true
+            recipeCatalogueError = nil
+            refreshRanking()
+        } catch {
+            recipeCatalogueError = error.localizedDescription
+            analytics.track("recipe_catalogue_load_failed", ["error": error.localizedDescription])
+        }
     }
 
     private func persist() {
@@ -123,7 +139,8 @@ final class AppStore {
         })
         let matches = engine.rank(recipes: recipes, profile: profile, taste: [:], seen: [],
                                   prices: previewPrices, weights: config.weights)
-        let perServing = matches.isEmpty ? 0 : matches.map(\.price.perServing).reduce(0, +) / Double(matches.count)
+        let knownPrices = matches.compactMap(\.price.perServing)
+        let perServing = knownPrices.isEmpty ? 0 : knownPrices.reduce(0, +) / Double(knownPrices.count)
         let topSavings = matches.map(\.price.savings).sorted(by: >).prefix(3).reduce(0, +)
         let names = mine.compactMap { RetailerCatalog.byId[$0]?.name }.sorted()
         return PlanPreview(matches: matches, excludedCount: recipes.count - matches.count, dealCount: scoped.count,
@@ -382,7 +399,9 @@ final class AppStore {
             for line in p.lines {
                 if let idx = d.grocery.firstIndex(where: { $0.ingredientId == line.ingredientId && $0.unit == line.unit && !$0.isChecked }) {
                     d.grocery[idx].quantity += line.quantity
-                    d.grocery[idx].estimatedCost += line.cost
+                    if let cost = line.cost {
+                        d.grocery[idx].estimatedCost = (d.grocery[idx].estimatedCost ?? 0) + cost
+                    }
                     if !d.grocery[idx].recipeIds.contains(recipe.id) { d.grocery[idx].recipeIds.append(recipe.id) }
                 } else {
                     d.grocery.append(GroceryItem(ingredientId: line.ingredientId, quantity: line.quantity, unit: line.unit,

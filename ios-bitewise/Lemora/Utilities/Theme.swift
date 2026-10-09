@@ -148,4 +148,8 @@ nonisolated enum Money {
     static func format(_ value: Double) -> String {
         value.formatted(.currency(code: "CAD").presentation(.narrow))
     }
+
+    static func format(_ value: Double?) -> String {
+        value.map(format) ?? "—"
+    }
 }

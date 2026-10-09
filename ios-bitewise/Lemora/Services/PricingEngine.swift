@@ -5,21 +5,30 @@ nonisolated struct PriceLine: Identifiable, Sendable {
     let ingredientId: String
     let quantity: Double
     let unit: IngredientUnit
-    let regularCost: Double
-    let cost: Double
+    let regularCost: Double?
+    let cost: Double?
     let deal: Deal?
 
-    var savings: Double { max(0, regularCost - cost) }
+    var savings: Double { max(0, (regularCost ?? 0) - (cost ?? regularCost ?? 0)) }
 }
 
 nonisolated struct RecipePrice: Sendable {
     let lines: [PriceLine]
     let servings: Int
 
-    var total: Double { lines.reduce(0) { $0 + $1.cost } }
-    var regularTotal: Double { lines.reduce(0) { $0 + $1.regularCost } }
-    var savings: Double { max(0, regularTotal - total) }
-    var perServing: Double { servings > 0 ? total / Double(servings) : total }
+    var total: Double? {
+        guard lines.allSatisfy({ $0.cost != nil }) else { return nil }
+        return lines.compactMap(\.cost).reduce(0, +)
+    }
+    var regularTotal: Double? {
+        guard lines.allSatisfy({ $0.regularCost != nil }) else { return nil }
+        return lines.compactMap(\.regularCost).reduce(0, +)
+    }
+    var savings: Double {
+        guard let regularTotal, let total else { return 0 }
+        return max(0, regularTotal - total)
+    }
+    var perServing: Double? { total.map { servings > 0 ? $0 / Double(servings) : $0 } }
     var dealLines: [PriceLine] { lines.filter { $0.deal != nil && $0.savings > 0.01 } }
     var dealCount: Int { dealLines.count }
     var ingredientCount: Int { lines.count }
@@ -27,12 +36,15 @@ nonisolated struct RecipePrice: Sendable {
         ingredientCount > 0 ? Double(dealCount) / Double(ingredientCount) : 0
     }
     var usesSampleData: Bool { lines.contains { $0.deal?.isSampleData == true } }
-    var savingsFraction: Double { regularTotal > 0 ? savings / regularTotal : 0 }
+    var savingsFraction: Double {
+        guard let regularTotal, regularTotal > 0 else { return 0 }
+        return savings / regularTotal
+    }
 
     /// A weekly-value score based on actual economics, not on whether the recipe was
     /// saved or previously swiped. Multiple discounted ingredients therefore matter.
     var weeklyValueScore: Double {
-        let affordability = max(0, min(1, 1 - perServing / 12))
+        let affordability = perServing.map { max(0, min(1, 1 - $0 / 12)) } ?? 0.5
         return savingsFraction * 0.50 + dealCoverage * 0.30 + affordability * 0.20
     }
 
@@ -48,19 +60,23 @@ nonisolated struct PricingEngine {
         let scale = Double(max(1, servings)) / Double(max(1, recipe.servings))
         let byIngredient = Dictionary(grouping: deals, by: \.ingredientId)
         let lines = recipe.ingredients.map { item -> PriceLine in
-            let regular = item.estimatedCost * scale
+            let regular = item.estimatedCost.map { $0 * scale }
             let compatibleIds = Self.compatibleDealIds(for: item.ingredientId)
             let candidates = compatibleIds.flatMap { byIngredient[$0] ?? [] }.compactMap { deal -> (Deal, Double)? in
                 guard let converted = deal.cost(for: item.quantity * scale, unit: item.unit) else {
                     // Percentage-based fallback is used only when the provider supplied a discount.
                     guard deal.discountPercent != nil else { return nil }
+                    guard let regular else { return nil }
                     return (deal, regular * deal.priceRatio)
                 }
                 return (deal, converted)
             }
             let best = candidates.min { $0.1 < $1.1 }
-            let discounted = best.map { min(regular, $0.1) } ?? regular
-            let appliedDeal = best.flatMap { $0.1 < regular ? $0.0 : nil }
+            let discounted = best.map { candidate in regular.map { min($0, candidate.1) } ?? candidate.1 } ?? regular
+            let appliedDeal: Deal? = best.flatMap { candidate in
+                guard regular == nil || candidate.1 < regular! else { return nil }
+                return candidate.0
+            }
             return PriceLine(ingredientId: item.ingredientId, quantity: item.quantity * scale, unit: item.unit,
                              regularCost: regular, cost: discounted, deal: appliedDeal)
         }

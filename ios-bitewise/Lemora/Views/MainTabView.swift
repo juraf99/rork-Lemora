@@ -34,12 +34,25 @@ extension View {
         navigationDestination(for: Route.self) { route in
             switch route {
             case .recipe(let id):
-                if let recipe = RecipeCatalog.byId[id] { RecipeDetailView(recipe: recipe) }
+                RecipeDestinationView(recipeId: id)
             case .deal(let id): DealDetailView(dealId: id)
             case .streaks: StreaksView()
             case .worthItAll: WorthItListView()
             case .stealsAll: StealsListView()
             }
+        }
+    }
+}
+
+private struct RecipeDestinationView: View {
+    let recipeId: String
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        if let recipe = store.recipes.first(where: { $0.id == recipeId }) {
+            RecipeDetailView(recipe: recipe)
+        } else {
+            ContentUnavailableView("Recipe unavailable", systemImage: "fork.knife")
         }
     }
 }

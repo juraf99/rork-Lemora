@@ -91,7 +91,7 @@ private nonisolated struct ZestyGroceryContext: Encodable, Sendable {
     let quantity: Double
     let unit: String
     let isChecked: Bool
-    let estimatedCost: Double
+    let estimatedCost: Double?
 }
 
 private nonisolated struct ZestyAppRecipeIngredient: Encodable, Sendable {
@@ -151,9 +151,9 @@ private nonisolated struct ZestyAppRecipeSnapshot: Encodable, Sendable {
         }
         recipe_steps = recipe.steps.enumerated().map { .init(step_number: $0.offset + 1, instruction: $0.element) }
         recipe_nutrition = [.init(
-            calories: Double(recipe.nutrition.calories), proteinG: Double(recipe.nutrition.protein),
-            carbsG: Double(recipe.nutrition.carbs), fiberG: recipe.nutrition.fiber.map(Double.init),
-            sugarsG: nil, fatG: Double(recipe.nutrition.fat), saturatedFatG: nil, sodiumMg: nil,
+            calories: recipe.nutrition.calories.map(Double.init), proteinG: recipe.nutrition.protein.map(Double.init),
+            carbsG: recipe.nutrition.carbs.map(Double.init), fiberG: recipe.nutrition.fiber.map(Double.init),
+            sugarsG: nil, fatG: recipe.nutrition.fat.map(Double.init), saturatedFatG: nil, sodiumMg: nil,
             status: recipe.nutrition.status == .unknown ? "unknown" : "estimated",
             source: "Bundled Lemora development catalogue: estimates, not laboratory-verified. Missing values are unknown."
         )]

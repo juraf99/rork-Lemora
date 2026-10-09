@@ -52,7 +52,7 @@ struct SavedView: View {
 
     private var allItems: [SavedItem] {
         store.activeSaved.compactMap { entry in
-            guard let recipe = RecipeCatalog.byId[entry.recipeId] else { return nil }
+            guard let recipe = store.recipes.first(where: { $0.id == entry.recipeId }) else { return nil }
             return SavedItem(entry: entry, recipe: recipe, price: store.price(for: recipe))
         }
     }
@@ -77,7 +77,7 @@ struct SavedView: View {
         }
         switch sort {
         case .recent: return filtered
-        case .cheapest: return filtered.sorted { $0.price.perServing < $1.price.perServing }
+        case .cheapest: return filtered.sorted { ($0.price.perServing ?? .greatestFiniteMagnitude) < ($1.price.perServing ?? .greatestFiniteMagnitude) }
         case .quickest: return filtered.sorted { $0.recipe.totalMinutes < $1.recipe.totalMinutes }
         case .savings: return filtered.sorted { $0.price.savings > $1.price.savings }
         }

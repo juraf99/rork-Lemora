@@ -28,7 +28,7 @@ struct GroceryListView: View {
             grouped = Dictionary(grouping: items) { IngredientCatalog.ingredient($0.ingredientId)?.category.title ?? String(localized: "Other") }
         case .recipe:
             grouped = Dictionary(grouping: items) { item in
-                item.recipeIds.first.flatMap { RecipeCatalog.byId[$0]?.title } ?? String(localized: "Deals")
+                item.recipeIds.first.flatMap { id in store.recipes.first { $0.id == id }?.title } ?? String(localized: "Deals")
             }
         }
         return grouped.map { ($0.key, $0.value.sorted { !$0.isChecked && $1.isChecked }) }
@@ -41,7 +41,11 @@ struct GroceryListView: View {
     }
 
     private var dealsInList: Int { items.filter { $0.dealId != nil && !$0.isChecked }.count }
-    private var estimatedTotal: Double { items.filter { !$0.isChecked }.reduce(0) { $0 + $1.estimatedCost } }
+    private var estimatedTotal: Double? {
+        let active = items.filter { !$0.isChecked }
+        guard active.allSatisfy({ $0.estimatedCost != nil }) else { return nil }
+        return active.compactMap(\.estimatedCost).reduce(0, +)
+    }
 
     var body: some View {
         NavigationStack {
@@ -80,7 +84,7 @@ struct GroceryListView: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(dealsInList > 0 ? String(localized: "Nice picks! You're saving with \(dealsInList) deals.") : String(localized: "Happy shopping!"))
                                         .font(.bw(.subheadline, weight: .bold)).foregroundStyle(BW.ink)
-                                    Text("Estimated total ~\(Money.format(estimatedTotal))")
+                                    Text(estimatedTotal.map { "Estimated total ~\(Money.format($0))" } ?? String(localized: "Estimated total unavailable"))
                                         .font(.bw(.footnote, weight: .medium)).monospacedDigit().foregroundStyle(BW.inkSecondary)
                                 }
                             }
@@ -135,7 +139,7 @@ struct GroceryRow: View {
                         Text("On sale").font(.bw(.caption2, weight: .bold)).foregroundStyle(.white)
                             .padding(.horizontal, 8).padding(.vertical, 3).background(BW.leaf, in: .capsule)
                     }
-                    Text(Money.format(item.estimatedCost)).font(.bw(.footnote, weight: .semibold)).monospacedDigit().foregroundStyle(BW.inkSecondary)
+                    Text(item.estimatedCost.map(Money.format) ?? "—").font(.bw(.footnote, weight: .semibold)).monospacedDigit().foregroundStyle(BW.inkSecondary)
                 }
             }
             .contentShape(.rect)

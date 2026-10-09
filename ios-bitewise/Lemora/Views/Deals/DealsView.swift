@@ -663,12 +663,12 @@ struct RecipeRow: View {
         HStack(spacing: 14) {
             Color.clear
                 .frame(width: 84, height: 84)
-                .overlay { Image(item.recipe.imageName).resizable().aspectRatio(contentMode: .fill).allowsHitTesting(false) }
+                .overlay { FoodImage(name: item.recipe.imageName, height: 84, radius: 16).allowsHitTesting(false) }
                 .clipShape(.rect(cornerRadius: 16))
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.recipe.title).font(.bw(.headline)).foregroundStyle(BW.ink).lineLimit(2).multilineTextAlignment(.leading)
                 HStack(spacing: 10) {
-                    Text("\(item.recipe.nutrition.protein)g protein")
+                    Text(item.recipe.nutrition.protein.map { "\($0)g protein" } ?? String(localized: "Nutrition unknown"))
                     Text("\(Money.format(item.price.perServing))/serving").monospacedDigit()
                 }
                 .font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
