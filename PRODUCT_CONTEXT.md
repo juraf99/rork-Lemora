@@ -38,6 +38,15 @@ The native app still has a bundled development recipe catalogue distinct from Su
 
 ## Shared service identities
 
+The permanent local recipe catalogue is synchronized to Supabase through
+`scripts/sync-recipe-catalog.mjs`. Catalogue rows keep their stable `lemora-*`
+identifier in `recipes.catalogue_id`, store the complete source payload, and
+use deterministic UUIDs for existing app relations. Local compatibility
+`yes`/`no` maps to database `true`/`false`; uncertainty remains excluded by
+the catalogue's “doubt means no” policy. Recipe images live in the public
+`recipe-photos` bucket under `catalogue/<catalogue_id>.webp`. The synchronizer
+only inserts missing catalogue IDs and never changes existing recipes.
+
 - GitHub source: `juraf99/rork-Lemora`, release branch `main`.
 - iOS project/scheme: `ios-bitewise/Lemora.xcodeproj`, `Lemora`.
 - App Store product: Lemora; bundle ID `app.rork.yuf0zn4n53irodch38mtc`; Apple team `CV768N46QD`.
