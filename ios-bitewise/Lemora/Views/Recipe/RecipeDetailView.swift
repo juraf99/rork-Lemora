@@ -216,7 +216,7 @@ struct RecipeDetailView: View {
                     if let deal = line.deal {
                         HStack(spacing: 10) {
                             StoreChip(retailerId: deal.retailerId, name: deal.retailerDisplayName)
-                            Text("\(IngredientCatalog.emoji(line.ingredientId)) \(IngredientCatalog.name(line.ingredientId))")
+                            Text(deal.productName)
                                 .font(.bw(.subheadline, weight: .semibold))
                                 .foregroundStyle(.white)
                                 .lineLimit(1)
@@ -335,7 +335,7 @@ struct RecipeDetailView: View {
     private func ingredientRow(_ line: PriceLine) -> some View {
         let onSale = line.deal != nil && line.savings > 0.01
         HStack(spacing: 12) {
-            Text(IngredientCatalog.emoji(line.ingredientId)).font(.title3).frame(width: 32)
+            IngredientThumb(ingredientId: line.ingredientId, size: 34)
             VStack(alignment: .leading, spacing: 4) {
                 Text(IngredientCatalog.name(line.ingredientId)).font(.bw(.body, weight: .semibold)).foregroundStyle(BW.ink)
                 HStack(spacing: 6) {

@@ -196,11 +196,11 @@ struct SavedView: View {
                 filterChip(.all, emoji: nil, title: String(localized: "All"), count: items.count)
                 let onSale = items.filter { matches($0, .onSale) }.count
                 if onSale > 0 {
-                    filterChip(.onSale, emoji: "🏷️", title: String(localized: "On sale"), count: onSale)
+                    filterChip(.onSale, emoji: nil, title: String(localized: "On sale"), count: onSale)
                 }
                 let quick = items.filter { matches($0, .quick) }.count
                 if quick > 0 {
-                    filterChip(.quick, emoji: "⚡️", title: String(localized: "Under 30 min"), count: quick)
+                    filterChip(.quick, emoji: nil, title: String(localized: "Under 30 min"), count: quick)
                 }
                 ForEach(store.collections) { collection in
                     filterChip(.collection(collection.id), emoji: collection.emoji, title: collection.name,

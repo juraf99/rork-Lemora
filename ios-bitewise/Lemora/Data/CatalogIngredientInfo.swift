@@ -425,10 +425,10 @@ struct StorePricesCard: View {
                         }
                         ForEach(row.deals) { d in
                             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                Text(IngredientCatalog.emoji(d.ingredientId))
+                                IngredientThumb(ingredientId: d.ingredientId, size: 22)
                                 VStack(alignment: .leading, spacing: 1) {
                                     HStack(spacing: 4) {
-                                        Text(IngredientCatalog.name(d.ingredientId)).fontWeight(.bold)
+                                        Text(d.deal.productName).fontWeight(.bold).lineLimit(1)
                                         Text(d.deal.priceText).fontWeight(.heavy).foregroundStyle(BW.leafDeep)
                                         if let was = d.deal.regularPrice, was > d.deal.effectivePrice {
                                             Text("\(Money.format(was))\(d.deal.unitLabel)").strikethrough().foregroundStyle(BW.inkSecondary)

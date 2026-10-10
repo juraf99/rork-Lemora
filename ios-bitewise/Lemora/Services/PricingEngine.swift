@@ -29,7 +29,9 @@ nonisolated struct RecipePrice: Sendable {
         return max(0, regularTotal - total)
     }
     var perServing: Double? { total.map { servings > 0 ? $0 / Double(servings) : $0 } }
-    var dealLines: [PriceLine] { lines.filter { $0.deal != nil && $0.savings > 0.01 } }
+    /// A provider-declared promotion still counts when its regular price is not
+    /// published. Savings remain zero until a trustworthy baseline is available.
+    var dealLines: [PriceLine] { lines.filter { $0.deal != nil } }
     var dealCount: Int { dealLines.count }
     var ingredientCount: Int { lines.count }
     var dealCoverage: Double {
@@ -56,12 +58,16 @@ nonisolated struct RecipePrice: Sendable {
 /// Unit-priced flyers are converted to the recipe quantity; the recipe's existing
 /// estimated cost remains the conservative baseline when no regular price is supplied.
 nonisolated struct PricingEngine {
-    func price(recipe: Recipe, servings: Int, deals: [Deal]) -> RecipePrice {
+    func price(recipe: Recipe, servings: Int, deals: [Deal], currentPrices: [StorePrice] = []) -> RecipePrice {
         let scale = Double(max(1, servings)) / Double(max(1, recipe.servings))
         let byIngredient = Dictionary(grouping: deals, by: \.ingredientId)
+        let pricesByIngredient = Dictionary(grouping: currentPrices, by: \.ingredientId)
         let lines = recipe.ingredients.map { item -> PriceLine in
-            let regular = item.estimatedCost.map { $0 * scale }
             let compatibleIds = Self.compatibleDealIds(for: item.ingredientId)
+            let observedCosts = compatibleIds.flatMap { pricesByIngredient[$0] ?? [] }.filter { !$0.isDiscounted }.compactMap {
+                $0.cost(for: item.quantity * scale, unit: item.unit)
+            }
+            let regular = observedCosts.min() ?? item.estimatedCost.map { $0 * scale }
             let candidates = compatibleIds.flatMap { byIngredient[$0] ?? [] }.compactMap { deal -> (Deal, Double)? in
                 guard let converted = deal.cost(for: item.quantity * scale, unit: item.unit) else {
                     // Percentage-based fallback is used only when the provider supplied a discount.

@@ -177,3 +177,92 @@ nonisolated struct Deal: Identifiable, Hashable, Sendable {
         date >= validFrom && date <= validUntil
     }
 }
+
+/// A current shelf-price observation. It becomes a `Deal` only when the provider
+/// explicitly marks that observation as discounted.
+nonisolated struct StorePrice: Identifiable, Hashable, Sendable {
+    let id: String
+    let ingredientId: String
+    let productName: String
+    let retailerProductName: String?
+    let retailerId: String
+    let retailerName: String
+    let currentPrice: Double
+    let regularPrice: Double?
+    let salePrice: Double?
+    let isDiscounted: Bool
+    let unitLabel: String?
+    let sizeText: String?
+    let brand: String?
+    let sourceURL: URL?
+    let sourceUpdatedAt: Date
+    let staleAfter: Date
+    let category: GroceryCategory
+    let dietaryFlags: [String: String]
+    let allergenFlags: [String: String]
+    let processingLevel: String
+    let healthPriorityScore: Double
+    let attribution: String
+    var imageURL: URL? = nil
+
+    var priceText: String {
+        "\(Money.format(currentPrice))\(unitLabel.map { "/\($0)" } ?? "")"
+    }
+
+    /// Only provider-declared promotions become Steals. Ordinary shelf prices
+    /// remain price observations and can never be presented as discounts.
+    var promotionDeal: Deal? {
+        // A market-price observation can remain useful as a comparison baseline
+        // for 14 days, but it must not masquerade as this week's promotion. Flyer
+        // deals use their exact validity dates through the dedicated feed.
+        let weeklyPromotionCutoff = Calendar.current.date(byAdding: .day, value: -8, to: .now) ?? .now
+        guard isDiscounted,
+              sourceUpdatedAt <= staleAfter,
+              sourceUpdatedAt >= weeklyPromotionCutoff else { return nil }
+        let displayUnit = unitLabel.flatMap { $0.isEmpty ? nil : "/\($0)" } ?? ""
+        var deal = Deal(
+            id: "price-promotion:\(id)",
+            ingredientId: ingredientId,
+            retailerId: retailerId,
+            productName: productName,
+            salePrice: salePrice ?? currentPrice,
+            regularPrice: regularPrice,
+            unitLabel: displayUnit,
+            multiBuyQuantity: nil,
+            validFrom: sourceUpdatedAt,
+            validUntil: staleAfter,
+            label: .localDeal,
+            confidence: .uncertain,
+            imageName: nil,
+            category: category,
+            isSampleData: false
+        )
+        deal.retailerName = retailerName
+        deal.currencyCode = "CAD"
+        deal.dietaryFlags = dietaryFlags
+        deal.allergenFlags = allergenFlags
+        deal.retailerProductName = retailerProductName
+        deal.brand = brand
+        deal.sizeText = sizeText
+        deal.processingLevel = processingLevel
+        deal.healthPriorityScore = healthPriorityScore
+        deal.commonFoodScore = 50
+        deal.recommendationScore = healthPriorityScore * 0.70 + 15
+        return deal
+    }
+
+    func cost(for quantity: Double, unit: IngredientUnit) -> Double? {
+        let label = unitLabel?.lowercased().replacingOccurrences(of: " ", with: "") ?? ""
+        if unit == .g {
+            if label == "lb" { return currentPrice * quantity / 453.59237 }
+            if label == "kg" { return currentPrice * quantity / 1_000 }
+            if label == "100g" { return currentPrice * quantity / 100 }
+        }
+        if unit == .ml {
+            if label == "l" { return currentPrice * quantity / 1_000 }
+            if label == "100ml" { return currentPrice * quantity / 100 }
+        }
+        if unit == .unit || unit == .can { return currentPrice * quantity }
+        return nil
+    }
+}

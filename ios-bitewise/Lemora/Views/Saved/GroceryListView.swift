@@ -124,7 +124,7 @@ struct GroceryRow: View {
                     .font(.title2)
                     .foregroundStyle(item.isChecked ? BW.leaf : BW.outline)
                     .contentTransition(.symbolEffect(.replace))
-                Text(IngredientCatalog.emoji(item.ingredientId))
+                IngredientThumb(ingredientId: item.ingredientId, size: 30)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(IngredientCatalog.name(item.ingredientId))
                         .font(.bw(.body, weight: .semibold))

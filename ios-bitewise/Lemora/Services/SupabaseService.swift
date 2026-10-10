@@ -18,9 +18,6 @@ final class SupabaseService {
 
     let client: SupabaseClient
     private let logger = Logger(subsystem: "app.lemora", category: "supabase")
-    private static let quebecPriorityBanners: Set<String> = [
-        "maxi", "provigo", "iga", "metro", "super c", "walmart", "costco"
-    ]
 
     private init() {
         client = SupabaseClient(
@@ -80,38 +77,65 @@ final class SupabaseService {
     /// Loads current food-only flyer deals. The database view already excludes coupons,
     /// non-food items, stale flyers, and expired offers.
     func fetchActiveDeals(location: UserLocation) async throws -> [Deal] {
-        let rows: [LiveDealRow] = try await client
-            .from("active_food_deals_unique")
-            .select("id,ingredient_id,product_name,retailer_product_name,brand,size_text,sale_price,regular_price,multi_buy_quantity,unit_label,provider_discount_percent,deal_score,deal_confidence,deal_label,food_category,dietary_flags,allergen_flags,image_url,source_postal_code,currency_code,valid_from,valid_until,region_codes,country_code,retailer_id,retailer_name,processing_level,health_priority_score,common_food_score,recommendation_score")
-            .order("deal_score", ascending: false)
-            .limit(1_000)
-            .execute()
-            .value
-
-        let priorityRows = rows.filter {
-            Self.quebecPriorityBanners.contains($0.retailerName.lowercased())
-        }
-        let active = Self.deduplicated(priorityRows.compactMap(\.deal))
+        let columns = "id,ingredient_id,product_name,retailer_product_name,brand,size_text,sale_price,regular_price,multi_buy_quantity,unit_label,provider_discount_percent,deal_score,deal_confidence,deal_label,food_category,dietary_flags,allergen_flags,image_url,source_postal_code,currency_code,valid_from,valid_until,region_codes,country_code,retailer_id,retailer_name,processing_level,health_priority_score,common_food_score,recommendation_score"
         guard location.isSet else {
+            let rows: [LiveDealRow] = try await client
+                .from("active_food_deals_unique")
+                .select(columns)
+                .order("deal_score", ascending: false)
+                .limit(1_000)
+                .execute()
+                .value
+            let active = Self.deduplicated(rows.compactMap(\.deal))
             logger.info("Loaded \(active.count) live weekly flyer deals without a location filter")
             return active
         }
 
         let countryCode = Self.normalizedCountryCode(location.countryCode)
-        let regionCode = Self.normalizedRegionCode(
-            location.region,
-            countryCode: countryCode,
-            postalCode: location.postalCode
-        )
-        let postalRegion = Self.regionKey(location.postalCode)
-        let local = Self.deduplicated(priorityRows.compactMap { row -> Deal? in
-            guard let deal = row.deal, row.countryCode.uppercased() == countryCode else { return nil }
-            if let regionCode, row.regionCodes.map({ $0.uppercased() }).contains(regionCode) { return deal }
-            if let postalRegion, Self.regionKey(deal.sourcePostalCode) == postalRegion { return deal }
-            return nil
+        guard let country = SupportedCountry(rawValue: countryCode),
+              let postal = country.normalizePostal(location.postalCode) else { return [] }
+        await Self.ensureFlyerZone(postal)
+        let rows: [LiveDealRow] = try await client
+            .rpc("active_food_deals_for_postal", params: ["p_postal": postal])
+            .execute()
+            .value
+        let local = Self.deduplicated(rows.compactMap { row in
+            row.countryCode.uppercased() == countryCode ? row.deal : nil
         })
-        logger.info("Loaded \(local.count) live weekly flyer deals for \(countryCode, privacy: .public)-\(regionCode ?? postalRegion ?? "unknown", privacy: .private)")
+        logger.info("Loaded \(local.count) exact-postal weekly flyer deals for \(countryCode, privacy: .public)")
         return local
+    }
+
+    /// epiceries.ca currently documents a Quebec market, not Canada-wide or store-exact
+    /// coverage. The postal RPC enforces that scope, and rejects US ZIP codes entirely.
+    func fetchCurrentPrices(location: UserLocation) async throws -> [StorePrice] {
+        guard location.isSet,
+              Self.normalizedCountryCode(location.countryCode) == SupportedCountry.canada.code,
+              let postal = SupportedCountry.canada.normalizePostal(location.postalCode) else { return [] }
+        let rows: [LivePriceRow] = try await client
+            .rpc("current_food_prices_for_postal", params: ["p_postal": postal])
+            .execute()
+            .value
+        var best: [String: StorePrice] = [:]
+        for price in rows.compactMap(\.price) {
+            let key = "\(price.retailerId)|\(price.ingredientId)"
+            if best[key].map({ price.currentPrice < $0.currentPrice }) ?? true { best[key] = price }
+        }
+        let prices = Array(best.values).sorted { $0.currentPrice < $1.currentPrice }
+        logger.info("Loaded \(prices.count) fresh Quebec shelf prices for a Canadian postal code")
+        return prices
+    }
+
+    /// The first time a postal code is seen, the backend looks up which weekly flyers cover it
+    /// (a second or two). Later launches return immediately. Failures fall back to the nearest known zone.
+    private static func ensureFlyerZone(_ postal: String) async {
+        guard let url = URL(string: "\(LemoraBackend.projectURL.absoluteString)/functions/v1/flipp-direct-ingest") else { return }
+        var request = URLRequest(url: url, timeoutInterval: 8)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(LemoraBackend.publishableKey, forHTTPHeaderField: "apikey")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["ensurePostal": postal])
+        _ = try? await URLSession.shared.data(for: request)
     }
 
     /// Final client-side safety net. Supabase already deduplicates the feed, but
@@ -120,7 +144,7 @@ final class SupabaseService {
     private static func deduplicated(_ deals: [Deal]) -> [Deal] {
         var bestByKey: [String: Deal] = [:]
         for deal in deals {
-            let key = "\(deal.retailerId.lowercased())|\(deal.ingredientId.lowercased())"
+            let key = "\(deal.retailerId.lowercased())|\(deal.ingredientId.lowercased())|\(deal.productName.lowercased())"
             guard let existing = bestByKey[key] else {
                 bestByKey[key] = deal
                 continue
@@ -373,6 +397,97 @@ private nonisolated struct RemoteClassification: Decodable, Sendable {
 
 private nonisolated struct ConnectionProbe: Decodable, Sendable {
     let key: String
+}
+
+private nonisolated struct LivePriceRow: Decodable, Sendable {
+    let id: String
+    let ingredientId: String
+    let productName: String
+    let retailerProductName: String?
+    let brand: String?
+    let sizeText: String?
+    let currentPrice: Double
+    let regularPrice: Double?
+    let salePrice: Double?
+    let isDiscounted: Bool
+    let unitLabel: String?
+    let sourceUrl: String?
+    let sourceUpdatedAt: String
+    let staleAfter: String
+    let retailerId: String
+    let retailerName: String
+    let foodCategory: String
+    let dietaryFlags: [String: String]
+    let allergenFlags: [String: String]
+    let processingLevel: String
+    let healthPriorityScore: Double
+    let attribution: String
+    let imageUrl: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case ingredientId = "ingredient_id"
+        case productName = "product_name"
+        case retailerProductName = "retailer_product_name"
+        case brand
+        case sizeText = "size_text"
+        case currentPrice = "current_price"
+        case regularPrice = "regular_price"
+        case salePrice = "sale_price"
+        case isDiscounted = "is_discounted"
+        case unitLabel = "unit_label"
+        case sourceUrl = "source_url"
+        case sourceUpdatedAt = "source_updated_at"
+        case staleAfter = "stale_after"
+        case retailerId = "retailer_id"
+        case retailerName = "retailer_name"
+        case foodCategory = "food_category"
+        case dietaryFlags = "dietary_flags"
+        case allergenFlags = "allergen_flags"
+        case processingLevel = "processing_level"
+        case healthPriorityScore = "health_priority_score"
+        case attribution
+        case imageUrl = "image_url"
+    }
+
+    var price: StorePrice? {
+        guard currentPrice > 0,
+              let updated = Self.date(sourceUpdatedAt),
+              let stale = Self.date(staleAfter), stale >= .now else { return nil }
+        let normalizedRetailer = retailerId.lowercased() == "super_c" ? "superc" : retailerId.lowercased()
+        return StorePrice(
+            id: id,
+            ingredientId: ingredientId,
+            productName: productName,
+            retailerProductName: retailerProductName,
+            retailerId: normalizedRetailer,
+            retailerName: retailerName,
+            currentPrice: currentPrice,
+            regularPrice: regularPrice,
+            salePrice: salePrice,
+            isDiscounted: isDiscounted,
+            unitLabel: unitLabel,
+            sizeText: sizeText,
+            brand: brand,
+            sourceURL: sourceUrl.flatMap(URL.init(string:)),
+            sourceUpdatedAt: updated,
+            staleAfter: stale,
+            category: GroceryCategory(rawValue: foodCategory) ?? .other,
+            dietaryFlags: dietaryFlags,
+            allergenFlags: allergenFlags,
+            processingLevel: processingLevel,
+            healthPriorityScore: healthPriorityScore,
+            attribution: attribution,
+            imageURL: imageUrl.flatMap(URL.init(string:))
+        )
+    }
+
+    private static func date(_ value: String) -> Date? {
+        if let date = ISO8601DateFormatter().date(from: value) { return date }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: value)
+    }
 }
 
 private nonisolated struct LiveDealRow: Decodable, Sendable {

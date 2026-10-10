@@ -8,10 +8,13 @@ final class AppStore {
     private(set) var data: AppData
     private(set) var config = RemoteConfig()
     private(set) var deals: [Deal] = []
+    private(set) var currentStorePrices: [StorePrice] = []
     private(set) var prices: [String: RecipePrice] = [:]
     private(set) var ranked: [ScoredRecipe] = []
     private(set) var liveDealsLoaded = false
     private(set) var dealLoadError: String?
+    private(set) var currentPricesLoaded = false
+    private(set) var currentPriceLoadError: String?
 
     let subscription = SubscriptionService()
     private(set) var recipes: [Recipe] = AppStore.launchRecipes()
@@ -34,6 +37,7 @@ final class AppStore {
     private let pricing = PricingEngine()
     private let zesty = ZestyService()
     private var availableDeals: [Deal] = []
+    private var availableStorePrices: [StorePrice] = []
     private var sessionPosition = 0
 
     init(repository: UserDataRepository = LocalUserDataRepository(),
@@ -54,6 +58,7 @@ final class AppStore {
         await subscription.start()
         await loadRecipeCatalogue()
         await loadLiveDeals()
+        await loadCurrentPrices()
         analytics.track("app_opened", [:])
     }
 
@@ -117,6 +122,8 @@ final class AppStore {
     func deleteAccount() {
         repository.wipe()
         data = AppData()
+        availableDeals = []
+        availableStorePrices = []
         refreshDeals()
     }
 
@@ -127,7 +134,10 @@ final class AppStore {
             $0.profile = profile
             $0.onboardingComplete = true
         }
-        Task { await loadLiveDeals() }
+        Task {
+            await loadLiveDeals()
+            await loadCurrentPrices()
+        }
         track("onboarding_completed", ["goal": profile.goal.rawValue])
     }
 
@@ -175,10 +185,13 @@ final class AppStore {
     }
 
     func updateProfile(_ change: (inout UserProfile) -> Void) {
-        let previousPostalCode = data.profile.postalCode
+        let previousLocation = data.profile.location
         mutate { change(&$0.profile) }
-        if data.profile.postalCode != previousPostalCode {
-            Task { await loadLiveDeals() }
+        if data.profile.location != previousLocation {
+            Task {
+                await loadLiveDeals()
+                await loadCurrentPrices()
+            }
         } else {
             refreshDeals()
         }
@@ -226,11 +239,18 @@ final class AppStore {
         if availableDeals.isEmpty && !liveDealsLoaded {
             availableDeals = SampleDealProvider.deals(now: now)
         }
-        deals = availableDeals.filter {
+        currentStorePrices = availableStorePrices.filter {
+            $0.staleAfter >= now
+                && !blockedStoreIds.contains($0.retailerId)
+                && isPriceCompatible($0, profile: data.profile)
+        }
+        let flyerDeals = availableDeals.filter {
             $0.isActive(at: now)
                 && !blockedStoreIds.contains($0.retailerId)
                 && isDealCompatible($0, profile: data.profile)
         }
+        // Weekly promotions come only from this week's flyers: shelf-price discount flags can be weeks old.
+        deals = flyerDeals
         refreshRanking()
     }
 
@@ -258,6 +278,25 @@ final class AppStore {
         return true
     }
 
+    private func isPriceCompatible(_ price: StorePrice, profile: UserProfile) -> Bool {
+        if profile.dislikedIngredients.contains(where: { $0.id == price.ingredientId }) { return false }
+        if profile.allergyRefs.contains(where: { $0.kind == .ingredient && $0.id == price.ingredientId }) { return false }
+        for allergen in profile.allergies {
+            let state = price.allergenFlags[allergen.rawValue] ?? price.allergenFlags[allergen.databaseId]
+            if state == "contains" || state == "may_contain" || state == "mayContain" { return false }
+        }
+        let flags: [DietPreference: String] = [
+            .vegetarian: "vegetarian", .vegan: "vegan", .pescatarian: "pescatarian",
+            .keto: "keto", .lowCarb: "low_carb", .highProtein: "high_protein",
+            .glutenFree: "gluten_free", .dairyFree: "dairy_free", .lactoseFree: "lactose_free",
+            .halal: "halal", .kosher: "kosher",
+        ]
+        for diet in profile.diets where diet.isStrict {
+            if let key = flags[diet], price.dietaryFlags[key] != "yes" { return false }
+        }
+        return true
+    }
+
     /// Replaces development fixtures with the current, food-only weekly flyer feed.
     /// A valid location with no coverage intentionally returns no deals instead of showing another region.
     func loadLiveDeals() async {
@@ -277,23 +316,49 @@ final class AppStore {
         }
     }
 
+    func loadCurrentPrices() async {
+        do {
+            availableStorePrices = try await SupabaseService.shared.fetchCurrentPrices(location: data.profile.location)
+            currentPricesLoaded = true
+            currentPriceLoadError = nil
+            refreshDeals()
+        } catch {
+            currentPriceLoadError = error.localizedDescription
+            if !currentPricesLoaded { availableStorePrices = [] }
+            refreshDeals()
+            analytics.track("current_prices_load_failed", ["error": error.localizedDescription])
+        }
+    }
+
     func deals(myStoresOnly: Bool) -> [Deal] {
         guard myStoresOnly, !myStoreIds.isEmpty else { return deals }
         return deals.filter { myStoreIds.contains($0.retailerId) }
     }
 
+    func storePrices(myStoresOnly: Bool) -> [StorePrice] {
+        guard myStoresOnly, !myStoreIds.isEmpty else { return currentStorePrices }
+        return currentStorePrices.filter { myStoreIds.contains($0.retailerId) }
+    }
+
     func price(for recipe: Recipe, servings: Int? = nil) -> RecipePrice {
         if servings == nil || servings == recipe.servings, let cached = prices[recipe.id] { return cached }
-        return pricing.price(recipe: recipe, servings: servings ?? recipe.servings, deals: pricingDeals)
+        return pricing.price(recipe: recipe, servings: servings ?? recipe.servings,
+                             deals: pricingDeals, currentPrices: pricingStorePrices)
     }
 
     private var pricingDeals: [Deal] {
         myStoreIds.isEmpty ? deals : deals.filter { myStoreIds.contains($0.retailerId) }
     }
 
+    private var pricingStorePrices: [StorePrice] {
+        myStoreIds.isEmpty ? currentStorePrices : currentStorePrices.filter { myStoreIds.contains($0.retailerId) }
+    }
+
     private func refreshRanking() {
         let scoped = pricingDeals
-        prices = Dictionary(uniqueKeysWithValues: recipes.map { ($0.id, pricing.price(recipe: $0, servings: $0.servings, deals: scoped)) })
+        prices = Dictionary(uniqueKeysWithValues: recipes.map {
+            ($0.id, pricing.price(recipe: $0, servings: $0.servings, deals: scoped, currentPrices: pricingStorePrices))
+        })
         let seen = Set(data.swipes.map(\.recipeId))
         ranked = engine.rank(recipes: recipes, profile: data.profile, taste: data.tasteWeights, seen: seen,
                              prices: prices, weights: config.weights)

@@ -417,7 +417,23 @@ struct BudgetEditView: View {
         }
     }
 }
-struct StoresEditView: View { var body: some View { ProfileEditor { StoresStep(profile: $0) } } }
+struct StoresEditView: View {
+    var body: some View {
+        OnboardingPrefEditor(
+            screen: .stores,
+            title: "Where do you shop?",
+            subtitle: "Only stores available for your saved country and region are shown.",
+            mood: .cart,
+            apply: { model, profile in
+                let updated = model.makeProfile(base: profile)
+                profile.storePreferences = updated.storePreferences
+                profile.shopsAtCostco = updated.shopsAtCostco
+            }
+        ) {
+            OBStoresStep()
+        }
+    }
+}
 struct StrategyEditView: View {
     var body: some View {
         OnboardingPrefEditor(screen: .strategy, title: "How do you like to shop?", subtitle: "I’ll plan your list around this.", mood: .cart,
@@ -430,7 +446,28 @@ struct StrategyEditView: View {
         }
     }
 }
-struct LocationEditView: View { var body: some View { ProfileEditor { LocationStep(profile: $0) } } }
+struct LocationEditView: View {
+    var body: some View {
+        OnboardingPrefEditor(
+            screen: .location,
+            title: "Where do you shop?",
+            subtitle: "Your country and postal code decide which stores and prices can appear.",
+            mood: .thinking,
+            apply: { model, profile in
+                let previousCountry = profile.location.countryCode
+                let previousRegion = profile.location.region
+                let updated = model.makeProfile(base: profile)
+                profile.location = updated.location
+                if updated.location.countryCode != previousCountry || updated.location.region != previousRegion {
+                    profile.storePreferences = [:]
+                    profile.shopsAtCostco = false
+                }
+            }
+        ) {
+            OBLocationStep()
+        }
+    }
+}
 
 struct NotificationsEditView: View {
     @Environment(AppStore.self) private var store

@@ -13,8 +13,11 @@ struct DealsView: View {
                     storeToggle
                     storesThisWeek
                     seeAllBanner
+                    lowestPrices
                     worthIt
-                    SamplePricesNote().padding(.horizontal, 20)
+                    if stealItems.contains(where: \.isSampleData) {
+                        SamplePricesNote().padding(.horizontal, 20)
+                    }
                 }
                 .padding(.bottom, 24)
             }
@@ -158,6 +161,51 @@ struct DealsView: View {
         .padding(.horizontal, 20)
     }
 
+    // MARK: Current prices
+
+    private var priceItems: [StorePrice] {
+        let scoped = store.storePrices(myStoresOnly: myStoresOnly)
+        var cheapest: [String: StorePrice] = [:]
+        for price in scoped {
+            if cheapest[price.ingredientId].map({ price.currentPrice < $0.currentPrice }) ?? true {
+                cheapest[price.ingredientId] = price
+            }
+        }
+        return Array(cheapest.values)
+            .sorted { lhs, rhs in
+                if lhs.isDiscounted != rhs.isDiscounted { return lhs.isDiscounted }
+                return lhs.currentPrice < rhs.currentPrice
+            }
+    }
+
+    @ViewBuilder
+    private var lowestPrices: some View {
+        if !priceItems.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader(
+                    title: String(localized: "Lowest current prices"),
+                    subtitle: String(localized: "Fresh shelf prices available for your Quebec market")
+                )
+                .padding(.horizontal, 20)
+
+                ScrollView(.horizontal) {
+                    LazyHStack(spacing: 12) {
+                        ForEach(priceItems.prefix(12)) { price in
+                            CurrentPriceCard(price: price)
+                        }
+                    }
+                }
+                .contentMargins(.horizontal, 20)
+                .scrollIndicators(.hidden)
+
+                Text("Prices from epiceries.ca · Updated weekly · Verify in store")
+                    .font(.bw(.caption2, weight: .medium))
+                    .foregroundStyle(BW.inkSecondary)
+                    .padding(.horizontal, 20)
+            }
+        }
+    }
+
     // MARK: Worth It
 
     private var worthItItems: [ScoredRecipe] { store.worthIt }
@@ -185,6 +233,49 @@ struct DealsView: View {
                 .padding(.horizontal, 20)
             }
         }
+    }
+}
+
+private struct CurrentPriceCard: View {
+    let price: StorePrice
+
+    var body: some View {
+        Group {
+            if let sourceURL = price.sourceURL {
+                Link(destination: sourceURL) { content }
+            } else {
+                content
+            }
+        }
+        .buttonStyle(BWPressableStyle())
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ProductPhoto(url: price.imageURL, category: price.category)
+                .frame(height: 96)
+                .clipShape(.rect(cornerRadius: 12))
+            Text(price.retailerProductName ?? price.productName)
+                .font(.bw(.subheadline, weight: .bold))
+                .foregroundStyle(BW.ink)
+                .lineLimit(2)
+            Text(price.priceText)
+                .font(.bw(.title3, weight: .heavy))
+                .foregroundStyle(BW.ink)
+            Text(price.retailerName)
+                .font(.bw(.caption, weight: .semibold))
+                .foregroundStyle(BW.inkSecondary)
+            if let size = price.sizeText, !size.isEmpty {
+                Text(size)
+                    .font(.bw(.caption2, weight: .regular))
+                    .foregroundStyle(BW.inkSecondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(14)
+        .frame(width: 180)
+        .frame(minHeight: 168, alignment: .topLeading)
+        .background(BW.card, in: .rect(cornerRadius: BW.cardRadius))
     }
 }
 
@@ -328,10 +419,16 @@ struct StoreDealsCard: View {
             DealArtwork(deal: deal, height: 56, radius: 14)
                 .frame(width: 56)
             VStack(alignment: .leading, spacing: 2) {
-                Text(IngredientCatalog.name(deal.ingredientId))
+                Text(deal.productName)
                     .font(.bw(.subheadline, weight: .bold))
                     .foregroundStyle(BW.ink)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                if let size = deal.sizeText, !size.isEmpty {
+                    Text(size)
+                        .font(.bw(.caption2, weight: .medium))
+                        .foregroundStyle(BW.inkSecondary)
+                        .lineLimit(1)
+                }
                 if let regular = deal.regularPrice {
                     Text(Money.format(regular))
                         .font(.bw(.caption, weight: .medium))
@@ -506,8 +603,11 @@ struct StealCard: View {
                 }
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(IngredientCatalog.name(deal.ingredientId))
-                    .font(.bw(.subheadline, weight: .bold)).foregroundStyle(BW.ink).lineLimit(1)
+                Text(deal.productName)
+                    .font(.bw(.subheadline, weight: .bold)).foregroundStyle(BW.ink)
+                    .lineLimit(2, reservesSpace: true)
+                Text(deal.sizeText?.isEmpty == false ? deal.sizeText! : " ")
+                    .font(.bw(.caption2, weight: .medium)).foregroundStyle(BW.inkSecondary).lineLimit(1)
                 Text(deal.priceText)
                     .font(.bw(.title3, weight: .heavy)).monospacedDigit().foregroundStyle(BW.ink)
                     .lineLimit(1).minimumScaleFactor(0.8)
@@ -539,33 +639,13 @@ private struct DealArtwork: View {
         Group {
             if let image = deal.imageName {
                 FoodImage(name: image, height: height, radius: radius)
-            } else if let url = deal.imageURL {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().scaledToFill()
-                    default:
-                        placeholder
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: height)
-                .clipped()
-                .clipShape(.rect(cornerRadius: radius))
             } else {
-                placeholder
+                ProductPhoto(url: deal.imageURL, category: deal.category)
+                    .frame(maxWidth: .infinity)
                     .frame(height: height)
                     .clipShape(.rect(cornerRadius: radius))
             }
         }
-    }
-
-    private var placeholder: some View {
-        BW.beigeSoft
-            .overlay {
-                Text(IngredientCatalog.emoji(deal.ingredientId))
-                    .font(.system(size: min(90, height * 0.45)))
-            }
     }
 }
 
@@ -599,9 +679,6 @@ struct DealDetailView: View {
                         }
                         Text("At \(deal.retailerDisplayName) · valid \(deal.validFrom.formatted(.dateTime.month().day()))–\(deal.validUntil.formatted(.dateTime.month().day()))")
                             .font(.bw(.subheadline, weight: .medium)).foregroundStyle(BW.inkSecondary)
-                        if let exactName = deal.retailerProductName, exactName != deal.productName {
-                            Text(exactName).font(.bw(.subheadline, weight: .semibold)).foregroundStyle(BW.ink)
-                        }
                         if let brand = deal.brand, !brand.isEmpty {
                             Text("Brand: \(brand)").font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
                         }
