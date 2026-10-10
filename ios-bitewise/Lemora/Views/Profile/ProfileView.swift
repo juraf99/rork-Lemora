@@ -52,6 +52,9 @@ struct ProfileView: View {
                     } label: {
                         row("character.bubble", String(localized: "Language"), Locale.current.localizedString(forLanguageCode: Locale.current.language.languageCode?.identifier ?? "en") ?? "English")
                     }
+                    NavigationLink { CurrencyEditView() } label: {
+                        row("banknote", String(localized: "Currency"), "\(CurrencyState.shared.current.flag) \(CurrencyState.shared.current.rawValue)")
+                    }
                     NavigationLink { NotificationsEditView() } label: { Label("Notifications", systemImage: "bell") }
                     NavigationLink { PrivacyView() } label: { Label("Privacy", systemImage: "hand.raised") }
                 }

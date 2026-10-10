@@ -113,6 +113,7 @@ struct DiscoverView: View {
             }
             RecipeSwipeCard(item: top, showWhy: $showWhy)
                 .id(top.id)
+                .id(top.id)
                 .overlay(alignment: .topLeading) { stamp }
                 .offset(x: drag.width, y: drag.height * 0.3)
                 .rotationEffect(.degrees(Double(drag.width) / 22))

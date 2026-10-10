@@ -49,6 +49,7 @@ final class AppStore {
     // MARK: Lifecycle
 
     func bootstrap() async {
+        syncCurrency()
         config = await configProvider.fetch()
         await subscription.start()
         await loadRecipeCatalogue()
@@ -81,6 +82,18 @@ final class AppStore {
     func mutate(_ change: (inout AppData) -> Void) {
         change(&data)
         persist()
+        syncCurrency()
+    }
+
+    /// Currency follows the location entered at onboarding unless the user picked one in Profile.
+    func syncCurrency() {
+        CurrencyState.shared.sync(countryCode: data.profile.location.countryCode, postalCode: data.profile.postalCode)
+    }
+
+    func setCurrency(_ currency: AppCurrency?) {
+        CurrencyState.shared.override = currency
+        syncCurrency()
+        track("currency_changed", ["currency": currency?.rawValue ?? "auto"])
     }
 
     func track(_ event: String, _ props: [String: String] = [:]) {

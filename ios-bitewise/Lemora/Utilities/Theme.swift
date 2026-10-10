@@ -146,7 +146,7 @@ struct BWPressableStyle: ButtonStyle {
 
 nonisolated enum Money {
     static func format(_ value: Double) -> String {
-        value.formatted(.currency(code: "CAD").presentation(.narrow))
+        CurrencyState.shared.current.format(cad: value)
     }
 
     static func format(_ value: Double?) -> String {

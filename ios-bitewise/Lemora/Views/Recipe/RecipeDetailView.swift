@@ -44,7 +44,7 @@ struct RecipeDetailView: View {
                     titleBlock
                     statTiles
                     if hasSavings { savingsCard }
-                    if !recipe.storePricesPerServing.isEmpty { StorePricesCard(prices: recipe.storePricesPerServing) }
+                    if !recipe.storePricesPerServing.isEmpty { StorePricesCard(prices: recipe.storePricesPerServing, recipe: recipe) }
                     if let exclusion = store.exclusionReason(for: recipe) {
                         warning(exclusion)
                     }

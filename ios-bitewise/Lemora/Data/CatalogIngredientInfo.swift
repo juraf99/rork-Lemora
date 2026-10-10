@@ -341,38 +341,110 @@ nonisolated enum CatalogIngredientInfo {
     }
 }
 
-/// Average regular price per serving at each banner (estimated, before deals).
+/// Price per serving at each banner: average regular price, minus this week's deals at that store.
+/// A store with a deal gets a "Deal" tag even when another store is still cheaper overall.
 struct StorePricesCard: View {
     let prices: [String: Double]
+    let recipe: Recipe
+    @Environment(AppStore.self) private var store
 
-    private var rows: [(id: String, price: Double)] {
-        prices.map { (id: $0.key, price: $0.value) }.sorted { $0.price < $1.price }
+    private struct StoreDeal: Identifiable {
+        let id: String
+        let ingredientId: String
+        let deal: Deal
+    }
+
+    private struct Row: Identifiable {
+        let id: String
+        let regular: Double
+        let price: Double
+        let deals: [StoreDeal]
+    }
+
+    private var rows: [Row] {
+        let servings = Double(max(recipe.servings, 1))
+        let now = Date()
+        return prices.map { storeId, regular -> Row in
+            var found: [StoreDeal] = []
+            var savings = 0.0
+            for item in recipe.ingredients {
+                let ids = PricingEngine.compatibleDealIds(for: item.ingredientId)
+                let candidates = store.deals.filter {
+                    $0.retailerId.lowercased() == storeId && ids.contains($0.ingredientId) && $0.validUntil >= now
+                }
+                let costed: [(Deal, Double?)] = candidates.map { deal in
+                    if let c = deal.cost(for: item.quantity, unit: item.unit) { return (deal, c) }
+                    if deal.discountPercent != nil, let regularCost = item.estimatedCost { return (deal, regularCost * deal.priceRatio) }
+                    return (deal, nil)
+                }
+                guard let best = costed.min(by: { ($0.1 ?? .infinity) < ($1.1 ?? .infinity) }) else { continue }
+                if let sale = best.1, let regularCost = item.estimatedCost { savings += max(0, regularCost - sale) }
+                found.append(StoreDeal(id: best.0.id + "|" + item.ingredientId, ingredientId: item.ingredientId, deal: best.0))
+            }
+            return Row(id: storeId, regular: regular, price: max(0, regular - savings / servings), deals: found)
+        }
+        .sorted { $0.price < $1.price }
     }
 
     var body: some View {
+        let allRows = self.rows
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Price per serving by store").font(.bw(.title3)).foregroundStyle(BW.ink)
-                Text("Average regular prices, before this week's deals.")
+                Text("Average regular prices, with this week's deals applied.")
                     .font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
             }
             VStack(spacing: 0) {
-                ForEach(Array(rows.enumerated()), id: \.element.id) { idx, row in
-                    HStack(spacing: 10) {
-                        StoreChip(retailerId: row.id, name: RetailerCatalog.name(row.id))
-                        if idx == 0 {
-                            Text("Cheapest")
-                                .font(.bw(.caption2, weight: .heavy)).foregroundStyle(BW.leafDeep)
-                                .padding(.horizontal, 8).padding(.vertical, 3)
-                                .background(BW.leafSoft, in: .capsule)
+                ForEach(Array(allRows.enumerated()), id: \.element.id) { idx, row in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            StoreChip(retailerId: row.id, name: RetailerCatalog.name(row.id))
+                            if !row.deals.isEmpty {
+                                Label("Deal", systemImage: "tag.fill")
+                                    .font(.bw(.caption2, weight: .heavy)).foregroundStyle(BW.ink)
+                                    .padding(.horizontal, 8).padding(.vertical, 3)
+                                    .background(BW.lemon, in: .capsule)
+                            }
+                            if idx == 0 {
+                                Text("Cheapest")
+                                    .font(.bw(.caption2, weight: .heavy)).foregroundStyle(BW.leafDeep)
+                                    .padding(.horizontal, 8).padding(.vertical, 3)
+                                    .background(BW.leafSoft, in: .capsule)
+                            }
+                            Spacer(minLength: 4)
+                            VStack(alignment: .trailing, spacing: 0) {
+                                if row.price < row.regular - 0.005 {
+                                    Text(Money.format(row.regular))
+                                        .font(.bw(.caption, weight: .medium)).monospacedDigit()
+                                        .strikethrough().foregroundStyle(BW.inkSecondary)
+                                }
+                                Text(Money.format(row.price))
+                                    .font(.bw(.headline, weight: idx == 0 ? .heavy : .semibold)).monospacedDigit()
+                                    .foregroundStyle(idx == 0 || !row.deals.isEmpty ? BW.leafDeep : BW.ink)
+                            }
                         }
-                        Spacer()
-                        Text(Money.format(row.price))
-                            .font(.bw(.headline, weight: idx == 0 ? .heavy : .semibold)).monospacedDigit()
-                            .foregroundStyle(idx == 0 ? BW.leafDeep : BW.ink)
+                        ForEach(row.deals) { d in
+                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                Text(IngredientCatalog.emoji(d.ingredientId))
+                                VStack(alignment: .leading, spacing: 1) {
+                                    HStack(spacing: 4) {
+                                        Text(IngredientCatalog.name(d.ingredientId)).fontWeight(.bold)
+                                        Text(d.deal.priceText).fontWeight(.heavy).foregroundStyle(BW.leafDeep)
+                                        if let was = d.deal.regularPrice, was > d.deal.effectivePrice {
+                                            Text("\(Money.format(was))\(d.deal.unitLabel)").strikethrough().foregroundStyle(BW.inkSecondary)
+                                        }
+                                    }
+                                    Text(DealTiming.endText(d.deal.validUntil)).foregroundStyle(BW.amber)
+                                }
+                            }
+                            .font(.bw(.caption, weight: .medium))
+                            .foregroundStyle(BW.ink)
+                            .padding(.leading, 4)
+                        }
                     }
                     .padding(.horizontal, 16).padding(.vertical, 11)
-                    if idx < rows.count - 1 { Divider().overlay(BW.hairline).padding(.leading, 16) }
+                    .background(row.deals.isEmpty ? Color.clear : BW.lemonSoft.opacity(0.45))
+                    if idx < allRows.count - 1 { Divider().overlay(BW.hairline).padding(.leading, 16) }
                 }
             }
             .bwCard()
