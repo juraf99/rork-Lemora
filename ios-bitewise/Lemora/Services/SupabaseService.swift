@@ -181,7 +181,7 @@ private nonisolated struct RemoteRecipeEnvelope: Decodable, Sendable {
                 rawText: "\(unit.format(item.quantity)) \(name)",
                 quantity: item.quantity,
                 unit: unit,
-                estimatedCost: nil
+                estimatedCost: item.estimatedCost
             )
         }
         let dietEntries = payload.dietClassification.filter {
@@ -224,7 +224,8 @@ private nonisolated struct RemoteRecipeEnvelope: Decodable, Sendable {
             rejectedDietKeys: rejected,
             identifiedAllergenKeys: Set(payload.knownAllergens),
             possibleAllergenKeys: Set(payload.possibleAllergens),
-            priceStatus: NutritionStatus(rawValue: payload.price?.status ?? "unknown") ?? .unknown
+            priceStatus: NutritionStatus(rawValue: payload.price?.status ?? "unknown") ?? .unknown,
+            storePricesPerServing: payload.price?.byStore ?? [:]
         )
     }
 
@@ -314,9 +315,11 @@ private nonisolated struct RemoteIngredient: Decodable, Sendable {
     let name: RemoteLocalizedText
     let quantity: Double
     let unit: String
+    let estimatedCost: Double?
     enum CodingKeys: String, CodingKey {
         case normalizedName = "normalized_name"
         case name, quantity, unit
+        case estimatedCost = "estimated_cost"
     }
 }
 private nonisolated struct RemoteNutrition: Decodable, Sendable {
@@ -335,7 +338,16 @@ private nonisolated struct RemoteNutrition: Decodable, Sendable {
         case fat = "fat_g"
     }
 }
-private nonisolated struct RemotePrice: Decodable, Sendable { let status: String? }
+private nonisolated struct RemotePrice: Decodable, Sendable {
+    let status: String?
+    let perServing: Double?
+    let byStore: [String: Double]?
+    enum CodingKeys: String, CodingKey {
+        case status
+        case perServing = "per_serving"
+        case byStore = "by_store_per_serving"
+    }
+}
 private nonisolated struct RemoteClassification: Decodable, Sendable {
     let proteinSources: [String]
     enum CodingKeys: String, CodingKey { case proteinSources = "protein_sources" }

@@ -50,7 +50,10 @@ final class AppStore {
     func loadRecipeCatalogue() async {
         do {
             let fetched = try await SupabaseService.shared.fetchRecipeCatalogue()
-            if !fetched.isEmpty { recipes = fetched }
+            if !fetched.isEmpty {
+                let fetchedIds = Set(fetched.map(\.id))
+                recipes = fetched + RecipeCatalog.all.filter { !fetchedIds.contains($0.id) }
+            }
             recipeCatalogueLoaded = true
             recipeCatalogueError = nil
             refreshRanking()

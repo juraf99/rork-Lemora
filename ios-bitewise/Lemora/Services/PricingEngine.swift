@@ -92,7 +92,7 @@ nonisolated struct PricingEngine {
         case "rigatoni": ["rigatoni", "pasta"]
         case "sweet_potato": ["sweet_potato", "potato"]
         case "bell_pepper": ["bell_pepper", "pepper", "peppers"]
-        default: [ingredientId]
+        default: CatalogIngredientInfo.dealIds(for: ingredientId)
         }
     }
 

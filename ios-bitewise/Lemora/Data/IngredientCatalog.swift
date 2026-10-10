@@ -78,7 +78,9 @@ nonisolated enum IngredientCatalog {
 
     static func ingredient(_ id: String) -> Ingredient? { all[id] }
 
-    static func name(_ id: String) -> String { all[id]?.name ?? id.replacingOccurrences(of: "_", with: " ").capitalized }
+    static func name(_ id: String) -> String {
+        all[id]?.name ?? CatalogIngredientInfo.info[id]?.name ?? id.replacingOccurrences(of: "_", with: " ").capitalized
+    }
 
     static func emoji(_ id: String) -> String {
         switch id {
@@ -109,7 +111,7 @@ nonisolated enum IngredientCatalog {
         case "coconut_milk": "🥥"
         case "cilantro", "parsley", "basil", "arugula", "spinach": "🌿"
         case "maple_syrup": "🍁"
-        default: "🛒"
+        default: CatalogIngredientInfo.info[id]?.emoji ?? "🛒"
         }
     }
 }

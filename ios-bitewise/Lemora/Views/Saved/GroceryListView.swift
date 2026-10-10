@@ -25,7 +25,7 @@ struct GroceryListView: View {
         case .store:
             grouped = Dictionary(grouping: items) { RetailerCatalog.name($0.retailerId) }
         case .category:
-            grouped = Dictionary(grouping: items) { IngredientCatalog.ingredient($0.ingredientId)?.category.title ?? String(localized: "Other") }
+            grouped = Dictionary(grouping: items) { (IngredientCatalog.ingredient($0.ingredientId)?.category ?? CatalogIngredientInfo.info[$0.ingredientId]?.category)?.title ?? String(localized: "Other") }
         case .recipe:
             grouped = Dictionary(grouping: items) { item in
                 item.recipeIds.first.flatMap { id in store.recipes.first { $0.id == id }?.title } ?? String(localized: "Deals")

@@ -106,6 +106,8 @@ nonisolated struct Recipe: Identifiable, Hashable, Sendable {
     var identifiedAllergenKeys: Set<String> = []
     var possibleAllergenKeys: Set<String> = []
     var priceStatus: NutritionStatus = .estimated
+    /// Estimated average regular price per serving by banner id (before deals).
+    var storePricesPerServing: [String: Double] = [:]
 
     var totalMinutes: Int { prepMinutes + cookMinutes }
 
