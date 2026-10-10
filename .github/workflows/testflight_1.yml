@@ -64,9 +64,10 @@ jobs:
           echo "Key body length: ${#BODY}"
           chmod 600 "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
 
-      # Record existing certificates. Cleanup may only revoke a newly created certificate
-      # whose DER content matches the signing certificate in this run's own archive.
-      - name: Record existing signing certificates
+      # Remove at most one stale certificate made by a previous ephemeral API runner,
+      # then record the remaining IDs. Certificates created on a developer Mac are kept.
+      # Final cleanup may only revoke the new certificate embedded in this run's archive.
+      - name: Prepare signing certificates
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -85,9 +86,22 @@ jobs:
               with urllib.request.urlopen(req) as r:
                   body = r.read()
                   return json.loads(body) if body else None
-          certs = call("GET", "https://api.appstoreconnect.apple.com/v1/certificates?limit=200")["data"]
+          certificates_url = "https://api.appstoreconnect.apple.com/v1/certificates?limit=200"
+          certs = call("GET", certificates_url)["data"]
           snapshot = os.path.join(os.environ["RUNNER_TEMP"], "lemora-existing-certificates.json")
           if sys.argv[1] == "record":
+              stale_ci = []
+              for c in certs:
+                  a = c["attributes"]
+                  labels = {a.get("name"), a.get("displayName")}
+                  is_dev = a.get("certificateType") in ("DEVELOPMENT", "IOS_DEVELOPMENT")
+                  if is_dev and "Created via API" in labels:
+                      stale_ci.append(c)
+              if stale_ci:
+                  stale = min(stale_ci, key=lambda c: c["attributes"].get("expirationDate") or "")
+                  call("DELETE", f'https://api.appstoreconnect.apple.com/v1/certificates/{stale["id"]}')
+                  print("Revoked one stale development certificate created by an earlier API runner.")
+                  certs = call("GET", certificates_url)["data"]
               with open(snapshot, "w") as f:
                   json.dump([c["id"] for c in certs], f)
               print("Recorded existing certificate IDs; none revoked.")
@@ -145,7 +159,7 @@ jobs:
             -skipMacroValidation \
             DEVELOPMENT_TEAM="$TEAM_ID" \
             CODE_SIGN_STYLE=Automatic \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
+            CODE_SIGN_IDENTITY="Apple Development" \
             PROVISIONING_PROFILE_SPECIFIER="" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             INFOPLIST_KEY_ITSAppUsesNonExemptEncryption=NO
