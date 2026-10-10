@@ -49,14 +49,32 @@ final class SupabaseService {
 
     /// Loads the permanent catalogue through a narrow read-only RPC. The complete
     /// bilingual source payload stays in Supabase so the client does not lose fields.
-    func fetchRecipeCatalogue() async throws -> [Recipe] {
-        let rows: [RemoteRecipeEnvelope] = try await client
+    /// Fetches the catalogue and caches the raw response on the device. `changed` is false when the
+    /// response is identical to the cached copy, so the app can keep its current cards untouched.
+    func fetchRecipeCatalogue() async throws -> (recipes: [Recipe], changed: Bool) {
+        let data = try await client
             .rpc("get_lemora_recipe_catalog")
             .execute()
-            .value
+            .data
+        let rows = try JSONDecoder().decode([RemoteRecipeEnvelope].self, from: data)
         let recipes = rows.compactMap(\.recipe)
-        logger.info("Loaded \(recipes.count) recipes from the permanent catalogue")
-        return recipes
+        let cacheURL = Self.recipeCatalogueCacheURL
+        let changed = (try? Data(contentsOf: cacheURL)) != data
+        if changed && !recipes.isEmpty { try? data.write(to: cacheURL, options: .atomic) }
+        logger.info("Loaded \(recipes.count) recipes from the permanent catalogue (changed: \(changed))")
+        return (recipes, changed)
+    }
+
+    nonisolated static var recipeCatalogueCacheURL: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("lemora-recipe-catalogue-v1.json")
+    }
+
+    /// Recipes from the last successful download, available instantly at launch (empty if none).
+    nonisolated static func cachedRecipeCatalogue() -> [Recipe] {
+        guard let data = try? Data(contentsOf: recipeCatalogueCacheURL),
+              let rows = try? JSONDecoder().decode([RemoteRecipeEnvelope].self, from: data) else { return [] }
+        return rows.compactMap(\.recipe)
     }
 
     /// Loads current food-only flyer deals. The database view already excludes coupons,

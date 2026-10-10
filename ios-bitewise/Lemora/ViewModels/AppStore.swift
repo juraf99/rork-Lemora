@@ -14,7 +14,16 @@ final class AppStore {
     private(set) var dealLoadError: String?
 
     let subscription = SubscriptionService()
-    private(set) var recipes: [Recipe] = RecipeCatalog.all
+    private(set) var recipes: [Recipe] = AppStore.launchRecipes()
+    private var catalogueFromCache: Bool = FileManager.default.fileExists(atPath: SupabaseService.recipeCatalogueCacheURL.path)
+
+    /// Cached catalogue (instant, no reshuffle at launch) plus the bundled original recipes.
+    private static func launchRecipes() -> [Recipe] {
+        let cached = SupabaseService.cachedRecipeCatalogue()
+        guard !cached.isEmpty else { return RecipeCatalog.all }
+        let ids = Set(cached.map(\.id))
+        return cached + RecipeCatalog.all.filter { !ids.contains($0.id) }
+    }
     private(set) var recipeCatalogueLoaded = false
     private(set) var recipeCatalogueError: String?
 
@@ -49,14 +58,16 @@ final class AppStore {
 
     func loadRecipeCatalogue() async {
         do {
-            let fetched = try await SupabaseService.shared.fetchRecipeCatalogue()
-            if !fetched.isEmpty {
+            let result = try await SupabaseService.shared.fetchRecipeCatalogue()
+            let fetched = result.recipes
+            if !fetched.isEmpty && (result.changed || !catalogueFromCache) {
                 let fetchedIds = Set(fetched.map(\.id))
                 recipes = fetched + RecipeCatalog.all.filter { !fetchedIds.contains($0.id) }
+                refreshRanking()
             }
+            catalogueFromCache = true
             recipeCatalogueLoaded = true
             recipeCatalogueError = nil
-            refreshRanking()
         } catch {
             recipeCatalogueError = error.localizedDescription
             analytics.track("recipe_catalogue_load_failed", ["error": error.localizedDescription])

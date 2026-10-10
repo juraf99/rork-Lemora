@@ -10,7 +10,21 @@ struct DiscoverView: View {
     @State private var likeTrigger: Int = 0
     @State private var passTrigger: Int = 0
 
-    private var queue: [ScoredRecipe] { store.discoverQueue }
+    /// The card on screen stays on screen even if deals or the catalogue re-rank the queue in the background.
+    @State private var pinnedId: String? = nil
+
+    private var queue: [ScoredRecipe] {
+        let q = store.discoverQueue
+        guard let pinnedId, let idx = q.firstIndex(where: { $0.id == pinnedId }), idx > 0 else { return q }
+        var out = q
+        out.insert(out.remove(at: idx), at: 0)
+        return out
+    }
+
+    private func prefetchNextImages() {
+        let urls = queue.prefix(6).compactMap { URL(string: $0.recipe.imageName) }.filter { $0.scheme == "https" }
+        RemoteImagePipeline.shared.prefetch(urls)
+    }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -39,7 +53,12 @@ struct DiscoverView: View {
             .sheet(isPresented: $showPaywall) {
                 PaywallView(context: .upgrade) { showPaywall = false }
             }
-            .onAppear { store.track("discover_opened") }
+            .onAppear {
+                store.track("discover_opened")
+                if pinnedId == nil { pinnedId = store.discoverQueue.first?.id }
+                prefetchNextImages()
+            }
+            .onChange(of: store.discoverQueue.count) { _, _ in prefetchNextImages() }
         }
     }
 
@@ -93,6 +112,7 @@ struct DiscoverView: View {
                     .allowsHitTesting(false)
             }
             RecipeSwipeCard(item: top, showWhy: $showWhy)
+                .id(top.id)
                 .overlay(alignment: .topLeading) { stamp }
                 .offset(x: drag.width, y: drag.height * 0.3)
                 .rotationEffect(.degrees(Double(drag.width) / 22))
@@ -182,8 +202,10 @@ struct DiscoverView: View {
         Task {
             try? await Task.sleep(for: .milliseconds(220))
             store.swipe(item, direction)
+            pinnedId = store.discoverQueue.first?.id
             drag = .zero
             flyOut = nil
+            prefetchNextImages()
         }
     }
 

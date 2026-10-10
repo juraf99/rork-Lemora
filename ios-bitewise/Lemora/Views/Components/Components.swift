@@ -34,14 +34,9 @@ struct FoodImage: View {
             .frame(maxWidth: .infinity)
             .overlay {
                 if let url = URL(string: name), url.scheme == "https" {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image): image.resizable().aspectRatio(contentMode: .fill)
-                        case .failure: Image(systemName: "fork.knife").font(.largeTitle).foregroundStyle(BW.inkSecondary)
-                        default: ProgressView().tint(BW.leaf)
-                        }
-                    }
-                    .allowsHitTesting(false)
+                    RemoteFoodImage(url: url)
+                        .id(url)
+                        .allowsHitTesting(false)
                 } else {
                     Image(name)
                         .resizable()
