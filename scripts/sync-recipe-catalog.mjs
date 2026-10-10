@@ -23,10 +23,12 @@ if (fs.existsSync(envPath)) {
 
 const projectUrl = process.env.SUPABASE_URL ?? 'https://fsucqlqsafoligouzgrl.supabase.co';
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const syncToken = process.env.LEMORA_CATALOG_SYNC_TOKEN;
+const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? 'sb_publishable_2iPvFh4m-T-1oG-s84VOzw_1H4R9T3G';
 const dryRun = process.argv.includes('--dry-run');
 
-if (!serviceKey && !dryRun) {
-  throw new Error('SUPABASE_SERVICE_ROLE_KEY is required unless --dry-run is used.');
+if (!serviceKey && !syncToken && !dryRun) {
+  throw new Error('LEMORA_CATALOG_SYNC_TOKEN or SUPABASE_SERVICE_ROLE_KEY is required unless --dry-run is used.');
 }
 
 const catalogue = JSON.parse(fs.readFileSync(path.join(catalogueRoot, 'recipes.json'), 'utf8'));
@@ -35,6 +37,11 @@ const recipes = catalogue.recipes;
 const assetByAppPath = new Map(assets.map((asset) => [asset.appAsset, asset]));
 const namespace = '965e6366-20fd-5ad4-b7e7-b3a3d30c76d9';
 const allergenAliases = { molluscs: 'mollusk' };
+const supportedDiets = new Set([
+  'vegetarian', 'vegan', 'pescatarian', 'keto', 'low_carb',
+  'high_protein', 'gluten_free', 'dairy_free', 'lactose_free',
+  'halal', 'kosher',
+]);
 
 function uuidToBytes(uuid) {
   return Buffer.from(uuid.replaceAll('-', ''), 'hex');
@@ -50,6 +57,10 @@ function uuidV5(value) {
 
 function headers(extra = {}) {
   return { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, ...extra };
+}
+
+function publicHeaders(extra = {}) {
+  return { apikey: publishableKey, ...extra };
 }
 
 async function request(url, options = {}) {
@@ -76,7 +87,15 @@ function ensureCatalogueIntegrity() {
 }
 
 async function existingCatalogueIds() {
-  const rows = await request(`${projectUrl}/rest/v1/recipes?select=catalogue_id&catalogue_id=not.is.null`, { headers: headers() });
+  if (serviceKey) {
+    const rows = await request(`${projectUrl}/rest/v1/recipes?select=catalogue_id&catalogue_id=not.is.null`, { headers: headers() });
+    return new Set(rows.map((row) => row.catalogue_id));
+  }
+  const rows = await request(`${projectUrl}/rest/v1/rpc/get_lemora_recipe_catalog`, {
+    method: 'POST',
+    headers: publicHeaders({ 'Content-Type': 'application/json' }),
+    body: '{}',
+  });
   return new Set(rows.map((row) => row.catalogue_id));
 }
 
@@ -92,6 +111,15 @@ async function uploadImage(recipe) {
     body: fs.readFileSync(sourcePath),
   });
   return { objectPath, publicUrl, uploaded: true };
+}
+
+async function syncThroughEdgeFunction(recipe, rows) {
+  const sourcePath = path.join(catalogueRoot, recipe.image.app);
+  return request(`${projectUrl}/functions/v1/sync-recipe-catalog`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${syncToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ payload: rows, image_base64: fs.readFileSync(sourcePath).toString('base64') }),
+  });
 }
 
 function recipeRows(recipe, image) {
@@ -135,7 +163,7 @@ function recipeRows(recipe, image) {
     steps: recipe.instructions.fr.map((instruction, index) => ({ recipe_id: id, step_number: index + 1, instruction, instruction_fr: instruction, instruction_en: recipe.instructions.en[index] })),
     nutrition: { recipe_id: id, calories: nutrition.calories_kcal, protein_g: nutrition.protein_g, carbs_g: nutrition.carbohydrates_g, fiber_g: nutrition.fiber_g, sugar_g: nutrition.sugars_g, fat_g: nutrition.fat_g, saturated_fat_g: nutrition.saturated_fat_g, sodium_mg: nutrition.sodium_mg, is_estimate: nutrition.status === 'estimated', status: nutrition.status, basis: nutrition.basis, source: nutrition.source, method: nutrition.method },
     allergens: [...recipe.known_allergens.map((key) => ({ recipe_id: id, allergen_key: allergenAliases[key] ?? key, presence: 'identified', source: 'manual', confidence: 'high' })), ...recipe.possible_allergens.filter((key) => !recipe.known_allergens.includes(key)).map((key) => ({ recipe_id: id, allergen_key: allergenAliases[key] ?? key, presence: 'possible', source: 'manual', confidence: 'low', reasoning: recipe.allergen_review?.possible_reason ?? null }))],
-    diets: Object.entries(recipe.diet_classification).filter(([diet]) => !['status', 'criteria_version', 'cross_contact'].includes(diet)).map(([diet, status]) => ({ recipe_id: id, diet, status: status === 'yes' ? 'true' : 'false', reasoning: recipe.compatibility_assessment?.reasons?.[diet] ?? null })),
+    diets: Object.entries(recipe.diet_classification).filter(([diet]) => supportedDiets.has(diet)).map(([diet, status]) => ({ recipe_id: id, diet, status: status === 'yes' ? 'true' : 'false', reasoning: recipe.compatibility_assessment?.reasons?.[diet] ?? null })),
     media: { recipe_id: id, media_type: 'image', url: image.publicUrl, is_primary: true, storage_bucket: 'recipe-photos', storage_object_path: image.objectPath, catalogue_asset_id: recipe.image.app },
   };
 }
@@ -148,22 +176,35 @@ if (dryRun) {
 
 const existing = await existingCatalogueIds();
 const result = { examined: recipes.length, added: [], skipped: [], failed: [] };
-for (const recipe of recipes) {
-  if (existing.has(recipe.id)) { result.skipped.push(recipe.id); continue; }
-  try {
-    const image = await uploadImage(recipe);
-    const rows = recipeRows(recipe, image);
-    const status = await request(`${projectUrl}/rest/v1/rpc/sync_lemora_catalog_recipe`, {
-      method: 'POST',
-      headers: headers({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ payload: rows }),
-    });
-    if (status !== 'inserted' && status !== 'skipped') throw new Error(`Unexpected sync status: ${status}`);
-    result.added.push({ id: recipe.id, database_id: rows.parent.id, image_uploaded: image.uploaded });
-  } catch (error) {
-    result.failed.push({ id: recipe.id, error: error.message });
+const pending = recipes.filter((recipe) => {
+  if (!existing.has(recipe.id)) return true;
+  result.skipped.push(recipe.id);
+  return false;
+});
+let nextRecipe = 0;
+async function syncWorker() {
+  while (nextRecipe < pending.length) {
+    const recipe = pending[nextRecipe++];
+    try {
+      const objectPath = `catalogue/${recipe.id}.webp`;
+      const image = serviceKey
+        ? await uploadImage(recipe)
+        : { objectPath, publicUrl: `${projectUrl}/storage/v1/object/public/recipe-photos/${objectPath}`, uploaded: false };
+      const rows = recipeRows(recipe, image);
+      const edgeResult = syncToken ? await syncThroughEdgeFunction(recipe, rows) : null;
+      const status = edgeResult?.status ?? await request(`${projectUrl}/rest/v1/rpc/sync_lemora_catalog_recipe`, {
+          method: 'POST',
+          headers: headers({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ payload: rows }),
+        });
+      if (status !== 'inserted' && status !== 'skipped') throw new Error(`Unexpected sync status: ${status}`);
+      result.added.push({ id: recipe.id, database_id: rows.parent.id, image_uploaded: edgeResult?.image_uploaded ?? image.uploaded });
+    } catch (error) {
+      result.failed.push({ id: recipe.id, error: error.message });
+    }
   }
 }
+await Promise.all(Array.from({ length: Math.min(4, pending.length) }, () => syncWorker()));
 
 const verification = await existingCatalogueIds();
 result.verified = [...result.added].filter(({ id }) => verification.has(id)).map(({ id }) => id);
