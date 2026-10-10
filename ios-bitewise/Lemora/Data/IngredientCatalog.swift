@@ -79,7 +79,7 @@ nonisolated enum IngredientCatalog {
     static func ingredient(_ id: String) -> Ingredient? { all[id] }
 
     static func name(_ id: String) -> String {
-        all[id]?.name ?? CatalogIngredientInfo.info[id]?.name ?? id.replacingOccurrences(of: "_", with: " ").capitalized
+        all[id]?.name ?? CatalogIngredientInfo.info[id]?.name ?? IngredientMatch.typeNames[id] ?? id.replacingOccurrences(of: "_", with: " ").capitalized
     }
 
     static func emoji(_ id: String) -> String {

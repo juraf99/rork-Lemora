@@ -44,6 +44,7 @@ struct RecipeDetailView: View {
                     titleBlock
                     statTiles
                     if hasSavings { savingsCard }
+                    if !smartSwaps.isEmpty { zestySwapCard }
                     if !recipe.storePricesPerServing.isEmpty { StorePricesCard(prices: recipe.storePricesPerServing, recipe: recipe) }
                     if let exclusion = store.exclusionReason(for: recipe) {
                         warning(exclusion)
@@ -404,6 +405,75 @@ struct RecipeDetailView: View {
     }
 
     // MARK: Bottom actions
+
+    // MARK: Zesty smart swaps
+
+    /// Near-identical items on sale at the user's stores that make this recipe clearly cheaper.
+    private var smartSwaps: [SmartSwap] {
+        let mine = store.myStoreIds
+        let deals = store.deals.filter { mine.isEmpty || mine.contains($0.retailerId) }
+        let disliked = Set(store.data.profile.dislikedIngredients.map(\.id))
+        return SmartSwaps.find(recipe: recipe, price: price, deals: deals, dislikedIds: disliked)
+    }
+
+    private var zestySwapCard: some View {
+        let swaps = smartSwaps
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 10) {
+                MascotView(name: BWImage.mascotCheer, size: 52)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(swaps.count > 1 ? "Zesty found cheaper swaps" : "Zesty found a cheaper swap")
+                        .font(.bw(.headline, weight: .heavy)).foregroundStyle(BW.ink)
+                    Text("Almost identical, same result in this recipe.")
+                        .font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
+                }
+                Spacer(minLength: 0)
+            }
+            ForEach(swaps) { swap in
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        ProductPhoto(url: swap.deal.imageURL, category: swap.deal.category)
+                            .frame(width: 56, height: 56)
+                            .clipShape(.rect(cornerRadius: 12))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Instead of \(IngredientCatalog.name(swap.ingredientId).lowercased())")
+                                .font(.bw(.caption, weight: .semibold)).foregroundStyle(BW.inkSecondary)
+                            Text(swap.deal.productName).font(.bw(.subheadline, weight: .heavy)).foregroundStyle(BW.ink).lineLimit(2)
+                            HStack(spacing: 6) {
+                                Text(swap.deal.priceText).font(.bw(.caption, weight: .heavy)).foregroundStyle(BW.leafDeep)
+                                if let size = swap.deal.sizeText, !size.isEmpty {
+                                    Text(size).font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
+                                }
+                                Text("· \(swap.deal.retailerDisplayName)").font(.bw(.caption, weight: .semibold)).foregroundStyle(BW.ink)
+                            }
+                        }
+                        Spacer(minLength: 4)
+                        VStack(alignment: .trailing, spacing: 0) {
+                            Text("Save").font(.bw(.caption2, weight: .bold)).foregroundStyle(BW.leafDeep)
+                            Text(Money.format(swap.saving)).font(.bw(.headline, weight: .heavy)).monospacedDigit().foregroundStyle(BW.leafDeep)
+                        }
+                    }
+                    Text(swap.note).font(.bw(.caption, weight: .medium)).foregroundStyle(BW.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button {
+                        store.addDealToGrocery(swap.deal)
+                        toast(String(localized: "Swap added to your list"))
+                    } label: {
+                        Label("Add to my list", systemImage: "plus.circle.fill")
+                            .font(.bw(.subheadline, weight: .heavy)).foregroundStyle(BW.ink)
+                            .frame(maxWidth: .infinity).padding(.vertical, 10)
+                            .background(BW.lemon, in: .capsule)
+                    }
+                    .buttonStyle(BWPressableStyle())
+                }
+                .padding(12)
+                .background(.white, in: .rect(cornerRadius: 16))
+            }
+        }
+        .padding(16)
+        .background(BW.lemonSoft, in: .rect(cornerRadius: 22))
+        .onAppear { store.track("smart_swap_shown", ["recipe": recipe.id, "count": "\(swaps.count)"]) }
+    }
 
     private func toast(_ text: String) {
         toastText = text

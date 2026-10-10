@@ -935,16 +935,20 @@ struct OBLocationStep: View {
 
                     TextField("", text: Binding(get: { m.a.postal }, set: { m.setPostal($0) }),
                               prompt: Text(m.a.country == "CA" ? "Postal code (e.g. H2T 1P5)" : "ZIP code (e.g. 78701)").foregroundStyle(OB.faint))
+                        .textContentType(.postalCode)
                         .font(OB.font(15, 700))
                         .tracking(0.6)
                         .foregroundStyle(OB.ink)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
-                        .keyboardType(m.a.country == "US" ? .numberPad : .asciiCapable)
+                        .keyboardType(.asciiCapable)
                         .padding(.horizontal, 16).padding(.vertical, 12)
                         .overlay(Capsule().strokeBorder(OB.inputBorder, lineWidth: 1.5))
 
-                    Text(loc.map { "✓ " + $0.name } ?? (m.a.postal.isEmpty ? (m.a.country == "CA" ? "Format: A1A 1A1" : "5-digit ZIP") : "Keep typing…"))
+                    Text(loc.map { "✓ " + $0.name } ?? (m.a.postal.isEmpty ? (m.a.country == "CA" ? "Format: A1A 1A1" : "5-digit ZIP")
+                        : m.a.postal.filter { !$0.isWhitespace }.count >= (m.a.country == "CA" ? 6 : 5)
+                            ? (m.a.country == "CA" ? "Check the format: letter, number, letter, number, letter, number (A1A 1A1)" : "A ZIP code has 5 digits")
+                            : "Keep typing…"))
                         .font(OB.font(12, 700))
                         .foregroundStyle(loc != nil ? OB.green : OB.faint)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -971,68 +975,144 @@ struct OBStoresStep: View {
 
     var body: some View {
         let loc = m.currentLocation
-        let chains = loc?.chains ?? []
-        let more = loc.flatMap { OBData.storesMore[m.a.country]?[$0.key] }?.filter { !chains.contains($0) } ?? []
-        let picked = more.filter { m.a.stores.contains($0) }.count
-        let open = m.moreOpen || picked > 0
+        let nearby = m.nearbyStores
         VStack(spacing: 10) {
             HStack(spacing: 8) {
-                Text("📍").font(.system(size: 12.5))
+                Image(systemName: "mappin.circle.fill").font(.system(size: 14)).foregroundStyle(OB.green)
                 Text(loc.map { "\($0.postal) · \($0.name)" } ?? "No location yet").font(OB.font(12.5, 700)).foregroundStyle(OB.ink)
+                if m.nearbyLoading { ProgressView().controlSize(.mini) }
                 Spacer()
                 Button("Change") { m.go(.location) }.font(OB.font(12.5, 700)).foregroundStyle(OB.green).buttonStyle(.plain)
             }
-            LazyVGrid(columns: twoCols, spacing: 8) {
-                ForEach(Array(chains.enumerated()), id: \.element) { i, name in
-                    storeCard(name, fallback: OBCatalog.tints[i % OBCatalog.tints.count])
-                }
+            if !nearby.isEmpty {
+                nearbyList(nearby, loc: loc)
+            } else {
+                staticList(loc)
             }
-            Button { withAnimation(.easeInOut(duration: 0.25)) { m.moreOpen = !open } } label: {
-                HStack(spacing: 12) {
-                    Text("🧺").font(.system(size: 17)).frame(width: 34, height: 34).background(OB.mint, in: .rect(cornerRadius: 11))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Other stores").font(OB.font(14.5, 800)).foregroundStyle(OB.ink)
-                        Text(picked > 0 ? "\(picked) selected · local and specialty grocers" : "Local, independent and specialty grocers")
-                            .font(OB.font(12, 500)).foregroundStyle(OB.sub)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    Text("⌄").font(OB.font(18, 800)).foregroundStyle(OB.sub).rotationEffect(.degrees(open ? 180 : 0))
-                }
-                .padding(.horizontal, 16).padding(.vertical, 13)
-                .background(.white, in: .rect(cornerRadius: 20))
-                .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(OB.border, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 6)
-            if open {
-                LazyVGrid(columns: twoCols, spacing: 8) {
-                    ForEach(Array(more.enumerated()), id: \.element) { i, name in
-                        storeCard(name, fallback: OBCatalog.moreTints[i % OBCatalog.moreTints.count])
-                    }
-                }
-                .obIn(duration: 0.3)
-            }
-            Text("Stores shown are the ones available in \(loc?.name ?? "your area").")
-                .font(OB.font(11.5, 500)).foregroundStyle(OB.faint)
-                .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .task(id: loc?.postal) { await m.loadNearbyStores() }
     }
 
-    private func storeCard(_ name: String, fallback: UInt32) -> some View {
-        let on = m.a.stores.contains(name)
+    /// Stores whose flyers are distributed at this postal code / ZIP, covered banners first.
+    @ViewBuilder private func nearbyList(_ stores: [OnboardingModel.NearbyStore], loc: OnboardingModel.ResolvedLocation?) -> some View {
+        let covered = stores.filter(\.covered)
+        let others = stores.filter { !$0.covered }
+        let shown = m.moreOpen || covered.isEmpty ? others : Array(others.prefix(6))
+        if !covered.isEmpty {
+            sectionTitle("Lemora finds the deals here", "Weekly flyers checked for you")
+            LazyVGrid(columns: twoCols, spacing: 8) {
+                ForEach(Array(covered.enumerated()), id: \.element.id) { i, store in
+                    storeCard(store.name, fallback: OBCatalog.tints[i % OBCatalog.tints.count], logo: store.logo, tag: "Deals")
+                }
+            }
+        }
+        if !others.isEmpty {
+            sectionTitle(covered.isEmpty ? "Grocery stores near you" : "Other stores near you",
+                         covered.isEmpty ? "Pick the ones you shop at" : "Saved as your stores. Deals coming soon")
+                .padding(.top, covered.isEmpty ? 0 : 6)
+            LazyVGrid(columns: twoCols, spacing: 8) {
+                ForEach(Array(shown.enumerated()), id: \.element.id) { i, store in
+                    storeCard(store.name, fallback: OBCatalog.moreTints[i % OBCatalog.moreTints.count], logo: store.logo, tag: nil)
+                }
+            }
+            if !covered.isEmpty && others.count > 6 {
+                Button { withAnimation(.easeInOut(duration: 0.25)) { m.moreOpen.toggle() } } label: {
+                    Text(m.moreOpen ? "Show less" : "Show all \(others.count) stores")
+                        .font(OB.font(13, 800)).foregroundStyle(OB.green)
+                        .frame(maxWidth: .infinity).padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        Text("Stores with weekly flyers near \(loc?.postal ?? "you").")
+            .font(OB.font(11.5, 500)).foregroundStyle(OB.faint)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func sectionTitle(_ title: String, _ sub: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title).font(OB.font(14.5, 800)).foregroundStyle(OB.ink)
+            Text(sub).font(OB.font(12, 500)).foregroundStyle(OB.sub)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Offline fallback: the curated list for the region.
+    @ViewBuilder private func staticList(_ loc: OnboardingModel.ResolvedLocation?) -> some View {
+        let chains = loc?.chains ?? []
+        let more = loc.flatMap { OBData.storesMore[m.a.country]?[$0.key] }?.filter { !chains.contains($0) } ?? []
+        let picked = more.filter { m.isStorePicked($0) }.count
+        let open = m.moreOpen || picked > 0
+        LazyVGrid(columns: twoCols, spacing: 8) {
+            ForEach(Array(chains.enumerated()), id: \.element) { i, name in
+                storeCard(name, fallback: OBCatalog.tints[i % OBCatalog.tints.count], logo: nil, tag: nil)
+            }
+        }
+        Button { withAnimation(.easeInOut(duration: 0.25)) { m.moreOpen = !open } } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "basket.fill").font(.system(size: 15)).foregroundStyle(OB.green)
+                    .frame(width: 34, height: 34).background(OB.mint, in: .rect(cornerRadius: 11))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Other stores").font(OB.font(14.5, 800)).foregroundStyle(OB.ink)
+                    Text(picked > 0 ? "\(picked) selected · local and specialty grocers" : "Local, independent and specialty grocers")
+                        .font(OB.font(12, 500)).foregroundStyle(OB.sub)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.down").font(.system(size: 13, weight: .heavy)).foregroundStyle(OB.sub)
+                    .rotationEffect(.degrees(open ? 180 : 0))
+            }
+            .padding(.horizontal, 16).padding(.vertical, 13)
+            .background(.white, in: .rect(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(OB.border, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 6)
+        if open {
+            LazyVGrid(columns: twoCols, spacing: 8) {
+                ForEach(Array(more.enumerated()), id: \.element) { i, name in
+                    storeCard(name, fallback: OBCatalog.moreTints[i % OBCatalog.moreTints.count], logo: nil, tag: nil)
+                }
+            }
+            .obIn(duration: 0.3)
+        }
+        Text("Stores shown are the ones available in \(loc?.name ?? "your area").")
+            .font(OB.font(11.5, 500)).foregroundStyle(OB.faint)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func storeCard(_ name: String, fallback: UInt32, logo: String?, tag: String?) -> some View {
+        let on = m.isStorePicked(name)
         let b = OBData.brand[name]
         let tint = Color(hex: b?.0 ?? fallback)
         let fg = Color(hex: b?.1 ?? 0xFFFFFF)
         return Button { m.toggleStore(name) } label: {
             HStack(spacing: 9) {
-                Text(OBCatalog.initials(name))
-                    .font(OB.font(11, 800)).foregroundStyle(fg)
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                    .frame(width: 34, height: 34)
-                    .background(tint, in: .circle)
-                Text(name).font(OB.font(13.5, 700)).foregroundStyle(OB.ink)
-                    .lineLimit(2).minimumScaleFactor(0.85)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                ZStack {
+                    Circle().fill(tint)
+                    Text(OBCatalog.initials(name))
+                        .font(OB.font(11, 800)).foregroundStyle(fg)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                    if let logo, let url = URL(string: logo) {
+                        AsyncImage(url: url) { phase in
+                            if let image = phase.image {
+                                image.resizable().scaledToFit().padding(4)
+                                    .frame(width: 34, height: 34).background(.white, in: .circle)
+                            }
+                        }
+                    }
+                }
+                .frame(width: 34, height: 34)
+                .clipShape(.circle)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name).font(OB.font(13.5, 700)).foregroundStyle(OB.ink)
+                        .lineLimit(2).minimumScaleFactor(0.85)
+                    if let tag {
+                        Text(tag).font(OB.font(10, 800)).foregroundStyle(OB.green)
+                            .padding(.horizontal, 6).padding(.vertical, 1)
+                            .background(OB.mint, in: .capsule)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 OBCheck(on: on)
             }
             .padding(10)

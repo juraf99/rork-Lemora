@@ -327,8 +327,50 @@ final class OnboardingModel {
     }
 
     func toggleStore(_ name: String) {
-        if a.stores.contains(name) { a.stores.removeAll { $0 == name } } else { a.stores.append(name) }
+        let id = Self.storeId(name)
+        if isStorePicked(name) { a.stores.removeAll { Self.storeId($0) == id } } else { a.stores.append(name) }
         react()
+    }
+
+    /// Stores are compared by id, so "IGA" picked in onboarding matches "iga" saved in the profile.
+    func isStorePicked(_ name: String) -> Bool {
+        let id = Self.storeId(name)
+        return a.stores.contains { Self.storeId($0) == id }
+    }
+
+    // MARK: Nearby stores (from the flyers distributed at the user's postal code or ZIP)
+
+    nonisolated struct NearbyStore: Decodable, Hashable, Sendable {
+        let id: String
+        let name: String
+        let logo: String?
+        let covered: Bool
+    }
+
+    var nearbyStores: [NearbyStore] = []
+    var nearbyPostal = ""
+    var nearbyLoading = false
+
+    func loadNearbyStores() async {
+        guard let loc = currentLocation else { nearbyStores = []; nearbyPostal = ""; return }
+        let code = loc.postal.filter { !$0.isWhitespace }
+        guard code != nearbyPostal else { return }
+        nearbyLoading = true
+        defer { nearbyLoading = false }
+        guard let url = URL(string: "\(LemoraBackend.projectURL.absoluteString)/functions/v1/stores-near") else { return }
+        var request = URLRequest(url: url, timeoutInterval: 10)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(LemoraBackend.publishableKey, forHTTPHeaderField: "apikey")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["postal": code])
+        struct Response: Decodable { let ok: Bool; let stores: [NearbyStore]? }
+        guard let data = try? await URLSession.shared.data(for: request).0,
+              let decoded = try? JSONDecoder().decode(Response.self, from: data), decoded.ok,
+              let stores = decoded.stores, !stores.isEmpty else { return }
+        // The user may have kept typing while the request was in flight.
+        guard currentLocation?.postal.filter({ !$0.isWhitespace }) == code else { return }
+        nearbyStores = stores
+        nearbyPostal = code
     }
 
     func setBudget(_ v: Int) {
@@ -368,10 +410,14 @@ final class OnboardingModel {
     /// Called when the one-shot location lookup resolves.
     func applyDevicePostal(_ code: String) {
         locating = false
-        let cleaned = code.uppercased().filter { $0.isLetter || $0.isNumber }
-        a.country = cleaned.first?.isLetter == true ? "CA" : "US"
+        var cleaned = code.uppercased().filter { $0.isLetter || $0.isNumber }
+        // Apple sometimes returns only the first half of a Canadian postal code ("H2T").
+        // Flyer zones are chosen by that first half, so a neutral second half keeps it usable.
+        if cleaned.count == 3, cleaned.first?.isLetter == true { cleaned += "0A0" }
+        let country = cleaned.first?.isLetter == true ? "CA" : "US"
+        if country != a.country { a.stores = [] }
+        a.country = country
         a.postal = cleaned
-        a.stores = []
         react()
     }
 
@@ -380,8 +426,21 @@ final class OnboardingModel {
         a.locMode = "manual"
     }
 
-    func setCountry(_ c: String) { a.country = c; a.postal = ""; a.stores = [] }
-    func setPostal(_ v: String) { a.postal = String(v.prefix(10)); a.stores = [] }
+    func setCountry(_ c: String) {
+        guard c != a.country else { return }
+        a.country = c; a.postal = ""; a.stores = []
+    }
+
+    /// Typing a ZIP switches to the US, typing a postal code switches to Canada.
+    func setPostal(_ v: String) {
+        let cleaned = String(v.uppercased().filter { $0.isLetter || $0.isNumber || $0 == " " }.prefix(7))
+        if let first = cleaned.first(where: { !$0.isWhitespace }) {
+            let country = first.isNumber ? "US" : "CA"
+            if country != a.country { a.country = country; a.stores = [] }
+        }
+        a.locMode = "manual"
+        a.postal = cleaned
+    }
 
     // MARK: Derived
 

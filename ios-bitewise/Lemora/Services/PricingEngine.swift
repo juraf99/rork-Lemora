@@ -64,12 +64,13 @@ nonisolated struct PricingEngine {
         let pricesByIngredient = Dictionary(grouping: currentPrices, by: \.ingredientId)
         let lines = recipe.ingredients.map { item -> PriceLine in
             let compatibleIds = Self.compatibleDealIds(for: item.ingredientId)
+            let gramsPerUnit = IngredientMatch.gramsPerUnit[item.ingredientId]
             let observedCosts = compatibleIds.flatMap { pricesByIngredient[$0] ?? [] }.filter { !$0.isDiscounted }.compactMap {
                 $0.cost(for: item.quantity * scale, unit: item.unit)
             }
             let regular = observedCosts.min() ?? item.estimatedCost.map { $0 * scale }
             let candidates = compatibleIds.flatMap { byIngredient[$0] ?? [] }.compactMap { deal -> (Deal, Double)? in
-                guard let converted = deal.cost(for: item.quantity * scale, unit: item.unit) else {
+                guard let converted = deal.cost(for: item.quantity * scale, unit: item.unit, gramsPerUnit: gramsPerUnit) else {
                     // Percentage-based fallback is used only when the provider supplied a discount.
                     guard deal.discountPercent != nil else { return nil }
                     guard let regular else { return nil }
@@ -89,17 +90,9 @@ nonisolated struct PricingEngine {
         return RecipePrice(lines: lines, servings: max(1, servings))
     }
 
+    /// Strict: only deals for the same food count (see IngredientMatch). Near-identical swaps are suggested by Zesty instead.
     static func compatibleDealIds(for ingredientId: String) -> [String] {
-        switch ingredientId {
-        case "chicken_breast": ["chicken_breast", "chicken"]
-        case "flank_steak": ["flank_steak", "beef"]
-        case "eggs": ["eggs", "egg"]
-        case "greek_yogurt": ["greek_yogurt", "greek_yogurt_or_skyr", "yogurt"]
-        case "rigatoni": ["rigatoni", "pasta"]
-        case "sweet_potato": ["sweet_potato", "potato"]
-        case "bell_pepper": ["bell_pepper", "pepper", "peppers"]
-        default: CatalogIngredientInfo.dealIds(for: ingredientId)
-        }
+        IngredientMatch.dealKeys(for: ingredientId)
     }
 
     static func recipeIngredient(_ recipeIngredientId: String, matches dealIngredientId: String) -> Bool {

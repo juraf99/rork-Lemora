@@ -143,7 +143,8 @@ nonisolated struct Deal: Identifiable, Hashable, Sendable {
 
     /// Converts flyer unit prices to the quantity a recipe actually uses.
     /// Example: $0.79/lb for 700 g of chicken costs about $1.22, not $79 or $0.79 total.
-    func cost(for quantity: Double, unit: IngredientUnit, useRegularPrice: Bool = false) -> Double? {
+    /// `gramsPerUnit` lets "2 tomatoes" be priced from a per-lb flyer; packages are prorated by their size.
+    func cost(for quantity: Double, unit: IngredientUnit, useRegularPrice: Bool = false, gramsPerUnit: Double? = nil) -> Double? {
         let price: Double
         if useRegularPrice {
             guard let regularPrice else { return nil }
@@ -153,21 +154,28 @@ nonisolated struct Deal: Identifiable, Hashable, Sendable {
         }
 
         let label = unitLabel.lowercased().replacingOccurrences(of: " ", with: "")
+        var perGram: Double? = nil
+        if label.contains("/lb") || label.contains("perlb") || label.contains("/lbs") { perGram = price / 453.59237 }
+        else if label.contains("/kg") || label.contains("perkg") { perGram = price / 1_000 }
+        else if label.contains("/100g") { perGram = price / 100 }
+
         if unit == .g {
-            if label.contains("/lb") || label.contains("perlb") || label.contains("/lbs") {
-                return price * quantity / 453.59237
-            }
-            if label.contains("/kg") || label.contains("perkg") {
-                return price * quantity / 1_000
-            }
-            if label.contains("/100g") {
-                return price * quantity / 100
-            }
+            if let perGram { return perGram * quantity }
+            if let pack = packGrams { return price * quantity / pack }
         }
         if unit == .ml, label.contains("/l") || label.contains("perlitre") || label.contains("perliter") {
             return price * quantity / 1_000
         }
-        if unit == .unit || unit == .can {
+        if unit == .unit {
+            if let perGram {
+                guard let gramsPerUnit else { return nil }
+                return perGram * gramsPerUnit * quantity
+            }
+            if let count = packCount { return price / Double(count) * quantity }
+            if let pack = packGrams, let gramsPerUnit, pack >= gramsPerUnit * 2 { return price * gramsPerUnit * quantity / pack }
+            return price * quantity
+        }
+        if unit == .can {
             return price * quantity
         }
         return nil

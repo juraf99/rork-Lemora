@@ -274,7 +274,7 @@ extension OnboardingModel {
             p.location = loc
         }
         p.storePreferences = Dictionary(a.stores.map { (Self.storeId($0), StorePreference.preferred) }, uniquingKeysWith: { x, _ in x })
-        p.shopsAtCostco = a.stores.contains("Costco")
+        p.shopsAtCostco = a.stores.contains { Self.storeId($0) == "costco" }
         let refs: [String: ReferralSource] = ["tiktok": .tiktok, "instagram": .instagram, "youtube": .youtube, "facebook": .facebook,
                                               "google": .google, "app_store": .appStore, "friends_family": .friends, "other": .other]
         p.referralSource = a.referral.flatMap { refs[$0] }

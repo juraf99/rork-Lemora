@@ -37,9 +37,11 @@ struct ProfileView: View {
                 }
 
                 Section("Shopping") {
-                    NavigationLink { StoresEditView() } label: { row("storefront", String(localized: "My Stores"), "\(store.myStoreIds.count)") }
+                    NavigationLink { StoresEditView() } label: {
+                        row("storefront", String(localized: "Where I shop"),
+                            profile.postalCode.isEmpty ? String(localized: "Not set") : "\(profile.postalCode) · \(store.myStoreIds.count)")
+                    }
                     NavigationLink { StrategyEditView() } label: { row("scalemass", String(localized: "Shopping Strategy"), profile.strategy.title) }
-                    NavigationLink { LocationEditView() } label: { row("location", String(localized: "Location"), profile.postalCode.isEmpty ? String(localized: "Not set") : profile.postalCode) }
                 }
 
                 Section("App") {
@@ -244,6 +246,14 @@ struct OnboardingPrefEditor<Content: View>: View {
             }
         }
         .toolbar(.hidden, for: .tabBar)
+        .onChange(of: model?.location.state) { _, state in
+            guard let model, let state else { return }
+            switch state {
+            case .resolved(let code): model.applyDevicePostal(code)
+            case .denied, .failed: model.locationFailed()
+            default: break
+            }
+        }
         .onAppear {
             guard model == nil else { return }
             let m = OnboardingModel(entry: .signedOut)
@@ -297,6 +307,16 @@ extension OnboardingAnswers {
         }
         referral = "other"
         reachedPlan = true
+        if let country = p.location.country {
+            self.country = country == .unitedStates ? "US" : "CA"
+            postal = p.location.postalCode
+            locMode = p.location.source == .device ? "auto" : "manual"
+        }
+        let names = Dictionary(OnboardingModel.storeIds.map { ($0.value, $0.key) }, uniquingKeysWith: { a, _ in a })
+        var picked = p.storePreferences.filter { $0.value != .doNotRecommend }.keys
+            .map { names[$0] ?? RetailerCatalog.byId[$0]?.name ?? $0 }
+        if p.shopsAtCostco && !picked.contains("Costco") { picked.append("Costco") }
+        stores = picked.sorted()
     }
 }
 
@@ -417,19 +437,23 @@ struct BudgetEditView: View {
         }
     }
 }
+/// "Where do you shop?": postal code or ZIP (typed, or from Location Services), then the stores near it.
 struct StoresEditView: View {
     var body: some View {
         OnboardingPrefEditor(
             screen: .stores,
             title: "Where do you shop?",
-            subtitle: "Only stores available for your saved country and region are shown.",
+            subtitle: "Type your postal code or ZIP, or share your location. Then pick the stores you shop at.",
             mood: .cart,
             apply: { model, profile in
                 let updated = model.makeProfile(base: profile)
+                if model.currentLocation != nil { profile.location = updated.location }
                 profile.storePreferences = updated.storePreferences
                 profile.shopsAtCostco = updated.shopsAtCostco
             }
         ) {
+            OBLocationStep()
+            OBText("Your stores", 17, 800).padding(.top, 8)
             OBStoresStep()
         }
     }
@@ -447,26 +471,7 @@ struct StrategyEditView: View {
     }
 }
 struct LocationEditView: View {
-    var body: some View {
-        OnboardingPrefEditor(
-            screen: .location,
-            title: "Where do you shop?",
-            subtitle: "Your country and postal code decide which stores and prices can appear.",
-            mood: .thinking,
-            apply: { model, profile in
-                let previousCountry = profile.location.countryCode
-                let previousRegion = profile.location.region
-                let updated = model.makeProfile(base: profile)
-                profile.location = updated.location
-                if updated.location.countryCode != previousCountry || updated.location.region != previousRegion {
-                    profile.storePreferences = [:]
-                    profile.shopsAtCostco = false
-                }
-            }
-        ) {
-            OBLocationStep()
-        }
-    }
+    var body: some View { StoresEditView() }
 }
 
 struct NotificationsEditView: View {

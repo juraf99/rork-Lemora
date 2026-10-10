@@ -373,7 +373,7 @@ struct StorePricesCard: View {
                     $0.retailerId.lowercased() == storeId && ids.contains($0.ingredientId) && $0.validUntil >= now
                 }
                 let costed: [(Deal, Double?)] = candidates.map { deal in
-                    if let c = deal.cost(for: item.quantity, unit: item.unit) { return (deal, c) }
+                    if let c = deal.cost(for: item.quantity, unit: item.unit, gramsPerUnit: IngredientMatch.gramsPerUnit[item.ingredientId]) { return (deal, c) }
                     if deal.discountPercent != nil, let regularCost = item.estimatedCost { return (deal, regularCost * deal.priceRatio) }
                     return (deal, nil)
                 }
