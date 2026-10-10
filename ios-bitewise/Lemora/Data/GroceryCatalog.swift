@@ -1,6 +1,7 @@
 import Foundation
 
-/// Retailer registry for the Quebec market. Backend-driven in production; tier is UI organisation only.
+/// Retailer registry for Canadian grocery banners. Tier is UI organisation only;
+/// a selected banner is not a claim that a flyer exists at the user's postal code.
 nonisolated enum RetailerCatalog {
     private static func r(_ id: String, _ name: String, _ tier: RetailerTier, membership: Bool = false) -> Retailer {
         Retailer(id: id, name: name, tier: tier, membershipRequired: membership)
@@ -10,6 +11,16 @@ nonisolated enum RetailerCatalog {
         r("maxi", "Maxi", .featured), r("superc", "Super C", .featured), r("metro", "Metro", .featured),
         r("iga", "IGA", .featured), r("provigo", "Provigo", .featured), r("walmart", "Walmart", .featured),
         r("adonis", "Adonis", .featured), r("costco", "Costco", .featured, membership: true),
+        r("no_frills", "No Frills", .more), r("real_canadian_superstore", "Real Canadian Superstore", .more),
+        r("loblaws", "Loblaws", .more), r("zehrs", "Zehrs", .more),
+        r("fortinos", "Fortinos", .more), r("atlantic_superstore", "Atlantic Superstore", .more),
+        r("dominion", "Dominion", .more), r("independent", "Independent", .more),
+        r("sobeys", "Sobeys", .more), r("safeway", "Safeway", .more),
+        r("freshco", "FreshCo", .more), r("foodland", "Foodland", .more),
+        r("farm_boy", "Farm Boy", .more), r("longos", "Longo’s", .more),
+        r("thrifty_foods", "Thrifty Foods", .more), r("food_basics", "Food Basics", .more),
+        r("save_on_foods", "Save-On-Foods", .more), r("buy_low_foods", "Buy-Low Foods", .more),
+        r("pricesmart_foods", "PriceSmart Foods", .more), r("co_op", "Co-op", .more),
         r("mayrand", "Mayrand", .more), r("intermarche", "Intermarché", .more),
         r("tradition", "Les Marchés Tradition", .more), r("richelieu", "Marché Richelieu", .more),
         r("bonichoix", "Bonichoix", .more), r("pasquier", "Pasquier", .more), r("tnt", "T&T Supermarket", .more),

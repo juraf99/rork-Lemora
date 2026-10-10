@@ -36,6 +36,45 @@ For latency, Ask now fetches relevant profile/recipe/deal context in parallel an
 
 The native app loads the permanent recipe catalogue from Supabase at startup and keeps the bundled development fixtures only as an offline fallback. Ask sends the active catalogue's ingredients, steps, stable catalogue IDs, allergens and available nutrition with its context. Recipe tools resolve catalogue IDs without treating them as database UUIDs. Missing nutrition and prices stay unknown, and the app makes no unverified certification claims.
 
+## Canadian weekly flyers
+
+Apify's `yugenox/flipp-flyer-deals-scraper` is the ingestion source for the Canadian pilot; the iOS app does not scrape stores. A flyer edition has a stable source ID and validity dates, while exact observed postal coverage is recorded **per item** as well as per flyer. Never infer nationwide, provincial, FSA, or physical-store coverage from a single observed postal. The actor's flyer mode does not reliably provide store IDs, so `flyer_regions` and store mappings remain unverified until corroborated by a stronger source.
+
+New Apify v2 editions stay out of the legacy province/FSA feed. The iOS app calls `active_food_deals_for_postal` for a full Canadian postal code, combining approved, healthy, imaged offers with its existing feed. The October 2 No Frills/Toronto pilot produced 50 actor rows; 13 additional priced lines were imported from that existing export after owner review, and two stored prepared-food lines were rejected. The exact-postal feed now returns four distinct approved, imaged foods at M5V 2T6: beef, broccoli, chicken breast and tomatoes. This is not nationwide coverage, a completed store map, a scheduled production import, or a TestFlight release. Put a monthly Apify spend ceiling and geographic batch plan in place before recurring nationwide scans.
+
+Owner-reviewed food policy: prioritize whole/minimally processed produce and protein, especially extra-lean ground beef and chicken; allow olive/avocado oil, rice, plain dairy staples (including cheese, butter and cream), beans, tuna, broth and honey as cooking ingredients. Milk alternatives and yogurt are candidates, but sweetened variants require nutrition review. Sausage and sliced meat require processing/sodium review. Reject prepared soups, frozen entrées/pizza, breaded chicken bites/burgers, ice cream, regular soda, chips, sugar, coffee, stuffing and non-food. A flyer line containing different foods or brands/sizes is review-only until exact variants are resolved. Points and coupons with no current price do not become price deals. Do not claim nutritional superiority for honey or make sodium/sugar claims without verified data. The source of truth for the 50 reviewed examples is `scripts/test-flipp-food-policy.mjs`.
+
+Expired flyer editions are removed from the live app feed, **not physically deleted**: retain flyer, item, postal-coverage and price-history rows in Supabase. Supabase Cron runs `lemora-expire-past-flyers` daily at 12:00 GMT. `lemora_expire_past_flyers()` sets `is_stale` only when `valid_until` is strictly before the current Vancouver calendar date, a conservative Canada-wide boundary. Both legacy and exact-postal views use the same boundary so UTC rollover never hides a flyer still valid in western Canada. The ingestion function calls the same expiry routine; it must not use UTC's date to stale flyers.
+
+The October 3 paid discovery run (US$0.40, capped at US$0.50) sampled four
+postals in QC, BC, AB and NS. It hit exactly 50 items per postal and exposed
+only Walmart (QC/BC/NS) and IGA (AB) item rows, despite nine nearby flyers
+reported by Apify. This was a truncated discovery sample, not proof that other
+banners are absent or that these flyers are complete. It was not imported to
+Supabase or published in the app. Walmart's `Groceries` category includes
+non-food rows; title and description both need product-policy review. The
+deployed `flipp-flyer-ingest` version 21 rejects whipped dessert toppings and
+quarantines ambiguous multi-variant descriptions. National coverage and
+scheduled imports remain unverified and unimplemented.
+
+The owner's October 3 follow-up explicitly accepts regular milk (including
+Natrel fine-filtered), fresh fruit and vegetables, yogurt including drinkable
+Greek yogurt, cheese blocks, oatmeal, Barebells and Clif bars as *food
+candidates*. A named protein bar or yogurt is not a verified high-protein,
+low-sugar, allergen-safe or goal-compatible item. Different products or
+package sizes in one flyer line remain review-only, as do unpriced lines.
+The owner policy recognises those candidates in `flipp-flyer-ingest` version
+22, but the four-city discovery dataset remains unimported. The database
+normalizer now distinguishes fresh pineapple from apple; pineapple still
+needs its own canonical image and eligibility verification before it can
+appear in the app. No iOS/TestFlight release was made for this policy change.
+
+Ingest function version 23 requires an explicit Apify `maxTotalChargeUsd`
+for every paid run and records global/per-postal cap hits. Apify's 60-second
+run wait is followed by polling if the actor remains active. This is a
+per-run safeguard, not a monthly budget or evidence of complete coverage.
+No new flyer data was imported by this safety deployment.
+
 ## Shared service identities
 
 The permanent local recipe catalogue is synchronized to Supabase through
