@@ -43,7 +43,10 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.35), value: route)
         .task {
             await store.bootstrap()
-            try? await Task.sleep(for: .milliseconds(900))
+            // Launch screen stays until the first Discover photos are decoded (max 4 s), so swiping starts smooth.
+            let firstPhotos = store.discoverQueue.prefix(10).compactMap { URL(string: $0.recipe.imageName) }.filter { $0.scheme == "https" }
+            await RemoteImagePipeline.shared.preload(firstPhotos, timeout: .seconds(4))
+            try? await Task.sleep(for: .milliseconds(300))
             withAnimation(.easeOut(duration: 0.4)) { showSplash = false }
         }
         .onChange(of: store.subscription.hasActiveSubscription) { _, _ in

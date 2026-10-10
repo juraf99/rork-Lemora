@@ -22,7 +22,7 @@ struct DiscoverView: View {
     }
 
     private func prefetchNextImages() {
-        let urls = queue.prefix(6).compactMap { URL(string: $0.recipe.imageName) }.filter { $0.scheme == "https" }
+        let urls = queue.prefix(14).compactMap { URL(string: $0.recipe.imageName) }.filter { $0.scheme == "https" }
         RemoteImagePipeline.shared.prefetch(urls)
     }
 
