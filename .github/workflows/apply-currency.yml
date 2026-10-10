@@ -1,0 +1,467 @@
+name: Currency, store deals and smooth Discover
+
+# One-shot: automatic currency with Profile option, deals per store on recipes, smooth Discover photos. Commits, starts TestFlight, deletes itself.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-currency.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Edit the Swift files
+        run: |
+          set -e
+          cat > /tmp/edits.py <<'PYEOF'
+          """Currency (automatic from location, changeable in Profile, local symbol placement), store prices with
+          this week's deals, plus the smooth-Discover fixes (skipped if already applied)."""
+          import sys, os
+          R = "ios-bitewise/Lemora/"
+          CURRENCY = r'''import SwiftUI
+
+          /// Currencies Lemora can display. Recipe and deal prices are stored in CAD and converted for display.
+          nonisolated enum AppCurrency: String, CaseIterable, Identifiable, Sendable {
+              case cad = "CAD", usd = "USD", eur = "EUR", gbp = "GBP", chf = "CHF", mxn = "MXN", aud = "AUD"
+
+              var id: String { rawValue }
+
+              var name: String {
+                  switch self {
+                  case .cad: String(localized: "Canadian dollar")
+                  case .usd: String(localized: "US dollar")
+                  case .eur: String(localized: "Euro")
+                  case .gbp: String(localized: "British pound")
+                  case .chf: String(localized: "Swiss franc")
+                  case .mxn: String(localized: "Mexican peso")
+                  case .aud: String(localized: "Australian dollar")
+                  }
+              }
+
+              var flag: String {
+                  switch self {
+                  case .cad: "🇨🇦"
+                  case .usd: "🇺🇸"
+                  case .eur: "🇪🇺"
+                  case .gbp: "🇬🇧"
+                  case .chf: "🇨🇭"
+                  case .mxn: "🇲🇽"
+                  case .aud: "🇦🇺"
+                  }
+              }
+
+              /// Approximate value of 1 CAD in this currency (display conversion only).
+              var perCAD: Double {
+                  switch self {
+                  case .cad: 1
+                  case .usd: 0.72
+                  case .eur: 0.62
+                  case .gbp: 0.54
+                  case .chf: 0.58
+                  case .mxn: 13.2
+                  case .aud: 1.10
+                  }
+              }
+
+              /// Local convention: "4,27 $" in Canada, "$4.27" in the US, "4,27 €" in France.
+              func format(cad value: Double) -> String {
+                  let amount = value * perCAD
+                  let number = amount.formatted(.number.precision(.fractionLength(2)))
+                  switch self {
+                  case .cad: return "\(number) $"
+                  case .usd, .mxn, .aud: return "$\(number)"
+                  case .eur: return "\(number) €"
+                  case .gbp: return "£\(number)"
+                  case .chf: return "\(number) CHF"
+                  }
+              }
+
+              private static let euroCountries: Set<String> = [
+                  "FR", "BE", "LU", "DE", "AT", "IT", "ES", "PT", "NL", "IE", "FI", "GR", "SK", "SI", "EE", "LV", "LT",
+                  "MT", "CY", "HR", "MC", "AD", "SM", "VA", "RE", "GP", "MQ", "GF", "YT", "PM", "BL", "MF",
+              ]
+
+              static func forCountry(_ code: String) -> AppCurrency? {
+                  let c = code.uppercased()
+                  switch c {
+                  case "CA": return .cad
+                  case "US", "PR": return .usd
+                  case "GB", "UK": return .gbp
+                  case "CH", "LI": return .chf
+                  case "MX": return .mxn
+                  case "AU": return .aud
+                  default: return euroCountries.contains(c) ? .eur : nil
+                  }
+              }
+
+              /// Country from the location entered at onboarding, then the postal code shape, then the phone region.
+              static func automatic(countryCode: String, postalCode: String) -> AppCurrency {
+                  if let c = forCountry(countryCode) { return c }
+                  let cleaned = postalCode.uppercased().filter { $0.isLetter || $0.isNumber }
+                  if cleaned.count == 6, cleaned.first?.isLetter == true { return .cad }
+                  if cleaned.count == 5, cleaned.allSatisfy(\.isNumber) { return .usd }
+                  if let region = Locale.current.region?.identifier, let c = forCountry(region) { return c }
+                  return .cad
+              }
+          }
+
+          /// Observable so every price on screen refreshes when the currency changes.
+          @Observable
+          nonisolated final class CurrencyState: @unchecked Sendable {
+              static let shared = CurrencyState()
+              private static let overrideKey = "lemora.currencyOverride"
+
+              private(set) var current: AppCurrency
+              private(set) var automatic: AppCurrency = .cad
+
+              /// nil = automatic (from location). Saved on the device.
+              var override: AppCurrency? {
+                  didSet {
+                      UserDefaults.standard.set(override?.rawValue, forKey: Self.overrideKey)
+                      current = override ?? automatic
+                  }
+              }
+
+              private init() {
+                  let saved = UserDefaults.standard.string(forKey: Self.overrideKey).flatMap(AppCurrency.init(rawValue:))
+                  override = saved
+                  current = saved ?? .cad
+              }
+
+              func sync(countryCode: String, postalCode: String) {
+                  let auto = AppCurrency.automatic(countryCode: countryCode, postalCode: postalCode)
+                  if automatic != auto { automatic = auto }
+                  let resolved = override ?? auto
+                  if current != resolved { current = resolved }
+              }
+          }
+
+          /// Profile > Currency.
+          struct CurrencyEditView: View {
+              @Environment(AppStore.self) private var store
+              private var state: CurrencyState { CurrencyState.shared }
+
+              var body: some View {
+                  List {
+                      Section {
+                          Button {
+                              store.setCurrency(nil)
+                          } label: {
+                              HStack {
+                                  VStack(alignment: .leading, spacing: 2) {
+                                      Text("Automatic").font(.bw(.body, weight: .semibold)).foregroundStyle(BW.ink)
+                                      Text("From your location · \(state.automatic.flag) \(state.automatic.rawValue)")
+                                          .font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
+                                  }
+                                  Spacer()
+                                  if state.override == nil { Image(systemName: "checkmark").foregroundStyle(BW.leafDeep).fontWeight(.bold) }
+                              }
+                          }
+                      }
+                      Section {
+                          ForEach(AppCurrency.allCases) { c in
+                              Button {
+                                  store.setCurrency(c)
+                              } label: {
+                                  HStack(spacing: 12) {
+                                      Text(c.flag).font(.title3)
+                                      VStack(alignment: .leading, spacing: 2) {
+                                          Text(c.name).font(.bw(.body, weight: .semibold)).foregroundStyle(BW.ink)
+                                          Text("\(c.rawValue) · \(c.format(cad: 10))").font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
+                                      }
+                                      Spacer()
+                                      if state.override == c { Image(systemName: "checkmark").foregroundStyle(BW.leafDeep).fontWeight(.bold) }
+                                  }
+                              }
+                          }
+                      } footer: {
+                          Text("Grocery prices are estimated in Canadian dollars and converted with approximate exchange rates.")
+                      }
+                  }
+                  .scrollContentBackground(.hidden)
+                  .background(BW.canvas)
+                  .navigationTitle("Currency")
+                  .navigationBarTitleDisplayMode(.inline)
+              }
+          }
+          '''
+          CARD = r'''/// Price per serving at each banner: average regular price, minus this week's deals at that store.
+          /// A store with a deal gets a "Deal" tag even when another store is still cheaper overall.
+          struct StorePricesCard: View {
+              let prices: [String: Double]
+              let recipe: Recipe
+              @Environment(AppStore.self) private var store
+
+              private struct StoreDeal: Identifiable {
+                  let id: String
+                  let ingredientId: String
+                  let deal: Deal
+              }
+
+              private struct Row: Identifiable {
+                  let id: String
+                  let regular: Double
+                  let price: Double
+                  let deals: [StoreDeal]
+              }
+
+              private var rows: [Row] {
+                  let servings = Double(max(recipe.servings, 1))
+                  let now = Date()
+                  return prices.map { storeId, regular -> Row in
+                      var found: [StoreDeal] = []
+                      var savings = 0.0
+                      for item in recipe.ingredients {
+                          let ids = PricingEngine.compatibleDealIds(for: item.ingredientId)
+                          let candidates = store.deals.filter {
+                              $0.retailerId.lowercased() == storeId && ids.contains($0.ingredientId) && $0.validUntil >= now
+                          }
+                          let costed: [(Deal, Double?)] = candidates.map { deal in
+                              if let c = deal.cost(for: item.quantity, unit: item.unit) { return (deal, c) }
+                              if deal.discountPercent != nil, let regularCost = item.estimatedCost { return (deal, regularCost * deal.priceRatio) }
+                              return (deal, nil)
+                          }
+                          guard let best = costed.min(by: { ($0.1 ?? .infinity) < ($1.1 ?? .infinity) }) else { continue }
+                          if let sale = best.1, let regularCost = item.estimatedCost { savings += max(0, regularCost - sale) }
+                          found.append(StoreDeal(id: best.0.id + "|" + item.ingredientId, ingredientId: item.ingredientId, deal: best.0))
+                      }
+                      return Row(id: storeId, regular: regular, price: max(0, regular - savings / servings), deals: found)
+                  }
+                  .sorted { $0.price < $1.price }
+              }
+
+              var body: some View {
+                  let allRows = self.rows
+                  VStack(alignment: .leading, spacing: 12) {
+                      VStack(alignment: .leading, spacing: 2) {
+                          Text("Price per serving by store").font(.bw(.title3)).foregroundStyle(BW.ink)
+                          Text("Average regular prices, with this week's deals applied.")
+                              .font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
+                      }
+                      VStack(spacing: 0) {
+                          ForEach(Array(allRows.enumerated()), id: \.element.id) { idx, row in
+                              VStack(alignment: .leading, spacing: 8) {
+                                  HStack(spacing: 8) {
+                                      StoreChip(retailerId: row.id, name: RetailerCatalog.name(row.id))
+                                      if !row.deals.isEmpty {
+                                          Label("Deal", systemImage: "tag.fill")
+                                              .font(.bw(.caption2, weight: .heavy)).foregroundStyle(BW.ink)
+                                              .padding(.horizontal, 8).padding(.vertical, 3)
+                                              .background(BW.lemon, in: .capsule)
+                                      }
+                                      if idx == 0 {
+                                          Text("Cheapest")
+                                              .font(.bw(.caption2, weight: .heavy)).foregroundStyle(BW.leafDeep)
+                                              .padding(.horizontal, 8).padding(.vertical, 3)
+                                              .background(BW.leafSoft, in: .capsule)
+                                      }
+                                      Spacer(minLength: 4)
+                                      VStack(alignment: .trailing, spacing: 0) {
+                                          if row.price < row.regular - 0.005 {
+                                              Text(Money.format(row.regular))
+                                                  .font(.bw(.caption, weight: .medium)).monospacedDigit()
+                                                  .strikethrough().foregroundStyle(BW.inkSecondary)
+                                          }
+                                          Text(Money.format(row.price))
+                                              .font(.bw(.headline, weight: idx == 0 ? .heavy : .semibold)).monospacedDigit()
+                                              .foregroundStyle(idx == 0 || !row.deals.isEmpty ? BW.leafDeep : BW.ink)
+                                      }
+                                  }
+                                  ForEach(row.deals) { d in
+                                      HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                          Text(IngredientCatalog.emoji(d.ingredientId))
+                                          VStack(alignment: .leading, spacing: 1) {
+                                              HStack(spacing: 4) {
+                                                  Text(IngredientCatalog.name(d.ingredientId)).fontWeight(.bold)
+                                                  Text(d.deal.priceText).fontWeight(.heavy).foregroundStyle(BW.leafDeep)
+                                                  if let was = d.deal.regularPrice, was > d.deal.effectivePrice {
+                                                      Text("\(Money.format(was))\(d.deal.unitLabel)").strikethrough().foregroundStyle(BW.inkSecondary)
+                                                  }
+                                              }
+                                              Text(DealTiming.endText(d.deal.validUntil)).foregroundStyle(BW.amber)
+                                          }
+                                      }
+                                      .font(.bw(.caption, weight: .medium))
+                                      .foregroundStyle(BW.ink)
+                                      .padding(.leading, 4)
+                                  }
+                              }
+                              .padding(.horizontal, 16).padding(.vertical, 11)
+                              .background(row.deals.isEmpty ? Color.clear : BW.lemonSoft.opacity(0.45))
+                              if idx < allRows.count - 1 { Divider().overlay(BW.hairline).padding(.leading, 16) }
+                          }
+                      }
+                      .bwCard()
+                  }
+              }
+          }
+          '''
+          PIPE = r'''import SwiftUI
+          import UIKit
+          import ImageIO
+
+          /// Fast, cached loading for recipe photos hosted in Supabase Storage.
+          /// - Memory cache of decoded, downsampled images (no re-decode when a card comes back).
+          /// - Disk cache through URLCache (photos survive app restarts).
+          /// - One download per URL even when several views ask at the same time.
+          /// - Decoding happens off the main thread, so swiping stays smooth.
+          nonisolated final class RemoteImagePipeline: @unchecked Sendable {
+              static let shared = RemoteImagePipeline()
+
+              private let cache = NSCache<NSURL, UIImage>()
+              private let session: URLSession
+              private let lock = NSLock()
+              private var inFlight: [URL: Task<UIImage?, Never>] = [:]
+
+              private init() {
+                  cache.countLimit = 120
+                  cache.totalCostLimit = 180 * 1024 * 1024
+                  let config = URLSessionConfiguration.default
+                  config.urlCache = URLCache(memoryCapacity: 16 * 1024 * 1024, diskCapacity: 400 * 1024 * 1024)
+                  config.requestCachePolicy = .returnCacheDataElseLoad
+                  config.httpMaximumConnectionsPerHost = 6
+                  session = URLSession(configuration: config)
+              }
+
+              func cached(_ url: URL) -> UIImage? {
+                  cache.object(forKey: url as NSURL)
+              }
+
+              func image(for url: URL) async -> UIImage? {
+                  if let hit = cached(url) { return hit }
+                  let task: Task<UIImage?, Never> = lock.withLock {
+                      if let existing = inFlight[url] { return existing }
+                      let session = self.session
+                      let created = Task.detached(priority: .userInitiated) { () -> UIImage? in
+                          guard let (data, response) = try? await session.data(from: url),
+                                (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true
+                          else { return nil }
+                          return RemoteImagePipeline.downsample(data, maxPixel: 1080)
+                      }
+                      inFlight[url] = created
+                      return created
+                  }
+                  let image = await task.value
+                  lock.withLock { inFlight[url] = nil }
+                  if let image {
+                      let cost = Int(image.size.width * image.size.height * image.scale * image.scale * 4)
+                      cache.setObject(image, forKey: url as NSURL, cost: cost)
+                  }
+                  return image
+              }
+
+              /// Warms the cache for the next cards so they appear instantly when swiped in.
+              func prefetch(_ urls: [URL]) {
+                  for url in urls where cached(url) == nil {
+                      Task.detached(priority: .utility) { _ = await RemoteImagePipeline.shared.image(for: url) }
+                  }
+              }
+
+              private static func downsample(_ data: Data, maxPixel: CGFloat) -> UIImage? {
+                  let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+                  guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else { return nil }
+                  let options = [
+                      kCGImageSourceCreateThumbnailFromImageAlways: true,
+                      kCGImageSourceShouldCacheImmediately: true,
+                      kCGImageSourceCreateThumbnailWithTransform: true,
+                      kCGImageSourceThumbnailMaxPixelSize: maxPixel,
+                  ] as CFDictionary
+                  guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else { return nil }
+                  return UIImage(cgImage: cgImage)
+              }
+          }
+
+          /// Remote recipe photo. Shows the cached image immediately when available and never shows
+          /// a previous recipe's photo: each URL gets its own view identity (see `FoodImage`).
+          struct RemoteFoodImage: View {
+              let url: URL
+              @State private var image: UIImage?
+              @State private var failed = false
+
+              init(url: URL) {
+                  self.url = url
+                  _image = State(initialValue: RemoteImagePipeline.shared.cached(url))
+              }
+
+              var body: some View {
+                  ZStack {
+                      if let image {
+                          Image(uiImage: image)
+                              .resizable()
+                              .aspectRatio(contentMode: .fill)
+                              .transition(.opacity)
+                      } else if failed {
+                          Image(systemName: "fork.knife").font(.largeTitle).foregroundStyle(BW.inkSecondary)
+                      } else {
+                          ProgressView().tint(BW.leaf)
+                      }
+                  }
+                  .task(id: url) {
+                      guard image == nil else { return }
+                      let loaded = await RemoteImagePipeline.shared.image(for: url)
+                      withAnimation(.easeOut(duration: 0.18)) {
+                          image = loaded
+                          failed = loaded == nil
+                      }
+                  }
+              }
+          }
+          '''
+          SMOOTH = [('Views/Components/Components.swift', '                if let url = URL(string: name), url.scheme == "https" {\n                    AsyncImage(url: url) { phase in\n                        switch phase {\n                        case .success(let image): image.resizable().aspectRatio(contentMode: .fill)\n                        case .failure: Image(systemName: "fork.knife").font(.largeTitle).foregroundStyle(BW.inkSecondary)\n                        default: ProgressView().tint(BW.leaf)\n                        }\n                    }\n                    .allowsHitTesting(false)', '                if let url = URL(string: name), url.scheme == "https" {\n                    RemoteFoodImage(url: url)\n                        .id(url)\n                        .allowsHitTesting(false)'), ('Services/SupabaseService.swift', '    func fetchRecipeCatalogue() async throws -> [Recipe] {\n        let rows: [RemoteRecipeEnvelope] = try await client\n            .rpc("get_lemora_recipe_catalog")\n            .execute()\n            .value\n        let recipes = rows.compactMap(\\.recipe)\n        logger.info("Loaded \\(recipes.count) recipes from the permanent catalogue")\n        return recipes\n    }', '    /// Fetches the catalogue and caches the raw response on the device. `changed` is false when the\n    /// response is identical to the cached copy, so the app can keep its current cards untouched.\n    func fetchRecipeCatalogue() async throws -> (recipes: [Recipe], changed: Bool) {\n        let data = try await client\n            .rpc("get_lemora_recipe_catalog")\n            .execute()\n            .data\n        let rows = try JSONDecoder().decode([RemoteRecipeEnvelope].self, from: data)\n        let recipes = rows.compactMap(\\.recipe)\n        let cacheURL = Self.recipeCatalogueCacheURL\n        let changed = (try? Data(contentsOf: cacheURL)) != data\n        if changed && !recipes.isEmpty { try? data.write(to: cacheURL, options: .atomic) }\n        logger.info("Loaded \\(recipes.count) recipes from the permanent catalogue (changed: \\(changed))")\n        return (recipes, changed)\n    }\n\n    nonisolated static var recipeCatalogueCacheURL: URL {\n        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]\n            .appendingPathComponent("lemora-recipe-catalogue-v1.json")\n    }\n\n    /// Recipes from the last successful download, available instantly at launch (empty if none).\n    nonisolated static func cachedRecipeCatalogue() -> [Recipe] {\n        guard let data = try? Data(contentsOf: recipeCatalogueCacheURL),\n              let rows = try? JSONDecoder().decode([RemoteRecipeEnvelope].self, from: data) else { return [] }\n        return rows.compactMap(\\.recipe)\n    }'), ('ViewModels/AppStore.swift', '    private(set) var recipes: [Recipe] = RecipeCatalog.all\n', '    private(set) var recipes: [Recipe] = AppStore.launchRecipes()\n    private var catalogueFromCache: Bool = FileManager.default.fileExists(atPath: SupabaseService.recipeCatalogueCacheURL.path)\n\n    /// Cached catalogue (instant, no reshuffle at launch) plus the bundled original recipes.\n    private static func launchRecipes() -> [Recipe] {\n        let cached = SupabaseService.cachedRecipeCatalogue()\n        guard !cached.isEmpty else { return RecipeCatalog.all }\n        let ids = Set(cached.map(\\.id))\n        return cached + RecipeCatalog.all.filter { !ids.contains($0.id) }\n    }\n'), ('ViewModels/AppStore.swift', '            let fetched = try await SupabaseService.shared.fetchRecipeCatalogue()\n            if !fetched.isEmpty {\n                let fetchedIds = Set(fetched.map(\\.id))\n                recipes = fetched + RecipeCatalog.all.filter { !fetchedIds.contains($0.id) }\n            }\n            recipeCatalogueLoaded = true\n            recipeCatalogueError = nil\n            refreshRanking()', '            let result = try await SupabaseService.shared.fetchRecipeCatalogue()\n            let fetched = result.recipes\n            if !fetched.isEmpty && (result.changed || !catalogueFromCache) {\n                let fetchedIds = Set(fetched.map(\\.id))\n                recipes = fetched + RecipeCatalog.all.filter { !fetchedIds.contains($0.id) }\n                refreshRanking()\n            }\n            catalogueFromCache = true\n            recipeCatalogueLoaded = true\n            recipeCatalogueError = nil'), ('Views/Discover/DiscoverView.swift', '    private var queue: [ScoredRecipe] { store.discoverQueue }', '    /// The card on screen stays on screen even if deals or the catalogue re-rank the queue in the background.\n    @State private var pinnedId: String? = nil\n\n    private var queue: [ScoredRecipe] {\n        let q = store.discoverQueue\n        guard let pinnedId, let idx = q.firstIndex(where: { $0.id == pinnedId }), idx > 0 else { return q }\n        var out = q\n        out.insert(out.remove(at: idx), at: 0)\n        return out\n    }\n\n    private func prefetchNextImages() {\n        let urls = queue.prefix(6).compactMap { URL(string: $0.recipe.imageName) }.filter { $0.scheme == "https" }\n        RemoteImagePipeline.shared.prefetch(urls)\n    }'), ('Views/Discover/DiscoverView.swift', '            store.swipe(item, direction)\n            drag = .zero\n            flyOut = nil', '            store.swipe(item, direction)\n            pinnedId = store.discoverQueue.first?.id\n            drag = .zero\n            flyOut = nil\n            prefetchNextImages()'), ('Views/Discover/DiscoverView.swift', '            .onAppear { store.track("discover_opened") }', '            .onAppear {\n                store.track("discover_opened")\n                if pinnedId == nil { pinnedId = store.discoverQueue.first?.id }\n                prefetchNextImages()\n            }\n            .onChange(of: store.discoverQueue.count) { _, _ in prefetchNextImages() }'), ('Views/Discover/DiscoverView.swift', '            RecipeSwipeCard(item: top, showWhy: $showWhy)\n', '            RecipeSwipeCard(item: top, showWhy: $showWhy)\n                .id(top.id)\n')]
+          EDITS = [('Utilities/Theme.swift', '        value.formatted(.currency(code: "CAD").presentation(.narrow))', '        CurrencyState.shared.current.format(cad: value)'), ('ViewModels/AppStore.swift', '    func mutate(_ change: (inout AppData) -> Void) {\n        change(&data)\n        persist()\n    }\n', '    func mutate(_ change: (inout AppData) -> Void) {\n        change(&data)\n        persist()\n        syncCurrency()\n    }\n\n    /// Currency follows the location entered at onboarding unless the user picked one in Profile.\n    func syncCurrency() {\n        CurrencyState.shared.sync(countryCode: data.profile.location.countryCode, postalCode: data.profile.postalCode)\n    }\n\n    func setCurrency(_ currency: AppCurrency?) {\n        CurrencyState.shared.override = currency\n        syncCurrency()\n        track("currency_changed", ["currency": currency?.rawValue ?? "auto"])\n    }\n'), ('ViewModels/AppStore.swift', '    func bootstrap() async {\n        config = await configProvider.fetch()\n', '    func bootstrap() async {\n        syncCurrency()\n        config = await configProvider.fetch()\n'), ('Views/Profile/ProfileView.swift', '                    NavigationLink { NotificationsEditView() } label: { Label("Notifications", systemImage: "bell") }', '                    NavigationLink { CurrencyEditView() } label: {\n                        row("banknote", String(localized: "Currency"), "\\(CurrencyState.shared.current.flag) \\(CurrencyState.shared.current.rawValue)")\n                    }\n                    NavigationLink { NotificationsEditView() } label: { Label("Notifications", systemImage: "bell") }'), ('Views/Recipe/RecipeDetailView.swift', 'StorePricesCard(prices: recipe.storePricesPerServing)', 'StorePricesCard(prices: recipe.storePricesPerServing, recipe: recipe)')]
+          CARD_MARK = "/// Average regular price per serving at each banner (estimated, before deals)."
+
+          def apply(root, path, old, new, optional=False):
+              p = os.path.join(root, R + path)
+              s = open(p, encoding="utf-8").read()
+              if s.count(old) == 1:
+                  open(p, "w", encoding="utf-8").write(s.replace(old, new)); print("edited", p); return
+              if optional and new in s:
+                  print("already applied", p); return
+              sys.exit(f"Anchor count {s.count(old)} in {path}: {old[:70]!r}")
+
+          def write_new(root, path, text, optional=False):
+              p = os.path.join(root, R + path)
+              if os.path.exists(p):
+                  if optional: print("already exists", p); return
+                  sys.exit(f"{path} already exists")
+              open(p, "w", encoding="utf-8").write(text); print("created", p)
+
+          def main(root="."):
+              for path, old, new in SMOOTH:
+                  apply(root, path, old, new, optional=True)
+              write_new(root, "Utilities/RemoteImagePipeline.swift", PIPE, optional=True)
+              for path, old, new in EDITS:
+                  apply(root, path, old, new)
+              write_new(root, "Utilities/Currency.swift", CURRENCY)
+              p = os.path.join(root, R + "Data/CatalogIngredientInfo.swift")
+              s = open(p, encoding="utf-8").read()
+              if s.count(CARD_MARK) != 1:
+                  sys.exit("StorePricesCard marker missing")
+              open(p, "w", encoding="utf-8").write(s[:s.index(CARD_MARK)] + CARD)
+              print("replaced StorePricesCard in", p)
+
+          if __name__ == "__main__":
+              main(*sys.argv[1:])
+          PYEOF
+          python3 /tmp/edits.py .
+          git rm -f .github/workflows/apply-currency.yml
+          git add -A
+          git status --short
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Currency from location (changeable in Profile), deals per store on recipes, smooth Discover photos"
+          git push
+      - name: Start TestFlight build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run testflight_1.yml --ref main --repo "${{ github.repository }}"
