@@ -313,10 +313,10 @@ extension OnboardingAnswers {
             locMode = p.location.source == .device ? "auto" : "manual"
         }
         let names = Dictionary(OnboardingModel.storeIds.map { ($0.value, $0.key) }, uniquingKeysWith: { a, _ in a })
-        var picked = p.storePreferences.filter { $0.value != .doNotRecommend }.keys
+        var pickedStores = p.storePreferences.filter { $0.value != .doNotRecommend }.keys
             .map { names[$0] ?? RetailerCatalog.byId[$0]?.name ?? $0 }
-        if p.shopsAtCostco && !picked.contains("Costco") { picked.append("Costco") }
-        stores = picked.sorted()
+        if p.shopsAtCostco && !pickedStores.contains("Costco") { pickedStores.append("Costco") }
+        stores = pickedStores.sorted()
     }
 }
 
