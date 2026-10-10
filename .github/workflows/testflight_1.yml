@@ -100,10 +100,12 @@ jobs:
           fingerprint = hashlib.sha256(open(certificate, "rb").read()).digest()
           for c in certs:
               a = c["attributes"]
-              is_dev = a.get("certificateType") in ("DEVELOPMENT", "IOS_DEVELOPMENT")
+              is_signing = a.get("certificateType") in (
+                  "DEVELOPMENT", "IOS_DEVELOPMENT", "DISTRIBUTION", "IOS_DISTRIBUTION"
+              )
               content = base64.b64decode(a.get("certificateContent") or "")
               matches_archive = hashlib.sha256(content).digest() == fingerprint
-              if is_dev and c["id"] not in existing and matches_archive:
+              if is_signing and c["id"] not in existing and matches_archive:
                   call("DELETE", f'https://api.appstoreconnect.apple.com/v1/certificates/{c["id"]}')
                   print("Revoked only this run's newly created archive-signing certificate.")
           PY
@@ -143,7 +145,7 @@ jobs:
             -skipMacroValidation \
             DEVELOPMENT_TEAM="$TEAM_ID" \
             CODE_SIGN_STYLE=Automatic \
-            CODE_SIGN_IDENTITY="Apple Development" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             PROVISIONING_PROFILE_SPECIFIER="" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             INFOPLIST_KEY_ITSAppUsesNonExemptEncryption=NO
