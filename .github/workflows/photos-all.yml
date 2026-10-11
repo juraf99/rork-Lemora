@@ -1,0 +1,137 @@
+name: Ingredient photos and simpler store prices
+
+# One-shot: a clean photo for every ingredient, one line per store in "Price per serving by store",
+# streak week shows only the current streak, store photos fall back to the food photo. Commits, starts TestFlight, deletes itself.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/photos-all.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply the app changes
+        run: |
+          set -e
+          base64 -d <<'B64EOF' | gunzip > /tmp/app.patch
+          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
+          9bGp+NGmPEHz/A8RZD7kXSsAAA==
+          B64EOF
+          git apply --3way --whitespace=nowarn /tmp/app.patch
+      - name: Bundle the ingredient photos
+        run: |
+          set -e
+          out=ios-bitewise/Lemora/Resources/FoodPhotos
+          mkdir -p "$out"
+          base=https://fsucqlqsafoligouzgrl.supabase.co/storage/v1/object/public/food-photos
+          fail=0
+          keys="
+            almond anchovy apple apricot arborio artichoke arugula bacon baking_powder balsamic banana barley
+            basil basil_pesto bean_sprout beef beef_broth beef_ground beet_hummus bell_pepper beluga_lentil
+            black_bean black_pepper black_rice blueberries bok_choy bread breadcrumb brioche_bun broth
+            brown_rice brown_sugar bucatini buckwheat buckwheat_flour bulgur bun burrata butter butter_bean
+            butternut canola_oil caper caraway cardamom casarecce cashew cheddar cherry_tomato chia
+            chicken_thigh chickpea chili chili_powder chipotle chives cilantro cinnamon clams clove cocoa
+            coconut coconut_milk conchiglioni coriander_seed corn_tortilla cottage couscous cranberry cream
+            cream_cheese crushed_tomato cucumber_mini cumin cumin_seed curry curry_powder dark_chocolate dill
+            ditalini dried_chili dried_ginger duck edamame egg falafel farfalle farro fennel fennel_seed feta
+            fish_sauce flank_steak flour freekeh fresh_roll fusilli garam_masala garlic ginger glass_noodles
+            gnocchi goat_cheese gochujang granola greek_yogurt green_bean green_pepper greens gruyere guanciale
+            haddock halloumi ham honey hot_sauce hummus kidney_bean lamb lasagna lemon lemongrass lentil lime
+            linguine mango maple_syrup mascarpone mayonnaise melon_honeydew milk millet mint miso mozzarella
+            mussel mustard naan napa nori nutmeg oat oat_cream okra olive olive_oil orange_juice orecchiette
+            oregano orzo paneer pappardelle paprika parmesan parsley pea peanut peanut_butter pecan pecorino
+            penne pepper_mini phyllo pickle pie_crust pine_nut pineapple pinto_bean pistachio pita polenta
+            pomegranate pork_belly portobello protein_powder provolone prune pumpkin pumpkin_seed quinoa ramen
+            rapini raspberry red_cabbage red_lentil red_pepper rice rice_noodle rice_vermicelli rice_vinegar
+            ricotta rigatoni rosemary saffron sage salsa salsa_verde salt sardine sea_bass sesame_oil
+            sesame_seed shiitake shrimp smoked_salmon soba sour_cream soy_sauce spaghetti sprouts squid
+            star_anise sugar sun_dried_tomato sunflower_seed sushi_rice sweet_potato sweet_potato_noodles
+            tagliatelle tahini tamarind tempeh teriyaki_sauce thai_basil thyme tofu tomato_paste tomato_sauce
+            tortilla tuna tuna_steak turkey turmeric tzatziki udon vanilla vienna_sausage vinegar vodka walnut
+            water white_bean white_wine whole_tortilla whole_wheat_pasta wild_rice yellow_pepper yogurt zucchini"
+          for k in $keys
+          do
+            curl -sSf --retry 3 -o "$out/food-$k.webp" "$base/food-$k.webp" || { echo "missing $k"; fail=$((fail+1)); }
+          done
+          echo "failed: $fail"
+          test "$fail" -le 3
+          git rm -f .github/workflows/photos-all.yml
+          git add -A
+          git status --short | tail -5
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "A photo for every ingredient, simpler store prices, streak week shows the current streak only"
+          git push
+      - name: Start TestFlight build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run testflight_1.yml --ref main --repo "${{ github.repository }}"
