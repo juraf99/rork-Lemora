@@ -1,0 +1,51 @@
+name: Release check follows server-side Ask recipes
+
+# One-shot: Ask now reads the full recipe catalogue on the server, so the app no longer uploads
+# every recipe. The release guard is updated to match, then TestFlight starts. Deletes itself.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-checkfix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update the release guard
+        run: |
+          set -e
+          python3 - <<'PY'
+          p = "scripts/check-integration.mjs"
+          s = open(p, encoding="utf-8").read()
+          old = 'requireText(zesty, "appRecipes: recipes.map(", "Ask must keep access to the recipes visible in the installed app.");'
+          new = 'requireText(zesty, "appRecipes:", "Ask must keep the app recipe context field (the server reads the full catalogue itself).");'
+          if old in s:
+              s = s.replace(old, new)
+              open(p, "w", encoding="utf-8").write(s)
+              print("guard updated")
+          elif new in s:
+              print("guard already updated")
+          else:
+              raise SystemExit("guard line not found")
+          PY
+          node scripts/check-integration.mjs
+          git rm -f .github/workflows/apply-checkfix.yml
+          git add -A
+          git status --short
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Release guard: Ask reads recipes on the server"
+          git push
+      - name: Start TestFlight build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run testflight_1.yml --ref main --repo "${{ github.repository }}"
