@@ -3,6 +3,7 @@ import SwiftUI
 /// Onboarding v2 (landing → questions → plan → Clerk account → paywall → You're in!) → app.
 struct ContentView: View {
     @Environment(AppStore.self) private var store
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showSplash: Bool = true
 
     private enum Route: Equatable { case onboarding, checking, paywall, app }
@@ -51,6 +52,9 @@ struct ContentView: View {
         }
         .onChange(of: store.subscription.hasActiveSubscription) { _, _ in
             store.onSubscriptionChanged()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, !showSplash { Task { await store.refreshDealsIfStale() } }
         }
     }
 }

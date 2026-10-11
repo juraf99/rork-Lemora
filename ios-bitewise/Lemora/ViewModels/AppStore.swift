@@ -15,6 +15,7 @@ final class AppStore {
     /// True while deals for a new area are being fetched (first visit of an area: ~40 s).
     private(set) var checkingNewArea = false
     private var dealLoadID = 0
+    private var lastDealsLoadAt: Date = .distantPast
     private(set) var dealLoadError: String?
     private(set) var currentPricesLoaded = false
     private(set) var currentPriceLoadError: String?
@@ -60,8 +61,14 @@ final class AppStore {
         config = await configProvider.fetch()
         await subscription.start()
         await loadRecipeCatalogue()
-        await loadLiveDeals()
-        await loadCurrentPrices()
+        // Deals load in the background. The launch screen waits at most 3 s for them, never for a new area (~40 s).
+        let dealsTask = Task { await loadLiveDeals(); await loadCurrentPrices() }
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await dealsTask.value }
+            group.addTask { try? await Task.sleep(for: .seconds(3)) }
+            _ = await group.next()
+            group.cancelAll()
+        }
         analytics.track("app_opened", [:])
     }
 
@@ -319,6 +326,7 @@ final class AppStore {
             guard loadID == dealLoadID else { return }
             availableDeals = fetched
             liveDealsLoaded = true
+            lastDealsLoadAt = .now
             dealLoadError = nil
             refreshDeals()
         } catch {
@@ -331,6 +339,14 @@ final class AppStore {
             }
             analytics.track("live_deals_load_failed", ["error": error.localizedDescription])
         }
+    }
+
+    /// Weekly flyers change on different days (Tuesday, Thursday, two-week flyers...). Coming back to the app
+    /// after an hour reloads deals and prices, so only this week's real offers are ever shown.
+    func refreshDealsIfStale() async {
+        guard Date.now.timeIntervalSince(lastDealsLoadAt) > 3600 else { refreshDeals(); return }
+        await loadLiveDeals()
+        await loadCurrentPrices()
     }
 
     func loadCurrentPrices() async {
