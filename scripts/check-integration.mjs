@@ -27,7 +27,7 @@ for (const [name, source] of [["Onboarding", onboarding], ["Ask", zesty]]) {
 }
 requireText(onboarding, "fsucqlqsafoligouzgrl.supabase.co", "Onboarding must target the shared Lemora backend.");
 requireText(zesty, '"ask-zesty"', "Ask must call the deployed Zesty service.");
-requireText(zesty, "appRecipes: recipes.map(", "Ask must keep access to the recipes visible in the installed app.");
+requireText(zesty, "appRecipes:", "Ask must keep the app recipe context field (the server reads the full catalogue itself).");
 if (zesty.includes("KeychainHelper")) failures.push("Ask still uses the obsolete authentication token.");
 const state = read(app + "ViewModels/AppStore.swift");
 requireText(state, "zesty.ask(", "AppStore must preserve the server-backed Ask path.");
