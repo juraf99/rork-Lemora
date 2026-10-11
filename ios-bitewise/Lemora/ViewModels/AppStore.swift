@@ -614,9 +614,14 @@ final class AppStore {
         let start = cal.dateInterval(of: .weekOfYear, for: .now)?.start ?? .now
         let days = Set(data.activeDays)
         let symbols = ["M", "T", "W", "T", "F", "S", "S"]
+        // Only the days of the current streak are checked: once a streak breaks, older days are cleared.
+        let streak = wiseStreakDays
+        let anchor = days.contains(dayKey(.now)) ? Date.now : (cal.date(byAdding: .day, value: -1, to: .now) ?? .now)
+        let streakStart = cal.startOfDay(for: cal.date(byAdding: .day, value: -(max(streak, 1) - 1), to: anchor) ?? anchor)
         return (0..<7).map { i in
             let date = cal.date(byAdding: .day, value: i, to: start) ?? start
-            return (symbols[i], days.contains(dayKey(date)), cal.isDateInToday(date))
+            let inStreak = streak > 0 && cal.startOfDay(for: date) >= streakStart
+            return (symbols[i], inStreak && days.contains(dayKey(date)), cal.isDateInToday(date))
         }
     }
 

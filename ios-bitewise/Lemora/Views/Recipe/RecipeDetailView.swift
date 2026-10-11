@@ -432,7 +432,7 @@ struct RecipeDetailView: View {
             ForEach(swaps) { swap in
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 12) {
-                        ProductPhoto(url: swap.deal.imageURL, category: swap.deal.category)
+                        ProductPhoto(url: swap.deal.imageURL, category: swap.deal.category, ingredientId: swap.deal.ingredientId)
                             .frame(width: 56, height: 56)
                             .clipShape(.rect(cornerRadius: 12))
                         VStack(alignment: .leading, spacing: 3) {

@@ -391,7 +391,7 @@ struct StorePricesCard: View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Price per serving by store").font(.bw(.title3)).foregroundStyle(BW.ink)
-                Text("Average regular prices, with this week's deals applied.")
+                Text("This week's deals included. Cheapest first.")
                     .font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
             }
             VStack(spacing: 0) {
@@ -423,27 +423,8 @@ struct StorePricesCard: View {
                                     .foregroundStyle(idx == 0 || !row.deals.isEmpty ? BW.leafDeep : BW.ink)
                             }
                         }
-                        ForEach(row.deals) { d in
-                            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                IngredientThumb(ingredientId: d.ingredientId, size: 22)
-                                VStack(alignment: .leading, spacing: 1) {
-                                    HStack(spacing: 4) {
-                                        Text(d.deal.productName).fontWeight(.bold).lineLimit(1)
-                                        Text(d.deal.priceText).fontWeight(.heavy).foregroundStyle(BW.leafDeep)
-                                        if let was = d.deal.regularPrice, was > d.deal.effectivePrice {
-                                            Text("\(Money.format(was))\(d.deal.unitLabel)").strikethrough().foregroundStyle(BW.inkSecondary)
-                                        }
-                                    }
-                                    Text(DealTiming.endText(d.deal.validUntil)).foregroundStyle(BW.amber)
-                                }
-                            }
-                            .font(.bw(.caption, weight: .medium))
-                            .foregroundStyle(BW.ink)
-                            .padding(.leading, 4)
-                        }
                     }
-                    .padding(.horizontal, 16).padding(.vertical, 11)
-                    .background(row.deals.isEmpty ? Color.clear : BW.lemonSoft.opacity(0.45))
+                    .padding(.horizontal, 16).padding(.vertical, 13)
                     if idx < allRows.count - 1 { Divider().overlay(BW.hairline).padding(.leading, 16) }
                 }
             }

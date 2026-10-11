@@ -252,7 +252,7 @@ private struct CurrentPriceCard: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ProductPhoto(url: price.imageURL, category: price.category)
+            ProductPhoto(url: price.imageURL, category: price.category, ingredientId: price.ingredientId)
                 .frame(height: 96)
                 .clipShape(.rect(cornerRadius: 12))
             Text(price.retailerProductName ?? price.productName)
@@ -640,7 +640,7 @@ private struct DealArtwork: View {
             if let image = deal.imageName {
                 FoodImage(name: image, height: height, radius: radius)
             } else {
-                ProductPhoto(url: deal.imageURL, category: deal.category)
+                ProductPhoto(url: deal.imageURL, category: deal.category, ingredientId: deal.ingredientId)
                     .frame(maxWidth: .infinity)
                     .frame(height: height)
                     .clipShape(.rect(cornerRadius: radius))

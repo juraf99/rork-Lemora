@@ -54,6 +54,66 @@ nonisolated enum FoodPhotos {
         "trout": "trout",
     ]
 
+    /// Other recipe ids that share a photo (bundled as Resources/FoodPhotos/food-<photo>.webp).
+    static let photoAlias: [String: String] = [
+        "bean_sprouts": "bean_sprout",
+        "black_beans": "black_bean",
+        "blueberry": "blueberries",
+        "broccoli_rabe": "rapini",
+        "canned_tomatoes": "crushed_tomato",
+        "chickpeas": "chickpea",
+        "chive": "chives",
+        "clam": "clams",
+        "coconut_flake": "coconut",
+        "coriander": "cilantro",
+        "corn_tortillas": "corn_tortilla",
+        "cornstarch": "flour",
+        "curry_leaf": "thai_basil",
+        "curry_paste": "curry",
+        "dijon_mustard": "mustard",
+        "eggs": "egg",
+        "firm_tofu": "tofu",
+        "flat_rice_noodles": "rice_noodle",
+        "fresh_mint": "mint",
+        "fusilli_whole": "whole_wheat_pasta",
+        "greek_yogurt_or_skyr": "greek_yogurt",
+        "hard_cheese": "parmesan",
+        "herbs": "parsley",
+        "lemon_juice": "lemon",
+        "lemon_zest": "lemon",
+        "lentils": "lentil",
+        "lime_juice": "lime",
+        "lime_zest": "lime",
+        "maple": "maple_syrup",
+        "mixed_pasta": "penne",
+        "noodles": "rice_noodle",
+        "oats": "oat",
+        "peas": "pea",
+        "penne_whole": "whole_wheat_pasta",
+        "pepper": "bell_pepper",
+        "pomelo": "orange",
+        "pumpkin_seeds": "pumpkin_seed",
+        "ramen_noodles": "ramen",
+        "red_bell_pepper": "red_pepper",
+        "rice_round": "sushi_rice",
+        "rolled_oat": "oat",
+        "sesame": "sesame_seed",
+        "sesame_seeds": "sesame_seed",
+        "spaghetti_whole": "whole_wheat_pasta",
+        "squash": "butternut",
+        "stock": "broth",
+        "tomato_cherry": "cherry_tomato",
+        "tonnarelli": "spaghetti",
+        "toor_dal": "red_lentil",
+        "trofie": "casarecce",
+        "vegetable_broth": "broth",
+        "wheat_flour": "flour",
+        "white_rice": "rice",
+        "whole_urad": "beluga_lentil",
+        "whole_wheat_tortilla": "whole_tortilla",
+        "wide_rice_noodles": "rice_noodle",
+    ]
+
     /// Photo URLs used by the deals feed for a kind of fresh food -> the same photo bundled in the app.
     static let typeForURL: [String: String] = [
         "https://cdn.epiceries.ca/94080_KG_ml_primary_front_NA_042222_VOILA_ef721d10a01e0d8c2dba76d7747c652589630af6.JPG": "asparagus",
@@ -136,7 +196,12 @@ nonisolated enum FoodPhotos {
     }
 
     static func image(forIngredient id: String) -> UIImage? {
-        typeForIngredient[id].flatMap(image(forType:))
+        image(forType: typeForIngredient[id] ?? photoAlias[id] ?? id)
+    }
+
+    /// Instacart sends this placeholder when a store has no product photo.
+    static func isPlaceholder(_ url: URL?) -> Bool {
+        url?.absoluteString.contains("missing-item") == true
     }
 
     static func bundledImage(for url: URL?) -> UIImage? {
@@ -176,15 +241,21 @@ struct IngredientThumb: View {
 }
 
 /// Product photo for a deal or a shelf price, shown whole on white (packshots are never cropped).
+/// When the store has no photo, the clean photo of that food is shown instead: there is always a picture.
 struct ProductPhoto: View {
     let url: URL?
     let category: GroceryCategory
+    let ingredientId: String?
     @State private var image: UIImage?
 
-    init(url: URL?, category: GroceryCategory) {
-        self.url = url
+    init(url: URL?, category: GroceryCategory, ingredientId: String? = nil) {
+        let usable = FoodPhotos.isPlaceholder(url) ? nil : url
+        self.url = usable
         self.category = category
-        _image = State(initialValue: FoodPhotos.bundledImage(for: url) ?? url.flatMap { RemoteImagePipeline.shared.immediate($0) })
+        self.ingredientId = ingredientId
+        _image = State(initialValue: FoodPhotos.bundledImage(for: usable)
+            ?? usable.flatMap { RemoteImagePipeline.shared.immediate($0) }
+            ?? (usable == nil ? ingredientId.flatMap(FoodPhotos.image(forIngredient:)) : nil))
     }
 
     var body: some View {
@@ -196,6 +267,11 @@ struct ProductPhoto: View {
                     .scaledToFit()
                     .padding(10)
                     .transition(.opacity)
+            } else if let id = ingredientId, let fallback = FoodPhotos.image(forIngredient: id) {
+                Image(uiImage: fallback)
+                    .resizable()
+                    .scaledToFit()
+                    .padding(10)
             } else {
                 Image(systemName: category.symbol)
                     .font(.system(size: 30, weight: .semibold))
