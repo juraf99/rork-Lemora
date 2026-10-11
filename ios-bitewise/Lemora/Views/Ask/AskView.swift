@@ -15,6 +15,8 @@ struct AskView: View {
     @State private var input: String = ""
     @State private var isThinking: Bool = false
     @State private var allowance: ZestyAllowance?
+    /// Why Ask is unavailable for this account (no subscription, signed out...), shown under the intro.
+    @State private var accessNote: String?
     @AppStorage("zestyConversationID") private var conversationID: String = ""
     @FocusState private var focused: Bool
 
@@ -54,7 +56,10 @@ struct AskView: View {
             .navigationTitle("Ask")
             .safeAreaInset(edge: .bottom) { composer }
             .bitewiseDestinations()
-            .task { allowance = try? await store.zestyAllowance() }
+            .task {
+                do { allowance = try await store.zestyAllowance(); accessNote = nil }
+                catch { accessNote = error.localizedDescription }
+            }
         }
     }
 
@@ -75,6 +80,11 @@ struct AskView: View {
                 Text(allowance.phase == "trial"
                      ? "\(allowance.remaining) of \(allowance.total) Zesty Ask messages remaining in your trial"
                      : "\(allowance.remaining) of \(allowance.total) Zesty Ask messages remaining")
+                    .font(.bw(.caption, weight: .semibold))
+                    .foregroundStyle(BW.inkSecondary)
+            }
+            if let accessNote {
+                Text(accessNote)
                     .font(.bw(.caption, weight: .semibold))
                     .foregroundStyle(BW.inkSecondary)
             }
@@ -278,7 +288,18 @@ struct AskView: View {
         isThinking = true
         Task {
             do {
-                let response = try await store.ask(query, conversationId: conversationID.isEmpty ? nil : conversationID)
+                // Zesty always answers or fails within 75 s: never an endless spinner.
+                let previousID = conversationID.isEmpty ? nil : conversationID
+                let response = try await withThrowingTaskGroup(of: ZestyAskResponse.self) { group in
+                    group.addTask { try await store.ask(query, conversationId: previousID) }
+                    group.addTask {
+                        try await Task.sleep(for: .seconds(75))
+                        throw ZestyServiceError.server(message: String(localized: "Zesty took too long. Please try again."))
+                    }
+                    guard let first = try await group.next() else { throw ZestyServiceError.invalidResponse }
+                    group.cancelAll()
+                    return first
+                }
                 conversationID = response.conversationId
                 if let remaining = response.remaining,
                    let total = response.allowanceTotal,
