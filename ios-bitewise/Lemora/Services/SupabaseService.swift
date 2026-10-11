@@ -129,12 +129,15 @@ final class SupabaseService {
     /// The first time a postal code is seen, the backend looks up which weekly flyers cover it
     /// (a second or two). Later launches return immediately. Failures fall back to the nearest known zone.
     private static func ensureFlyerZone(_ postal: String) async {
-        guard let url = URL(string: "\(LemoraBackend.projectURL.absoluteString)/functions/v1/flipp-direct-ingest") else { return }
-        var request = URLRequest(url: url, timeoutInterval: 8)
+        // US ZIP codes use Instacart store prices: the first visit of an area takes about 40 s, then it is cached.
+        let isZip = postal.first?.isNumber == true
+        let service = isZip ? "instacart-us" : "flipp-direct-ingest"
+        guard let url = URL(string: "\(LemoraBackend.projectURL.absoluteString)/functions/v1/\(service)") else { return }
+        var request = URLRequest(url: url, timeoutInterval: isZip ? 75 : 8)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(LemoraBackend.publishableKey, forHTTPHeaderField: "apikey")
-        request.httpBody = try? JSONSerialization.data(withJSONObject: ["ensurePostal": postal])
+        request.httpBody = try? JSONSerialization.data(withJSONObject: isZip ? ["zip": postal] : ["ensurePostal": postal])
         _ = try? await URLSession.shared.data(for: request)
     }
 
