@@ -1,0 +1,37 @@
+name: Launch fixes (Canada-wide deals, USD, no sample deals)
+
+# One-shot: applies the launch fixes, commits, starts TestFlight, deletes itself.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-launch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Edit the Swift files
+        run: |
+          set -e
+          echo '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' | base64 -d | gunzip > /tmp/edits.py
+          python3 /tmp/edits.py ios-bitewise/Lemora
+          git rm -f .github/workflows/apply-launch.yml
+          git add -A
+          git status --short
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Launch fixes: new-area loading banner, Canada-wide Instacart deals, USD prices, no sample deals, store prices outside Quebec, tester bypass TestFlight only"
+          git push
+      - name: Start TestFlight build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run testflight_1.yml --ref main --repo "${{ github.repository }}"
