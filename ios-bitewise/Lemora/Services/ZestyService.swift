@@ -245,7 +245,7 @@ nonisolated struct ZestyService: Sendable {
             .appending(path: "ask-zesty")
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
-        request.timeoutInterval = 90
+        request.timeoutInterval = 70
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(LemoraBackend.publishableKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -266,7 +266,8 @@ nonisolated struct ZestyService: Sendable {
                 )
             },
             recentCookedRecipeIds: data.cookLogs.sorted { $0.date > $1.date }.prefix(20).map(\.recipeId),
-            appRecipes: recipes.map(ZestyAppRecipeSnapshot.init),
+            // The server reads the full recipe catalogue itself: no need to upload every recipe.
+            appRecipes: [],
             timeZone: TimeZone.current.identifier
         )
         let payload = ZestyAskRequest(

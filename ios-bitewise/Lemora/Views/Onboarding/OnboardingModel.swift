@@ -1,5 +1,6 @@
 import SwiftUI
 import ClerkKit
+import CoreLocation
 import UserNotifications
 
 /// Answers collected by the v2 onboarding. Codable so a guest can resume, and stored as-is in Supabase.
@@ -399,6 +400,17 @@ final class OnboardingModel {
         let postal = a.country == "CA" ? String(pc.prefix(3)) + " " + String(pc.suffix(3)) : pc
         return ResolvedLocation(key: region.key, name: region.name, postal: postal,
                                 chains: OBData.stores[a.country]?[region.key] ?? [])
+    }
+
+    /// "Falmouth, KY" for the code, so people can check they are placed at the right spot.
+    var cityByPostal: [String: String] = [:]
+    func placeName(_ loc: ResolvedLocation) -> String { cityByPostal[loc.postal] ?? loc.name }
+    func lookupCity() async {
+        guard let loc = currentLocation, cityByPostal[loc.postal] == nil else { return }
+        let query = "\(loc.postal), \(a.country == "CA" ? "Canada" : "United States")"
+        guard let mark = try? await CLGeocoder().geocodeAddressString(query).first else { return }
+        let parts = [mark.locality ?? mark.subAdministrativeArea, mark.administrativeArea].compactMap { $0 }
+        if !parts.isEmpty { cityByPostal[loc.postal] = parts.joined(separator: ", ") }
     }
 
     func allowLocation() {

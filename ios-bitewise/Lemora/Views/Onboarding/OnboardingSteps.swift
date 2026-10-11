@@ -863,6 +863,8 @@ struct OBFlow: Layout {
 
 struct OBLocationStep: View {
     @Environment(OnboardingModel.self) private var m
+    /// The postal code field only opens after "Enter manually" (or when location fails).
+    @State private var showManual = false
 
     var body: some View {
         @Bindable var m = m
@@ -890,14 +892,14 @@ struct OBLocationStep: View {
             if let loc {
                 HStack(spacing: 10) {
                     Text("✓").font(OB.font(12, 800)).foregroundStyle(.white).frame(width: 26, height: 26).background(OB.green, in: .circle)
-                    Text("\(loc.postal) · \(loc.name)").font(OB.font(14, 700)).foregroundStyle(OB.ink).frame(maxWidth: .infinity, alignment: .leading)
+                    Text("\(loc.postal) · \(m.placeName(loc))").font(OB.font(14, 700)).foregroundStyle(OB.ink).frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .padding(.horizontal, 14).padding(.vertical, 12)
                 .background(OB.mint, in: .rect(cornerRadius: 18))
                 .obPop(duration: 0.35)
             }
 
-            Button { m.allowLocation() } label: {
+            Button { showManual = false; m.allowLocation() } label: {
                 HStack(spacing: 6) {
                     if m.locating { ProgressView().tint(.white) }
                     Text("📍 ALLOW LOCATION").font(OB.font(15, 800)).tracking(0.45)
@@ -909,7 +911,7 @@ struct OBLocationStep: View {
             }
             .buttonStyle(OBPress())
 
-            Button { m.a.locMode = "manual" } label: {
+            Button { m.a.locMode = "manual"; withAnimation(.snappy) { showManual = true } } label: {
                 Text("ENTER MANUALLY").font(OB.font(15, 800)).tracking(0.45).foregroundStyle(OB.ink)
                     .frame(maxWidth: .infinity).padding(.vertical, 15)
                     .background(.white, in: .capsule)
@@ -917,7 +919,7 @@ struct OBLocationStep: View {
             }
             .buttonStyle(OBPress())
 
-            if m.a.locMode == "manual" {
+            if showManual {
                 VStack(spacing: 9) {
                     HStack(spacing: 3) {
                         ForEach([("CA", "🇨🇦 Canada"), ("US", "🇺🇸 United States")], id: \.0) { c in
@@ -945,7 +947,7 @@ struct OBLocationStep: View {
                         .padding(.horizontal, 16).padding(.vertical, 12)
                         .overlay(Capsule().strokeBorder(OB.inputBorder, lineWidth: 1.5))
 
-                    Text(loc.map { "✓ " + $0.name } ?? (m.a.postal.isEmpty ? (m.a.country == "CA" ? "Format: A1A 1A1" : "5-digit ZIP")
+                    Text(loc.map { "✓ " + m.placeName($0) } ?? (m.a.postal.isEmpty ? (m.a.country == "CA" ? "Format: A1A 1A1" : "5-digit ZIP")
                         : m.a.postal.filter { !$0.isWhitespace }.count >= (m.a.country == "CA" ? 6 : 5)
                             ? (m.a.country == "CA" ? "Check the format: letter, number, letter, number, letter, number (A1A 1A1)" : "A ZIP code has 5 digits")
                             : "Keep typing…"))
@@ -959,6 +961,10 @@ struct OBLocationStep: View {
                 .shadow(color: OB.ink.opacity(0.05), radius: 5, x: 0, y: 2)
                 .obIn(duration: 0.3)
             }
+        }
+        .task(id: loc?.postal) { await m.lookupCity() }
+        .onChange(of: m.a.locMode) { _, mode in
+            if mode == "manual" { withAnimation(.snappy) { showManual = true } }
         }
     }
 
@@ -979,7 +985,7 @@ struct OBStoresStep: View {
         VStack(spacing: 10) {
             HStack(spacing: 8) {
                 Image(systemName: "mappin.circle.fill").font(.system(size: 14)).foregroundStyle(OB.green)
-                Text(loc.map { "\($0.postal) · \($0.name)" } ?? "No location yet").font(OB.font(12.5, 700)).foregroundStyle(OB.ink)
+                Text(loc.map { "\($0.postal) · \(m.placeName($0))" } ?? "No location yet").font(OB.font(12.5, 700)).foregroundStyle(OB.ink)
                 if m.nearbyLoading { ProgressView().controlSize(.mini) }
                 Spacer()
                 Button("Change") { m.go(.location) }.font(OB.font(12.5, 700)).foregroundStyle(OB.green).buttonStyle(.plain)
