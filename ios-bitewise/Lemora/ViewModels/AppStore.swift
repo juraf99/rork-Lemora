@@ -12,6 +12,9 @@ final class AppStore {
     private(set) var prices: [String: RecipePrice] = [:]
     private(set) var ranked: [ScoredRecipe] = []
     private(set) var liveDealsLoaded = false
+    /// True while deals for a new area are being fetched (first visit of an area: ~40 s).
+    private(set) var checkingNewArea = false
+    private var dealLoadID = 0
     private(set) var dealLoadError: String?
     private(set) var currentPricesLoaded = false
     private(set) var currentPriceLoadError: String?
@@ -168,7 +171,7 @@ final class AppStore {
         let mine = Set(profile.storePreferences.filter { $0.value != .doNotRecommend }.map(\.key))
         var blocked = Set(profile.storePreferences.filter { $0.value == .doNotRecommend }.map(\.key))
         if !profile.shopsAtCostco { blocked.insert("costco") }
-        let source = availableDeals.isEmpty ? SampleDealProvider.deals(now: now) : availableDeals
+        let source = availableDeals
         let active = source.filter { $0.isActive(at: now) && !blocked.contains($0.retailerId) }
         let scoped = mine.isEmpty ? active : active.filter { mine.contains($0.retailerId) }
         let previewPrices = Dictionary(uniqueKeysWithValues: recipes.map {
@@ -207,11 +210,12 @@ final class AppStore {
     // TEMPORARY (beta): tester bypass for the hard paywall. Remove before public release.
     var testerBypass: Bool = UserDefaults.standard.bool(forKey: "lemora.testerBypass")
     func enableTesterBypass() {
+        guard SubscriptionService.isTestFlight else { return }
         testerBypass = true
         UserDefaults.standard.set(true, forKey: "lemora.testerBypass")
     }
 
-    var isPremium: Bool { subscription.hasActiveSubscription || testerBypass }
+    var isPremium: Bool { subscription.hasActiveSubscription || (testerBypass && SubscriptionService.isTestFlight) }
 
     func has(_ entitlement: Entitlement) -> Bool { isPremium }
 
@@ -236,9 +240,6 @@ final class AppStore {
     /// Active, non-expired deals from stores the user hasn't excluded.
     func refreshDeals() {
         let now = Date.now
-        if availableDeals.isEmpty && !liveDealsLoaded {
-            availableDeals = SampleDealProvider.deals(now: now)
-        }
         currentStorePrices = availableStorePrices.filter {
             $0.staleAfter >= now
                 && !blockedStoreIds.contains($0.retailerId)
@@ -299,17 +300,33 @@ final class AppStore {
 
     /// Replaces development fixtures with the current, food-only weekly flyer feed.
     /// A valid location with no coverage intentionally returns no deals instead of showing another region.
+    /// Loads this week's food deals for the user's area. A new US / Canada area is fetched once (~40 s):
+    /// the app stays usable and the Deals tab shows a "checking deals near you" banner meanwhile.
+    /// A newer load (location changed) always wins over an older one.
     func loadLiveDeals() async {
+        dealLoadID += 1
+        let loadID = dealLoadID
+        let slow = Task {
+            try? await Task.sleep(for: .seconds(2))
+            if !Task.isCancelled, loadID == dealLoadID { checkingNewArea = true }
+        }
+        defer {
+            slow.cancel()
+            if loadID == dealLoadID { checkingNewArea = false }
+        }
         do {
             let fetched = try await SupabaseService.shared.fetchActiveDeals(location: data.profile.location)
+            guard loadID == dealLoadID else { return }
             availableDeals = fetched
             liveDealsLoaded = true
             dealLoadError = nil
             refreshDeals()
         } catch {
+            guard loadID == dealLoadID else { return }
             dealLoadError = error.localizedDescription
+            // Never show sample prices to real users: keep the last live deals, or none.
             if !liveDealsLoaded {
-                availableDeals = SampleDealProvider.deals(now: .now)
+                availableDeals = []
                 refreshDeals()
             }
             analytics.track("live_deals_load_failed", ["error": error.localizedDescription])

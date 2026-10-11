@@ -129,15 +129,19 @@ final class SupabaseService {
     /// The first time a postal code is seen, the backend looks up which weekly flyers cover it
     /// (a second or two). Later launches return immediately. Failures fall back to the nearest known zone.
     private static func ensureFlyerZone(_ postal: String) async {
-        // US ZIP codes use Instacart store prices: the first visit of an area takes about 40 s, then it is cached.
-        let isZip = postal.first?.isNumber == true
-        let service = isZip ? "instacart-us" : "flipp-direct-ingest"
-        guard let url = URL(string: "\(LemoraBackend.projectURL.absoluteString)/functions/v1/\(service)") else { return }
-        var request = URLRequest(url: url, timeoutInterval: isZip ? 75 : 8)
+        let cleaned = postal.uppercased().filter { $0.isLetter || $0.isNumber }
+        guard let first = cleaned.first else { return }
+        // Quebec uses the weekly flyers. US ZIP codes and the rest of Canada use Instacart store prices
+        // (the first visit of an area takes up to ~40 s, then it is cached for 3 days).
+        let instacart = first.isNumber || !"GHJ".contains(first)
+        let name = instacart ? "instacart-us" : "flipp-direct-ingest"
+        guard let url = URL(string: "\(LemoraBackend.projectURL.absoluteString)/functions/v1/\(name)") else { return }
+        var request = URLRequest(url: url, timeoutInterval: instacart ? 75 : 8)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(LemoraBackend.publishableKey, forHTTPHeaderField: "apikey")
-        request.httpBody = try? JSONSerialization.data(withJSONObject: isZip ? ["zip": postal] : ["ensurePostal": postal])
+        let body: [String: String] = instacart ? (first.isNumber ? ["zip": String(cleaned.prefix(5))] : ["postal": cleaned]) : ["ensurePostal": postal]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
         _ = try? await URLSession.shared.data(for: request)
     }
 
@@ -570,13 +574,16 @@ private nonisolated struct LiveDealRow: Decodable, Sendable {
         default: .uncertain
         }
 
+        // Prices are kept in CAD inside the app (converted for display). US store prices arrive in USD.
+        let toCAD = currencyCode.uppercased() == "USD" ? 1 / AppCurrency.usd.perCAD : 1
+        RetailerCatalog.learn(Self.normalizedRetailerId(retailerId), retailerName)
         return Deal(
             id: id,
             ingredientId: ingredientId,
             retailerId: Self.normalizedRetailerId(retailerId),
             productName: productName,
-            salePrice: salePrice,
-            regularPrice: regularPrice,
+            salePrice: salePrice * toCAD,
+            regularPrice: regularPrice.map { $0 * toCAD },
             unitLabel: unitLabel,
             multiBuyQuantity: multiBuyQuantity,
             validFrom: start,
@@ -591,7 +598,7 @@ private nonisolated struct LiveDealRow: Decodable, Sendable {
             imageURL: imageUrl.flatMap(URL.init(string:)),
             retailerName: retailerName,
             sourcePostalCode: sourcePostalCode,
-            currencyCode: currencyCode,
+            currencyCode: "CAD",
             dietaryFlags: dietaryFlags,
             allergenFlags: allergenFlags,
             retailerProductName: retailerProductName,

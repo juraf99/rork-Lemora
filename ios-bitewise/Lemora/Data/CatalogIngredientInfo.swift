@@ -361,10 +361,25 @@ struct StorePricesCard: View {
         let deals: [StoreDeal]
     }
 
+    /// Store shelf prices exist for Quebec. Elsewhere, rows are the nearby stores with deals this week.
+    private var inQuebec: Bool {
+        let location = store.data.profile.location
+        guard location.isSet else { return true }
+        return location.countryCode == "CA" && "GHJ".contains(location.postalCode.uppercased().first ?? " ")
+    }
+
     private var rows: [Row] {
         let servings = Double(max(recipe.servings, 1))
         let now = Date()
-        return prices.map { storeId, regular -> Row in
+        let quebec = inQuebec
+        var base = prices
+        if !quebec {
+            let sorted = prices.values.sorted()
+            let estimate = sorted.isEmpty ? 0 : sorted[sorted.count / 2]
+            let local = Set(store.deals.filter { $0.validUntil >= now }.map { $0.retailerId.lowercased() })
+            base = Dictionary(uniqueKeysWithValues: local.map { ($0, estimate) })
+        }
+        return base.map { storeId, regular -> Row in
             var found: [StoreDeal] = []
             var savings = 0.0
             for item in recipe.ingredients {
@@ -383,11 +398,13 @@ struct StorePricesCard: View {
             }
             return Row(id: storeId, regular: regular, price: max(0, regular - savings / servings), deals: found)
         }
+        .filter { quebec || !$0.deals.isEmpty }
         .sorted { $0.price < $1.price }
     }
 
     var body: some View {
         let allRows = self.rows
+        if !allRows.isEmpty {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Price per serving by store").font(.bw(.title3)).foregroundStyle(BW.ink)
@@ -429,6 +446,7 @@ struct StorePricesCard: View {
                 }
             }
             .bwCard()
+        }
         }
     }
 }

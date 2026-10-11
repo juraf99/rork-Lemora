@@ -10,6 +10,7 @@ struct DealsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     header
+                    checkingBanner
                     storeToggle
                     storesThisWeek
                     seeAllBanner
@@ -29,6 +30,27 @@ struct DealsView: View {
                 ensureVisibleDeals()
             }
             .onChange(of: store.deals) { _, _ in ensureVisibleDeals() }
+            .animation(.snappy, value: store.checkingNewArea)
+        }
+    }
+
+    // MARK: New area
+
+    @ViewBuilder private var checkingBanner: some View {
+        if store.checkingNewArea {
+            HStack(spacing: 12) {
+                ProgressView().tint(BW.ink)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Checking deals near you…").font(.bw(.subheadline, weight: .bold)).foregroundStyle(BW.ink)
+                    Text("New area: this takes about 40 seconds. You can keep using Lemora.")
+                        .font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .background(BW.lemon.opacity(0.35), in: .rect(cornerRadius: 16))
+            .padding(.horizontal, 20)
+            .transition(.opacity)
         }
     }
 

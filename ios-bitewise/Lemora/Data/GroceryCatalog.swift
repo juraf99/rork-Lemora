@@ -27,8 +27,22 @@ nonisolated enum RetailerCatalog {
 
     static func name(_ id: String?) -> String {
         guard let id else { return String(localized: "Any store") }
-        return byId[id]?.name ?? id
+        return byId[id]?.name ?? learnedNames.get(id) ?? id
     }
+
+    /// Store names seen in live deals (US and Canada outside Quebec), so ids never show raw.
+    private static let learnedNames = LearnedNames()
+    static func learn(_ id: String, _ name: String) {
+        guard byId[id] == nil, !name.isEmpty else { return }
+        learnedNames.set(id, name)
+    }
+}
+
+private final class LearnedNames: @unchecked Sendable {
+    private let lock = NSLock()
+    private var names: [String: String] = [:]
+    func get(_ id: String) -> String? { lock.lock(); defer { lock.unlock() }; return names[id] }
+    func set(_ id: String, _ name: String) { lock.lock(); names[id] = name; lock.unlock() }
 }
 
 /// SAMPLE promotions used until a licensed flyer provider or the manual flyer pipeline is connected.
