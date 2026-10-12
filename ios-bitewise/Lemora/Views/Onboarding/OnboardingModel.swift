@@ -402,6 +402,17 @@ final class OnboardingModel {
                                 chains: OBData.stores[a.country]?[region.key] ?? [])
     }
 
+    /// Changes whenever the person picks or unpicks an option (not while typing or dragging a slider):
+    /// drives the light selection haptic in onboarding and in the Profile editors.
+    var hapticKey: Int {
+        var h = Hasher()
+        h.combine(a.referral); h.combine(a.goal); h.combine(a.goals); h.combine(a.household); h.combine(a.unit)
+        h.combine(a.cuisines); h.combine(a.diets); h.combine(a.allergies); h.combine(a.noAllergy); h.combine(a.dislikes)
+        h.combine(a.meals); h.combine(a.locMode); h.combine(a.country); h.combine(a.stores); h.combine(a.noBudget)
+        h.combine(a.strategy); h.combine(a.notif); h.combine(a.plan)
+        return h.finalize()
+    }
+
     /// "Falmouth, KY" for the code, so people can check they are placed at the right spot.
     var cityByPostal: [String: String] = [:]
     func placeName(_ loc: ResolvedLocation) -> String { cityByPostal[loc.postal] ?? loc.name }

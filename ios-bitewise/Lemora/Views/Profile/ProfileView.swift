@@ -246,6 +246,7 @@ struct OnboardingPrefEditor<Content: View>: View {
             }
         }
         .toolbar(.hidden, for: .tabBar)
+        .sensoryFeedback(.selection, trigger: model?.hapticKey)
         .onChange(of: model?.location.state) { _, state in
             guard let model, let state else { return }
             switch state {

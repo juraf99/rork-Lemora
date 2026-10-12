@@ -25,6 +25,7 @@ struct MainTabView: View {
             Tab("Profile", systemImage: "person", value: .profile) { ProfileView() }
         }
         .tint(BW.amber)
+        .sensoryFeedback(.impact(weight: .medium), trigger: tab)
     }
 }
 

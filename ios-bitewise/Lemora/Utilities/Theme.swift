@@ -141,6 +141,7 @@ struct BWPressableStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.95 : 1)
             .animation(.spring(response: 0.25, dampingFraction: 0.65), value: configuration.isPressed)
+            .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.55), trigger: configuration.isPressed) { old, new in !old && new }
     }
 }
 

@@ -23,6 +23,8 @@ struct LemoraOnboardingView: View {
         }
         .animation(.easeInOut(duration: 0.25), value: model.screen)
         .animation(.easeOut(duration: 0.25), value: model.showMerge)
+        .sensoryFeedback(.selection, trigger: model.hapticKey)
+        .sensoryFeedback(.impact(weight: .light), trigger: model.screen)
         .environment(model)
         .preferredColorScheme(.light)
         .onChange(of: model.location.state) { _, state in
