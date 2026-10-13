@@ -7,7 +7,14 @@ extension OnboardingModel {
     // MARK: Social + email auth
 
     func authApple(_ store: AppStore) {
-        runAuth(store, provider: .apple) { try await Clerk.shared.auth.signInWithApple() }
+        runAuth(store, provider: .apple) {
+            do { return try await Clerk.shared.auth.signInWithApple() }
+            catch {
+                if Self.isCancel(error) { throw error }
+                // Native Sign in with Apple fails when Clerk has no native iOS app set up: use Clerk's web flow instead.
+                return try await Clerk.shared.auth.signInWithOAuth(provider: .apple)
+            }
+        }
     }
 
     func authGoogle(_ store: AppStore) {
@@ -30,7 +37,7 @@ extension OnboardingModel {
                 await didAuthenticate(store, provider: provider, isNew: isNew)
             } catch {
                 if !Self.isCancel(error) {
-                    errorText = "That didn’t work. Please try again."
+                    errorText = "That didn’t work: \(Self.message(for: error))"
                 }
             }
             busy = false

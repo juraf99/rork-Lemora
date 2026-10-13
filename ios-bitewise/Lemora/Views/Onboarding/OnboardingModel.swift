@@ -538,7 +538,13 @@ final class OnboardingModel {
 
     func notifAllow() {
         Task { @MainActor in
-            let granted = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+            let center = UNUserNotificationCenter.current()
+            if await center.notificationSettings().authorizationStatus == .denied,
+               let url = URL(string: UIApplication.openSettingsURLString) {
+                // iOS only asks once: after an earlier refusal, open Settings so notifications can be turned on.
+                _ = await UIApplication.shared.open(url)
+            }
+            let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
             self.a.notif = granted ? "allowed" : "denied_system"
             self.go(.ready)
         }

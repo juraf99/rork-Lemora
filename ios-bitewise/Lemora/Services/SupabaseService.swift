@@ -132,11 +132,11 @@ final class SupabaseService {
         let cleaned = postal.uppercased().filter { $0.isLetter || $0.isNumber }
         guard let first = cleaned.first else { return }
         // Quebec uses the weekly flyers. US ZIP codes and the rest of Canada use Instacart store prices
-        // (the first visit of an area takes up to ~40 s, then it is cached for 3 days).
+        // (the first visit of an area takes about 1 minute, then it is cached for 3 days).
         let instacart = first.isNumber || !"GHJ".contains(first)
         let name = instacart ? "instacart-us" : "flipp-direct-ingest"
         guard let url = URL(string: "\(LemoraBackend.projectURL.absoluteString)/functions/v1/\(name)") else { return }
-        var request = URLRequest(url: url, timeoutInterval: instacart ? 75 : 8)
+        var request = URLRequest(url: url, timeoutInterval: instacart ? 100 : 8)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(LemoraBackend.publishableKey, forHTTPHeaderField: "apikey")

@@ -1,5 +1,6 @@
 import Foundation
 import CoreLocation
+import UIKit
 
 /// One-shot, when-in-use location lookup that resolves a postal code. Never tracks continuously.
 @Observable
@@ -23,7 +24,9 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         case .notDetermined:
             manager.requestWhenInUseAuthorization()
         case .denied, .restricted:
+            // iOS only asks once: after a refusal, the button opens Lemora's Settings to turn location on.
             state = .denied
+            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
         default:
             manager.requestLocation()
         }

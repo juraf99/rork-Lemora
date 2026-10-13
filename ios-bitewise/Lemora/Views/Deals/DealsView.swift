@@ -42,7 +42,7 @@ struct DealsView: View {
                 ProgressView().tint(BW.ink)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Checking deals near you…").font(.bw(.subheadline, weight: .bold)).foregroundStyle(BW.ink)
-                    Text("New area: this takes about 40 seconds. You can keep using Lemora.")
+                    Text("New area: this takes about 1 minute. Deals appear by themselves.")
                         .font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
                 }
                 Spacer(minLength: 0)

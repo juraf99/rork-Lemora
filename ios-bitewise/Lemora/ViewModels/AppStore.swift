@@ -14,6 +14,8 @@ final class AppStore {
     private(set) var liveDealsLoaded = false
     /// True while deals for a new area are being fetched (first visit of an area: ~40 s).
     private(set) var checkingNewArea = false
+    /// When the current area load started (drives the ~1 min progress shown to the user).
+    private(set) var checkingStartedAt = Date.now
     private var dealLoadID = 0
     private var lastDealsLoadAt: Date = .distantPast
     private(set) var dealLoadError: String?
@@ -313,6 +315,7 @@ final class AppStore {
     func loadLiveDeals() async {
         dealLoadID += 1
         let loadID = dealLoadID
+        checkingStartedAt = .now
         let slow = Task {
             try? await Task.sleep(for: .seconds(2))
             if !Task.isCancelled, loadID == dealLoadID { checkingNewArea = true }
@@ -322,7 +325,17 @@ final class AppStore {
             if loadID == dealLoadID { checkingNewArea = false }
         }
         do {
-            let fetched = try await SupabaseService.shared.fetchActiveDeals(location: data.profile.location)
+            var fetched = try await SupabaseService.shared.fetchActiveDeals(location: data.profile.location)
+            // A new area can still be loading on the server: check again every 10 s for up to 2 minutes,
+            // so deals appear by themselves without reopening the app.
+            var tries = 0
+            while fetched.isEmpty, data.profile.location.isSet, tries < 12, loadID == dealLoadID, !Task.isCancelled {
+                tries += 1
+                checkingNewArea = true
+                try? await Task.sleep(for: .seconds(10))
+                guard loadID == dealLoadID else { return }
+                fetched = (try? await SupabaseService.shared.fetchActiveDeals(location: data.profile.location)) ?? []
+            }
             guard loadID == dealLoadID else { return }
             availableDeals = fetched
             liveDealsLoaded = true
