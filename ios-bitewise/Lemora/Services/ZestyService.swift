@@ -273,7 +273,7 @@ nonisolated struct ZestyService: Sendable {
         let payload = ZestyAskRequest(
             message: message,
             conversationId: conversationId,
-            locale: Locale.current.language.languageCode?.identifier ?? "en",
+            locale: AppLanguage.current.rawValue,
             context: context
         )
         let encoder = JSONEncoder()

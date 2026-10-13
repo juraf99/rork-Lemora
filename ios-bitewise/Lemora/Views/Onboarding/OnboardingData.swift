@@ -277,6 +277,9 @@ sugar|Added Sugar|Sucre ajoute|sucre
             "MW": ["Meijer", "Kroger", "Walmart", "Aldi", "Target", "Costco", "Sam’s Club", "Whole Foods"],
             "W": ["Safeway", "Albertsons", "Walmart", "Costco", "Target", "Trader Joe’s", "Whole Foods", "Kroger"],
             "ANY": ["Walmart", "Target", "Costco", "Kroger", "Aldi", "Safeway", "Publix", "Trader Joe’s", "Whole Foods"]
+        ],
+        "AU": [
+            "ANY": ["Woolworths", "Coles", "Aldi", "IGA", "Costco", "Harris Farm"]
         ]
     ]
 
@@ -294,12 +297,21 @@ sugar|Added Sugar|Sucre ajoute|sucre
             "MW": ["Hy-Vee", "Jewel-Osco", "Schnucks", "Festival Foods", "Woodman’s", "Mariano’s", "Dierbergs", "Fareway", "Lidl"],
             "W": ["Sprouts", "WinCo", "Raley’s", "Fred Meyer", "Smart & Final", "Grocery Outlet", "99 Ranch", "Stater Bros.", "New Seasons"],
             "ANY": ["Sprouts", "Lidl", "Grocery Outlet", "WinCo", "H Mart", "99 Ranch", "Hy-Vee", "Market Basket"]
+        ],
+        "AU": [
+            "ANY": ["FoodWorks", "Drakes", "Foodland", "Romeo’s", "Spar", "Friendly Grocer"]
         ]
     ]
 
     static func regionOf(country: String, code: String) -> (key: String, name: String) {
         let c = code.uppercased().trimmingCharacters(in: .whitespaces)
-        guard let first = c.first else { return country == "CA" ? ("ANY", "Canada") : ("ANY", "United States") }
+        guard let first = c.first else { return country == "CA" ? ("ANY", "Canada") : country == "AU" ? ("ANY", "Australia") : ("ANY", "United States") }
+        if country == "AU" {
+            let states: [Character: String] = ["0": "Northern Territory", "1": "New South Wales", "2": "New South Wales", "3": "Victoria", "4": "Queensland",
+                                               "5": "South Australia", "6": "Western Australia", "7": "Tasmania", "8": "Victoria", "9": "Queensland"]
+            if c.hasPrefix("26") || c.hasPrefix("29") { return ("ANY", "Canberra") }
+            return ("ANY", states[first] ?? "Australia")
+        }
         if country == "CA" {
             if "HGJ".contains(first) { return ("QC", "Québec") }
             if "KLMNP".contains(first) { return ("ON", "Ontario") }
@@ -336,6 +348,9 @@ sugar|Added Sugar|Sucre ajoute|sucre
         "Kroger": (0x134B97, 0xFFFFFF),
         "H-E-B": (0xEE3124, 0xFFFFFF),
         "Aldi": (0x00005F, 0xF9B200),
+        "Woolworths": (0x178841, 0xFFFFFF),
+        "Coles": (0xE01A22, 0xFFFFFF),
+        "Harris Farm": (0x1E5631, 0xFFFFFF),
         "Whole Foods": (0x00674B, 0xFFFFFF),
         "Sam’s Club": (0x0067A0, 0xFFFFFF),
         "Trader Joe’s": (0xD21242, 0xFFFFFF),

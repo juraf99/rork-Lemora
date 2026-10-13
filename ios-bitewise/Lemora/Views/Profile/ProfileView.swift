@@ -49,11 +49,15 @@ struct ProfileView: View {
                         Label("Metric units", systemImage: "ruler")
                     }
                     .tint(BW.leaf)
-                    Button {
-                        if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                    // Changes the app language directly (not the iPhone settings).
+                    Picker(selection: Binding(get: { LanguageState.shared.current }, set: { AppLanguage.set($0) })) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Text(verbatim: "\(language.flag) \(language.nativeName)").tag(language)
+                        }
                     } label: {
-                        row("character.bubble", String(localized: "Language"), Locale.current.localizedString(forLanguageCode: Locale.current.language.languageCode?.identifier ?? "en") ?? "English")
+                        Label("Language", systemImage: "character.bubble")
                     }
+                    .tint(BW.inkSecondary)
                     NavigationLink { CurrencyEditView() } label: {
                         row("banknote", String(localized: "Currency"), "\(CurrencyState.shared.current.flag) \(CurrencyState.shared.current.rawValue)")
                     }
@@ -309,7 +313,7 @@ extension OnboardingAnswers {
         referral = "other"
         reachedPlan = true
         if let country = p.location.country {
-            self.country = country == .unitedStates ? "US" : "CA"
+            self.country = country.code
             postal = p.location.postalCode
             locMode = p.location.source == .device ? "auto" : "manual"
         }

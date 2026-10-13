@@ -4,6 +4,7 @@ import Foundation
 nonisolated enum SupportedCountry: String, Codable, CaseIterable, Identifiable, Sendable {
     case canada = "CA"
     case unitedStates = "US"
+    case australia = "AU"
 
     var id: String { rawValue }
     var code: String { rawValue }
@@ -12,6 +13,7 @@ nonisolated enum SupportedCountry: String, Codable, CaseIterable, Identifiable, 
         switch self {
         case .canada: String(localized: "Canada")
         case .unitedStates: String(localized: "United States")
+        case .australia: String(localized: "Australia")
         }
     }
 
@@ -19,6 +21,7 @@ nonisolated enum SupportedCountry: String, Codable, CaseIterable, Identifiable, 
         switch self {
         case .canada: "🇨🇦"
         case .unitedStates: "🇺🇸"
+        case .australia: "🇦🇺"
         }
     }
 
@@ -26,6 +29,7 @@ nonisolated enum SupportedCountry: String, Codable, CaseIterable, Identifiable, 
         switch self {
         case .canada: "CAD"
         case .unitedStates: "USD"
+        case .australia: "AUD"
         }
     }
 
@@ -33,6 +37,7 @@ nonisolated enum SupportedCountry: String, Codable, CaseIterable, Identifiable, 
         switch self {
         case .canada: String(localized: "Postal Code")
         case .unitedStates: String(localized: "ZIP Code")
+        case .australia: String(localized: "Postcode")
         }
     }
 
@@ -40,6 +45,7 @@ nonisolated enum SupportedCountry: String, Codable, CaseIterable, Identifiable, 
         switch self {
         case .canada: "H2X 1Y4"
         case .unitedStates: "10001"
+        case .australia: "2000"
         }
     }
 
@@ -57,6 +63,9 @@ nonisolated enum SupportedCountry: String, Codable, CaseIterable, Identifiable, 
             let digits = cleaned.prefix(5)
             guard digits.count == 5, digits.allSatisfy(\.isNumber) else { return nil }
             return String(digits)
+        case .australia:
+            guard cleaned.count == 4, cleaned.allSatisfy(\.isNumber) else { return nil }
+            return cleaned
         }
     }
 
@@ -83,6 +92,19 @@ nonisolated enum SupportedCountry: String, Codable, CaseIterable, Identifiable, 
         case .unitedStates:
             guard let prefix = Int(postal.prefix(3)) else { return nil }
             return Self.usStateRanges.first { $0.range.contains(prefix) }?.state
+        case .australia:
+            // First digit of an Australian postcode -> state (ACT postcodes are 26xx / 29xx).
+            if postal.hasPrefix("26") || postal.hasPrefix("29") { return "ACT" }
+            switch postal.first {
+            case "0": return "NT"
+            case "1", "2": return "NSW"
+            case "3", "8": return "VIC"
+            case "4", "9": return "QLD"
+            case "5": return "SA"
+            case "6": return "WA"
+            case "7": return "TAS"
+            default: return nil
+            }
         }
     }
 

@@ -76,10 +76,9 @@ struct AskView: View {
                         .foregroundStyle(BW.inkSecondary)
                 }
             }
-            if let allowance {
-                Text(allowance.phase == "trial"
-                     ? "\(allowance.remaining) of \(allowance.total) Zesty Ask messages remaining in your trial"
-                     : "\(allowance.remaining) of \(allowance.total) Zesty Ask messages remaining")
+            // The message allowance is enforced by the server and never shown as a number.
+            if let allowance, allowance.remaining <= 0 {
+                Text("You've reached your Zesty Ask limit for now. It comes back soon.")
                     .font(.bw(.caption, weight: .semibold))
                     .foregroundStyle(BW.inkSecondary)
             }
@@ -169,6 +168,11 @@ struct AskView: View {
 
     private func recommendationContent(_ item: ZestyRecommendation) -> some View {
         VStack(alignment: .leading, spacing: 7) {
+            // Recipes from the Lemora catalogue show their photo; recipes Zesty creates have none.
+            if let id = item.recipeId, let recipe = store.recipes.first(where: { $0.id == id }) {
+                FoodImage(name: recipe.imageName, height: 150, radius: 14)
+                    .padding(.bottom, 2)
+            }
             HStack(alignment: .firstTextBaseline) {
                 Text(item.title)
                     .font(.bw(.headline, weight: .bold))

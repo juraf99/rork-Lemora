@@ -8,6 +8,8 @@ struct OBLandingScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             LemoraWordmark(size: 26, color: OB.ink)
+                .frame(maxWidth: .infinity)
+                .overlay(alignment: .trailing) { LanguageMenu() }
             Spacer(minLength: 0)
             VStack(spacing: 0) {
                 ZStack {
@@ -922,9 +924,9 @@ struct OBLocationStep: View {
             if showManual {
                 VStack(spacing: 9) {
                     HStack(spacing: 3) {
-                        ForEach([("CA", "🇨🇦 Canada"), ("US", "🇺🇸 United States")], id: \.0) { c in
+                        ForEach([("CA", "🇨🇦 Canada"), ("US", "🇺🇸 USA"), ("AU", "🇦🇺 Australia")], id: \.0) { c in
                             Button { m.setCountry(c.0) } label: {
-                                Text(c.1).font(OB.font(13, 700))
+                                Text(c.1).font(OB.font(13, 700)).lineLimit(1).minimumScaleFactor(0.75)
                                     .foregroundStyle(m.a.country == c.0 ? .white : OB.muted)
                                     .frame(maxWidth: .infinity).padding(.vertical, 9)
                                     .background(m.a.country == c.0 ? OB.ink : .clear, in: .capsule)
@@ -936,7 +938,7 @@ struct OBLocationStep: View {
                     .background(OB.pill, in: .capsule)
 
                     TextField("", text: Binding(get: { m.a.postal }, set: { m.setPostal($0) }),
-                              prompt: Text(m.a.country == "CA" ? "Postal code (e.g. H2T 1P5)" : "ZIP code (e.g. 78701)").foregroundStyle(OB.faint))
+                              prompt: Text(m.a.country == "CA" ? "Postal code (e.g. H2T 1P5)" : m.a.country == "AU" ? "Postcode (e.g. 2000)" : "ZIP code (e.g. 78701)").foregroundStyle(OB.faint))
                         .textContentType(.postalCode)
                         .font(OB.font(15, 700))
                         .tracking(0.6)
@@ -947,9 +949,9 @@ struct OBLocationStep: View {
                         .padding(.horizontal, 16).padding(.vertical, 12)
                         .overlay(Capsule().strokeBorder(OB.inputBorder, lineWidth: 1.5))
 
-                    Text(loc.map { "✓ " + m.placeName($0) } ?? (m.a.postal.isEmpty ? (m.a.country == "CA" ? "Format: A1A 1A1" : "5-digit ZIP")
-                        : m.a.postal.filter { !$0.isWhitespace }.count >= (m.a.country == "CA" ? 6 : 5)
-                            ? (m.a.country == "CA" ? "Check the format: letter, number, letter, number, letter, number (A1A 1A1)" : "A ZIP code has 5 digits")
+                    Text(loc.map { "✓ " + m.placeName($0) } ?? (m.a.postal.isEmpty ? (m.a.country == "CA" ? "Format: A1A 1A1" : m.a.country == "AU" ? "4-digit postcode" : "5-digit ZIP")
+                        : m.a.postal.filter { !$0.isWhitespace }.count >= (m.a.country == "CA" ? 6 : m.a.country == "AU" ? 4 : 5)
+                            ? (m.a.country == "CA" ? "Check the format: letter, number, letter, number, letter, number (A1A 1A1)" : m.a.country == "AU" ? "A postcode has 4 digits" : "A ZIP code has 5 digits")
                             : "Keep typing…"))
                         .font(OB.font(12, 700))
                         .foregroundStyle(loc != nil ? OB.green : OB.faint)

@@ -276,7 +276,7 @@ extension OnboardingModel {
         default: p.strategy = .balanced; p.maxStores = 2
         }
         if !a.postal.isEmpty {
-            var loc = UserLocation.manual(country: a.country == "US" ? .unitedStates : .canada, postalCode: a.postal)
+            var loc = UserLocation.manual(country: SupportedCountry(rawValue: a.country) ?? .canada, postalCode: a.postal)
             if a.locMode == "auto" { loc.source = .device }
             p.location = loc
         }

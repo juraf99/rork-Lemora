@@ -131,6 +131,8 @@ final class SupabaseService {
     private static func ensureFlyerZone(_ postal: String) async {
         let cleaned = postal.uppercased().filter { $0.isLetter || $0.isNumber }
         guard let first = cleaned.first else { return }
+        // Australia: Woolworths and Coles specials are national and loaded every Wednesday on the server.
+        if cleaned.count == 4, cleaned.allSatisfy(\.isNumber) { return }
         // Quebec uses the weekly flyers. US ZIP codes and the rest of Canada use Instacart store prices
         // (the first visit of an area takes about 1 minute, then it is cached for 3 days).
         let instacart = first.isNumber || !"GHJ".contains(first)
@@ -185,6 +187,7 @@ final class SupabaseService {
         switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "ca", "can", "canada": return "CA"
         case "us", "usa", "united states", "united states of america", "états-unis", "etats-unis": return "US"
+        case "au", "aus", "australia", "australie": return "AU"
         default: return value.uppercased()
         }
     }
@@ -221,7 +224,7 @@ private nonisolated struct RemoteRecipeEnvelope: Decodable, Sendable {
     var recipe: Recipe? {
         let payload = cataloguePayload
         guard !catalogueId.isEmpty, payload.servings > 0 else { return nil }
-        let useFrench = Locale.current.identifier.lowercased().hasPrefix("fr")
+        let useFrench = AppLanguage.current == .fr
         let ingredients = payload.ingredients.map { item in
             let name = useFrench ? item.name.fr : item.name.en
             let unit = Self.unit(item.unit)
@@ -575,7 +578,8 @@ private nonisolated struct LiveDealRow: Decodable, Sendable {
         }
 
         // Prices are kept in CAD inside the app (converted for display). US store prices arrive in USD.
-        let toCAD = currencyCode.uppercased() == "USD" ? 1 / AppCurrency.usd.perCAD : 1
+        let toCAD = currencyCode.uppercased() == "USD" ? 1 / AppCurrency.usd.perCAD
+            : currencyCode.uppercased() == "AUD" ? 1 / AppCurrency.aud.perCAD : 1
         RetailerCatalog.learn(Self.normalizedRetailerId(retailerId), retailerName)
         return Deal(
             id: id,

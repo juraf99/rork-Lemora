@@ -392,6 +392,8 @@ final class OnboardingModel {
         let ok: Bool
         if a.country == "CA" {
             ok = pc.count == 6 && pc.enumerated().allSatisfy { i, c in i % 2 == 0 ? c.isLetter && c.isASCII : c.isNumber }
+        } else if a.country == "AU" {
+            ok = pc.count == 4 && pc.allSatisfy(\.isNumber)
         } else {
             ok = pc.count == 5 && pc.allSatisfy(\.isNumber)
         }
@@ -418,7 +420,7 @@ final class OnboardingModel {
     func placeName(_ loc: ResolvedLocation) -> String { cityByPostal[loc.postal] ?? loc.name }
     func lookupCity() async {
         guard let loc = currentLocation, cityByPostal[loc.postal] == nil else { return }
-        let query = "\(loc.postal), \(a.country == "CA" ? "Canada" : "United States")"
+        let query = "\(loc.postal), \(a.country == "CA" ? "Canada" : a.country == "AU" ? "Australia" : "United States")"
         guard let mark = try? await CLGeocoder().geocodeAddressString(query).first else { return }
         let parts = [mark.locality ?? mark.subAdministrativeArea, mark.administrativeArea].compactMap { $0 }
         if !parts.isEmpty { cityByPostal[loc.postal] = parts.joined(separator: ", ") }
@@ -437,7 +439,7 @@ final class OnboardingModel {
         // Apple sometimes returns only the first half of a Canadian postal code ("H2T").
         // Flyer zones are chosen by that first half, so a neutral second half keeps it usable.
         if cleaned.count == 3, cleaned.first?.isLetter == true { cleaned += "0A0" }
-        let country = cleaned.first?.isLetter == true ? "CA" : "US"
+        let country = cleaned.first?.isLetter == true ? "CA" : (cleaned.count == 4 ? "AU" : "US")
         if country != a.country { a.stores = [] }
         a.country = country
         a.postal = cleaned
@@ -458,7 +460,8 @@ final class OnboardingModel {
     func setPostal(_ v: String) {
         let cleaned = String(v.uppercased().filter { $0.isLetter || $0.isNumber || $0 == " " }.prefix(7))
         if let first = cleaned.first(where: { !$0.isWhitespace }) {
-            let country = first.isNumber ? "US" : "CA"
+            // Letters = Canada. Digits keep Australia when it is picked, otherwise the US.
+            let country = first.isNumber ? (a.country == "AU" ? "AU" : "US") : "CA"
             if country != a.country { a.country = country; a.stores = [] }
         }
         a.locMode = "manual"
@@ -467,7 +470,7 @@ final class OnboardingModel {
 
     // MARK: Derived
 
-    var currency: String { a.country == "US" ? "USD" : "CAD" }
+    var currency: String { a.country == "US" ? "USD" : a.country == "AU" ? "AUD" : "CAD" }
 
     var estimate: SavingsEstimate {
         let hh = max(1, a.household)

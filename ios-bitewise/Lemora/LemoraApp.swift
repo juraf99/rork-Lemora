@@ -8,6 +8,7 @@ struct LemoraApp: App {
     @State private var auth: AuthManager = AuthManager()
 
     init() {
+        AppLanguage.bootstrap()
         LemoraFont.registerAll()
         Clerk.configure(publishableKey: "pk_test_cHJvbW90ZWQtZmVycmV0LTU2OTUuY2xlcmsuYWNjb3VudHMuZGV2JA")
         // RevenueCat handles purchases, restores and the `lemora_pro` entitlement.
@@ -21,6 +22,9 @@ struct LemoraApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                // In-app language: the whole UI is rebuilt when it changes.
+                .environment(\.locale, LanguageState.shared.current.locale)
+                .id(LanguageState.shared.current)
                 .environment(store)
                 .environment(auth)
                 .environment(Clerk.shared)
