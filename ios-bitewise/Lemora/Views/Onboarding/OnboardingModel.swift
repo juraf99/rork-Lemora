@@ -352,26 +352,37 @@ final class OnboardingModel {
     var nearbyPostal = ""
     var nearbyLoading = false
 
+    /// Grocery stores at this postal code or ZIP, from the server (Quebec flyers, Instacart elsewhere,
+    /// Woolworths and Coles in Australia). The previous area's stores are cleared before the lookup, so a
+    /// failed or slow request can never leave another city's banners on screen.
     func loadNearbyStores() async {
         guard let loc = currentLocation else { nearbyStores = []; nearbyPostal = ""; return }
         let code = loc.postal.filter { !$0.isWhitespace }
         guard code != nearbyPostal else { return }
+        nearbyStores = []
+        nearbyPostal = ""
         nearbyLoading = true
         defer { nearbyLoading = false }
         guard let url = URL(string: "\(LemoraBackend.projectURL.absoluteString)/functions/v1/stores-near") else { return }
-        var request = URLRequest(url: url, timeoutInterval: 10)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(LemoraBackend.publishableKey, forHTTPHeaderField: "apikey")
-        request.httpBody = try? JSONSerialization.data(withJSONObject: ["postal": code])
         struct Response: Decodable { let ok: Bool; let stores: [NearbyStore]? }
-        guard let data = try? await URLSession.shared.data(for: request).0,
-              let decoded = try? JSONDecoder().decode(Response.self, from: data), decoded.ok,
-              let stores = decoded.stores, !stores.isEmpty else { return }
-        // The user may have kept typing while the request was in flight.
-        guard currentLocation?.postal.filter({ !$0.isWhitespace }) == code else { return }
-        nearbyStores = stores
-        nearbyPostal = code
+        // The first visit of an area is looked up live, which takes a few seconds: allow time, and retry once.
+        for attempt in 0..<2 {
+            if attempt > 0 { try? await Task.sleep(for: .seconds(2)) }
+            // The user may have kept typing while the request was in flight.
+            guard currentLocation?.postal.filter({ !$0.isWhitespace }) == code else { return }
+            var request = URLRequest(url: url, timeoutInterval: 25)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(LemoraBackend.publishableKey, forHTTPHeaderField: "apikey")
+            request.httpBody = try? JSONSerialization.data(withJSONObject: ["postal": code])
+            guard let data = try? await URLSession.shared.data(for: request).0,
+                  let decoded = try? JSONDecoder().decode(Response.self, from: data), decoded.ok,
+                  let stores = decoded.stores, !stores.isEmpty else { continue }
+            guard currentLocation?.postal.filter({ !$0.isWhitespace }) == code else { return }
+            nearbyStores = stores
+            nearbyPostal = code
+            return
+        }
     }
 
     func setBudget(_ v: Int) {
@@ -454,6 +465,7 @@ final class OnboardingModel {
     func setCountry(_ c: String) {
         guard c != a.country else { return }
         a.country = c; a.postal = ""; a.stores = []
+        nearbyStores = []; nearbyPostal = ""
     }
 
     /// Typing a ZIP switches to the US, typing a postal code switches to Canada.
@@ -462,7 +474,7 @@ final class OnboardingModel {
         if let first = cleaned.first(where: { !$0.isWhitespace }) {
             // Letters = Canada. Digits keep Australia when it is picked, otherwise the US.
             let country = first.isNumber ? (a.country == "AU" ? "AU" : "US") : "CA"
-            if country != a.country { a.country = country; a.stores = [] }
+            if country != a.country { a.country = country; a.stores = []; nearbyStores = []; nearbyPostal = "" }
         }
         a.locMode = "manual"
         a.postal = cleaned

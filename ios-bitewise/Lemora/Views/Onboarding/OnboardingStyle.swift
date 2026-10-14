@@ -278,7 +278,8 @@ struct OBText: View {
     }
 
     var body: some View {
-        Text(text)
+        // Onboarding titles arrive as plain Strings, so they are looked up in the chosen language here.
+        Text(verbatim: lemoraLocalized(text))
             .font(OB.font(size, weight))
             .tracking(size * tracking)
             .foregroundStyle(color)

@@ -75,14 +75,6 @@ nonisolated func lemoraLocalized(_ text: String) -> String {
     Bundle.main.localizedString(forKey: text, value: text, table: nil)
 }
 
-extension Text {
-    /// Titles passed to components as String follow the in-app language too.
-    @_disfavoredOverload
-    init(_ content: String) {
-        self.init(verbatim: lemoraLocalized(content))
-    }
-}
-
 /// Compact language menu (onboarding first page).
 struct LanguageMenu: View {
     var body: some View {
