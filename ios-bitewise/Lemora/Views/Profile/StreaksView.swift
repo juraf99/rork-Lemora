@@ -39,7 +39,7 @@ struct StreaksView: View {
             withAnimation(.spring(response: 0.55, dampingFraction: 0.7)) { appear = true }
             guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 1.3).repeatForever(autoreverses: true)) { bob = true }
-            store.track("streak_opened", ["days": String(days)])
+            Analytics.track(.streakOpened(days: days))
         }
     }
 

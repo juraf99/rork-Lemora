@@ -55,7 +55,6 @@ struct DiscoverView: View {
                 PaywallView(context: .upgrade) { showPaywall = false }
             }
             .onAppear {
-                store.track("discover_opened")
                 if pinnedId == nil { pinnedId = store.discoverQueue.first?.id }
                 prefetchNextImages()
             }

@@ -23,6 +23,7 @@ final class AuthManager {
         defer { isSigningIn = false }
         do {
             if Clerk.shared.user != nil {
+                Analytics.reset()
                 try? await Clerk.shared.auth.signOut()
             }
             try await Clerk.shared.auth.startHostedAuth(mode: signUp ? .signUp : .signIn)
@@ -41,6 +42,7 @@ final class AuthManager {
     }
 
     func signOut() async {
+        Analytics.reset()
         try? await Clerk.shared.auth.signOut()
     }
 }

@@ -48,7 +48,7 @@ struct OnboardingFlowView: View {
             if isQuestion || step == .summary { footer }
         }
         .background(BW.canvas)
-        .onAppear { store.track("onboarding_started") }
+        .onAppear { Analytics.track(.onboardingStarted) }
     }
 
     private var header: some View {
@@ -145,7 +145,7 @@ struct OnboardingFlowView: View {
             Button {
                 if step == .strategy {
                     preview = store.planPreview(for: profile)
-                    store.track("plan_build_started")
+                    Analytics.track(.planBuildStarted)
                 }
                 if step == .summary && store.isSignedIn {
                     store.completeOnboarding(with: profile)

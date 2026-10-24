@@ -27,7 +27,6 @@ struct DealsView: View {
             .bitewiseDestinations()
             .analyticsScreen("Deals")
             .onAppear {
-                store.track("deals_opened")
                 ensureVisibleDeals()
             }
             .onChange(of: store.deals) { _, _ in ensureVisibleDeals() }
@@ -85,7 +84,7 @@ struct DealsView: View {
             toggleButton(String(localized: "My Stores"), selected: myStoresOnly) { myStoresOnly = true }
             toggleButton(String(localized: "All Stores"), selected: !myStoresOnly) {
                 myStoresOnly = false
-                store.track("all_stores_enabled")
+                Analytics.track(.allStoresEnabled)
             }
         }
         .padding(4)
@@ -676,6 +675,7 @@ struct DealDetailView: View {
     let dealId: String
     @Environment(AppStore.self) private var store
     @State private var added: Int = 0
+    @State private var trackedDealId: String?
 
     private var deal: Deal? { store.dealById(dealId) }
 
@@ -752,7 +752,11 @@ struct DealDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .analyticsScreen("Deal")
-        .onAppear { Analytics.track(.dealViewed(dealId: dealId)) }
+        .onAppear {
+            guard trackedDealId != dealId else { return }
+            trackedDealId = dealId
+            Analytics.track(.dealViewed(dealId: dealId))
+        }
     }
 }
 
@@ -805,7 +809,7 @@ struct WorthItListView: View {
         .background(BW.canvas)
         .navigationTitle("Worth It This Week")
         .toolbar(.hidden, for: .tabBar)
-        .onAppear { store.track("worth_it_opened") }
+        .onAppear { Analytics.track(.worthItOpened) }
     }
 }
 
@@ -843,6 +847,6 @@ struct StealsListView: View {
         .background(BW.canvas)
         .navigationTitle("Steals of the Week")
         .toolbar(.hidden, for: .tabBar)
-        .onAppear { store.track("steals_opened") }
+        .onAppear { Analytics.track(.stealsOpened) }
     }
 }

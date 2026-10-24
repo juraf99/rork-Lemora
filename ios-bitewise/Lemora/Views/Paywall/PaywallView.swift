@@ -17,6 +17,7 @@ struct PaywallView: View {
     @State private var zestTalking: Bool = false
     @State private var showPrivacy: Bool = false
     @State private var purchaseSuccess: Int = 0
+    @State private var didTrackPaywall = false
 
     private var sub: SubscriptionService { store.subscription }
     private var terms: PaywallTerms { .make(sub: sub, config: store.config, annualSelected: annualSelected) }
@@ -83,7 +84,10 @@ struct PaywallView: View {
         .sheet(isPresented: $showPrivacy) { NavigationStack { PrivacyView() } }
         .analyticsScreen("Paywall")
         .onAppear {
-            Analytics.track(.paywallViewed(context: context == .onboarding ? "onboarding" : "upgrade"))
+            if !didTrackPaywall {
+                didTrackPaywall = true
+                Analytics.track(.paywallViewed(context: context == .onboarding ? "onboarding" : "upgrade"))
+            }
             appeared = true
         }
     }

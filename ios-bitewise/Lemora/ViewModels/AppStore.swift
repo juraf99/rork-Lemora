@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import ClerkKit
 
 /// Single source of app state. Views read from it and call intent methods; business rules live here
 /// and in the engines, never in views.
@@ -59,8 +60,9 @@ final class AppStore {
     // MARK: Lifecycle
 
     func bootstrap() async {
-        if let userId = data.account?.userId {
+        if let userId = data.account?.userId, !userId.isEmpty {
             Analytics.identify(userId: userId)
+            subscription.setPostHogUserId(userId)
         }
         syncCurrency()
         config = await configProvider.fetch()
@@ -74,7 +76,6 @@ final class AppStore {
             _ = await group.next()
             group.cancelAll()
         }
-        analytics.track("app_opened", [:])
     }
 
     func loadRecipeCatalogue() async {
@@ -91,7 +92,7 @@ final class AppStore {
             recipeCatalogueError = nil
         } catch {
             recipeCatalogueError = error.localizedDescription
-            analytics.track("recipe_catalogue_load_failed", ["error": error.localizedDescription])
+            Analytics.track(.recipeCatalogueLoadFailed)
         }
     }
 
@@ -113,9 +114,10 @@ final class AppStore {
     func setCurrency(_ currency: AppCurrency?) {
         CurrencyState.shared.override = currency
         syncCurrency()
-        track("currency_changed", ["currency": currency?.rawValue ?? "auto"])
+        Analytics.track(.currencyChanged(currency: currency?.rawValue ?? "auto"))
     }
 
+    /// Device log only. Product events go through `Analytics` so free-text errors never reach PostHog.
     func track(_ event: String, _ props: [String: String] = [:]) {
         analytics.track(event, props)
     }
@@ -126,13 +128,17 @@ final class AppStore {
 
     func signIn(name: String, email: String) {
         mutate { $0.account = Account(name: name, email: email, createdAt: .now) }
-        track("account_created")
+        Analytics.track(.accountCreated)
     }
 
     func signOut() {
         Analytics.reset()
         mutate { $0.account = nil }
         OnboardingModel.clearSaved()
+        Task { @MainActor in
+            try? await Clerk.shared.auth.signOut()
+            await self.subscription.logOut()
+        }
     }
 
     func deleteAccount() {
@@ -142,6 +148,10 @@ final class AppStore {
         availableDeals = []
         availableStorePrices = []
         refreshDeals()
+        Task { @MainActor in
+            try? await Clerk.shared.auth.signOut()
+            await self.subscription.logOut()
+        }
     }
 
     // MARK: Onboarding
@@ -169,7 +179,7 @@ final class AppStore {
 
     func finishWelcome() {
         mutate { $0.welcomeSeen = true }
-        track("welcome_completed")
+        Analytics.track(.welcomeCompleted)
     }
 
     /// Records a started free trial and schedules the real reminder shown on the paywall timeline.
@@ -354,7 +364,7 @@ final class AppStore {
                 availableDeals = []
                 refreshDeals()
             }
-            analytics.track("live_deals_load_failed", ["error": error.localizedDescription])
+            Analytics.track(.liveDealsLoadFailed)
         }
     }
 
@@ -376,7 +386,7 @@ final class AppStore {
             currentPriceLoadError = error.localizedDescription
             if !currentPricesLoaded { availableStorePrices = [] }
             refreshDeals()
-            analytics.track("current_prices_load_failed", ["error": error.localizedDescription])
+            Analytics.track(.currentPricesLoadFailed)
         }
     }
 

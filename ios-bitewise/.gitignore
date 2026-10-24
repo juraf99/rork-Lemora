@@ -22,6 +22,8 @@ xcuserdata/
 .build/
 .swiftpm/
 Package.resolved
+# Commit the app lockfile so Xcode and CI resolve the same versions.
+!Lemora.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 # macOS
 .DS_Store

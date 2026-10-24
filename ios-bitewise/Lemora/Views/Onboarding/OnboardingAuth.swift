@@ -27,7 +27,10 @@ extension OnboardingModel {
         errorText = nil
         Task { @MainActor in
             do {
-                if Clerk.shared.user != nil { try? await Clerk.shared.auth.signOut() }
+                if Clerk.shared.user != nil {
+                    Analytics.reset()
+                    try? await Clerk.shared.auth.signOut()
+                }
                 let result = try await op()
                 var isNew = false
                 switch result {
@@ -54,7 +57,10 @@ extension OnboardingModel {
         errorText = nil
         Task { @MainActor in
             do {
-                if Clerk.shared.user != nil { try? await Clerk.shared.auth.signOut() }
+                if Clerk.shared.user != nil {
+                    Analytics.reset()
+                    try? await Clerk.shared.auth.signOut()
+                }
                 if emailMode == .create {
                     let signUp = try await Clerk.shared.auth.signUp(emailAddress: mail, password: password)
                     pendingSignUpStore = try await signUp.sendEmailCode()
@@ -291,6 +297,10 @@ extension OnboardingModel {
 
 extension AppStore {
     func applyAccount(name: String, email: String, userId: String, provider: AuthProvider, isNewUser: Bool) {
+        let previousId = data.account?.userId
+        if let previousId, !previousId.isEmpty, previousId != userId {
+            Analytics.reset()
+        }
         mutate {
             $0.account = Account(name: name, email: email, createdAt: $0.account?.createdAt ?? .now,
                                  userId: userId, provider: provider, isNewUser: isNewUser)
