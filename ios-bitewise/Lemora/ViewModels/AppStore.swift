@@ -18,6 +18,8 @@ final class AppStore {
     /// When the current area load started (drives the ~1 min progress shown to the user).
     private(set) var checkingStartedAt = Date.now
     private var dealLoadID = 0
+    /// In-flight Clerk and RevenueCat sign-out. The next login awaits this so it cannot be undone.
+    @ObservationIgnored private var sessionTeardown: Task<Void, Never>?
     private var lastDealsLoadAt: Date = .distantPast
     private(set) var dealLoadError: String?
     private(set) var currentPricesLoaded = false
@@ -135,10 +137,7 @@ final class AppStore {
         Analytics.reset()
         mutate { $0.account = nil }
         OnboardingModel.clearSaved()
-        Task { @MainActor in
-            try? await Clerk.shared.auth.signOut()
-            await self.subscription.logOut()
-        }
+        startSessionTeardown()
     }
 
     func deleteAccount() {
@@ -148,10 +147,22 @@ final class AppStore {
         availableDeals = []
         availableStorePrices = []
         refreshDeals()
-        Task { @MainActor in
+        startSessionTeardown()
+    }
+
+    /// Clerk and RevenueCat sign-out. Stored so a later login can wait for it to finish.
+    private func startSessionTeardown() {
+        let previous = sessionTeardown
+        sessionTeardown = Task { @MainActor in
+            await previous?.value
             try? await Clerk.shared.auth.signOut()
             await self.subscription.logOut()
         }
+    }
+
+    /// Waits for an in-flight sign-out or account deletion before a new Clerk session starts.
+    func awaitSessionTeardown() async {
+        await sessionTeardown?.value
     }
 
     // MARK: Onboarding

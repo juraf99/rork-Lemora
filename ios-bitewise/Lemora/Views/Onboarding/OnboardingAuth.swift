@@ -27,6 +27,7 @@ extension OnboardingModel {
         errorText = nil
         Task { @MainActor in
             do {
+                await store.awaitSessionTeardown()
                 if Clerk.shared.user != nil {
                     Analytics.reset()
                     try? await Clerk.shared.auth.signOut()
@@ -57,6 +58,7 @@ extension OnboardingModel {
         errorText = nil
         Task { @MainActor in
             do {
+                await store.awaitSessionTeardown()
                 if Clerk.shared.user != nil {
                     Analytics.reset()
                     try? await Clerk.shared.auth.signOut()
@@ -116,6 +118,7 @@ extension OnboardingModel {
         busy = true
         Task { @MainActor in
             do {
+                await store.awaitSessionTeardown()
                 try await Clerk.shared.auth.startHostedAuth(mode: .signIn)
                 if Clerk.shared.user != nil { await didAuthenticate(store, provider: .email, isNew: false) }
             } catch {

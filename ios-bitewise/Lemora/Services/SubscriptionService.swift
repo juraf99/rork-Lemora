@@ -67,10 +67,14 @@ final class SubscriptionService {
     }
 
     func logOut() async {
-        _ = try? await Purchases.shared.logOut()
-        // Clear only the anonymous user created by logOut. The identified customer's attribute stays
-        // so RevenueCat's server-side PostHog integration can still match that person.
-        setPostHogUserId(nil)
+        do {
+            _ = try await Purchases.shared.logOut()
+            // logOut succeeded, so this clears the new anonymous user. A failed logOut leaves the
+            // identified customer alone, including `$posthogUserId`.
+            setPostHogUserId(nil)
+        } catch {
+            logger.error("RevenueCat logOut failed")
+        }
         await refreshEntitlements()
     }
 
@@ -168,7 +172,9 @@ final class SubscriptionService {
         if hasActiveSubscription {
             let sandbox = Self.isSandbox
             if wasActive {
-                Analytics.track(.subscriptionPlanChanged(fromProductId: fromProductId, toProductId: product.id, isSandbox: sandbox))
+                if fromProductId != product.id {
+                    Analytics.track(.subscriptionPlanChanged(fromProductId: fromProductId, toProductId: product.id, isSandbox: sandbox))
+                }
             } else if isInTrial && !wasInTrial {
                 Analytics.track(.trialStarted(productId: product.id, isSandbox: sandbox))
             } else {

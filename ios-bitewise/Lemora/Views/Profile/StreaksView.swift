@@ -6,6 +6,7 @@ struct StreaksView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var appear: Bool = false
     @State private var bob: Bool = false
+    @State private var didTrackOpen = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let milestones = [3, 7, 14, 30]
@@ -36,10 +37,13 @@ struct StreaksView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .onAppear {
+            if !didTrackOpen {
+                didTrackOpen = true
+                Analytics.track(.streakOpened(days: days))
+            }
             withAnimation(.spring(response: 0.55, dampingFraction: 0.7)) { appear = true }
             guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 1.3).repeatForever(autoreverses: true)) { bob = true }
-            Analytics.track(.streakOpened(days: days))
         }
     }
 

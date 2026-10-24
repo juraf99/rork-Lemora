@@ -794,6 +794,7 @@ struct RecipeRow: View {
 
 struct WorthItListView: View {
     @Environment(AppStore.self) private var store
+    @State private var didTrackOpen = false
 
     var body: some View {
         ScrollView {
@@ -809,13 +810,18 @@ struct WorthItListView: View {
         .background(BW.canvas)
         .navigationTitle("Worth It This Week")
         .toolbar(.hidden, for: .tabBar)
-        .onAppear { Analytics.track(.worthItOpened) }
+        .onAppear {
+            guard !didTrackOpen else { return }
+            didTrackOpen = true
+            Analytics.track(.worthItOpened)
+        }
     }
 }
 
 struct StealsListView: View {
     @Environment(AppStore.self) private var store
     @State private var category: GroceryCategory? = nil
+    @State private var didTrackOpen = false
 
     private var items: [Deal] {
         store.steals(myStoresOnly: false).filter { category == nil || $0.category == category }
@@ -847,6 +853,10 @@ struct StealsListView: View {
         .background(BW.canvas)
         .navigationTitle("Steals of the Week")
         .toolbar(.hidden, for: .tabBar)
-        .onAppear { Analytics.track(.stealsOpened) }
+        .onAppear {
+            guard !didTrackOpen else { return }
+            didTrackOpen = true
+            Analytics.track(.stealsOpened)
+        }
     }
 }
