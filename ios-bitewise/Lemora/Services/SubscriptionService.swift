@@ -140,6 +140,13 @@ final class SubscriptionService {
         let result = try await Purchases.shared.purchase(product: storeProduct)
         if result.userCancelled { return false }
         apply(result.customerInfo)
+        if hasActiveSubscription {
+            let productId = activeProductId ?? product.id
+            Analytics.track(.subscriptionPurchased(productId: productId, isTrial: isInTrial))
+            if isInTrial {
+                Analytics.track(.trialStarted(productId: productId, isTrial: true))
+            }
+        }
         return hasActiveSubscription
     }
 
@@ -163,6 +170,9 @@ final class SubscriptionService {
     func restore() async {
         if let info = try? await Purchases.shared.restorePurchases() {
             apply(info)
+            if hasActiveSubscription {
+                Analytics.track(.restorePurchases(productId: activeProductId, isTrial: isInTrial))
+            }
         } else {
             await refreshEntitlements()
         }

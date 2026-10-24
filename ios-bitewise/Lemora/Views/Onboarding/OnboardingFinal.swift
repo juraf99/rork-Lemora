@@ -829,7 +829,8 @@ struct OBPaywallScreen: View {
         }
         .sheet(isPresented: $showPrivacy) { NavigationStack { PrivacyView() } }
         .task { if !sub.productsAvailable { await sub.loadProducts() } }
-        .onAppear { store.track("paywall_viewed", ["context": "onboarding_v2"]) }
+        .analyticsScreen("Paywall")
+        .onAppear { Analytics.track(.paywallViewed(context: "onboarding")) }
     }
 
     private var hero: some View {
@@ -896,7 +897,6 @@ struct OBPaywallScreen: View {
         do {
             if try await sub.purchase(product) {
                 if annual, let days = trialDays { store.recordTrialStart(days: days, priceText: annualPrice) }
-                store.track("subscription_started", ["plan": product.id])
                 m.a.completed = true
                 m.go(.done)
             }

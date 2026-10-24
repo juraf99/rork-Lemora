@@ -136,6 +136,7 @@ struct SavedView: View {
                 }
             }
             .bitewiseDestinations()
+            .analyticsScreen("Saved")
             .sheet(isPresented: $showGrocery) { GroceryListView() }
             .sheet(isPresented: $showPaywall) { PaywallView(context: .upgrade) { showPaywall = false } }
             .sheet(item: $cooking) { target in CookedView(recipe: target.recipe, logId: target.id) }

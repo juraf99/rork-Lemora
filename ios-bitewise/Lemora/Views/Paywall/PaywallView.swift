@@ -81,8 +81,9 @@ struct PaywallView: View {
         }
         .sensoryFeedback(.success, trigger: purchaseSuccess)
         .sheet(isPresented: $showPrivacy) { NavigationStack { PrivacyView() } }
+        .analyticsScreen("Paywall")
         .onAppear {
-            store.track("paywall_viewed", ["context": context == .onboarding ? "onboarding" : "upgrade"])
+            Analytics.track(.paywallViewed(context: context == .onboarding ? "onboarding" : "upgrade"))
             appeared = true
         }
     }
@@ -270,7 +271,6 @@ struct PaywallView: View {
                 if let days = current.trialDays {
                     store.recordTrialStart(days: days, priceText: current.annualPrice)
                 }
-                store.track("subscription_started", ["plan": product.id])
                 purchaseSuccess += 1
                 onClose()
             }

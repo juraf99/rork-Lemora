@@ -54,5 +54,6 @@ file when the variable is not already provided by the environment.
 - App Store product: Lemora; bundle ID `app.rork.yuf0zn4n53irodch38mtc`; Apple team `CV768N46QD`.
 - Supabase project reference: `fsucqlqsafoligouzgrl`.
 - Clerk issuer currently configured in the app and both authenticated functions: `https://promoted-ferret-5695.clerk.accounts.dev`.
+- Product analytics: PostHog iOS SDK in the Lemora target. The client ingestion key and host live in `PostHogSettings`. People are identified with the Clerk user id (`Account.userId`), which is also the key for Supabase onboarding profiles. There is no separate Supabase Auth user id. Do not send email addresses or postal codes as event or person properties. Session replay stays off.
 
 These are identifiers, not secrets. Server API keys remain in their configured secret stores. A switch from Clerk's current development instance to a production instance is a separate coordinated migration.

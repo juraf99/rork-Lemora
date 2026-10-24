@@ -1,4 +1,5 @@
 import SwiftUI
+import ClerkKit
 
 /// Onboarding v2 (landing → questions → plan → Clerk account → paywall → You're in!) → app.
 struct ContentView: View {
@@ -44,6 +45,9 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.35), value: route)
         .task {
             await store.bootstrap()
+            if let userId = Clerk.shared.user?.id ?? store.data.account?.userId {
+                Analytics.identify(userId: userId)
+            }
             // Launch screen stays until the first Discover photos are decoded (max 4 s), so swiping starts smooth.
             let firstPhotos = store.discoverQueue.prefix(10).compactMap { URL(string: $0.recipe.imageName) }.filter { $0.scheme == "https" }
             await RemoteImagePipeline.shared.preload(firstPhotos, timeout: .seconds(4))

@@ -59,6 +59,9 @@ final class AppStore {
     // MARK: Lifecycle
 
     func bootstrap() async {
+        if let userId = data.account?.userId {
+            Analytics.identify(userId: userId)
+        }
         syncCurrency()
         config = await configProvider.fetch()
         await subscription.start()
@@ -127,11 +130,13 @@ final class AppStore {
     }
 
     func signOut() {
+        Analytics.reset()
         mutate { $0.account = nil }
         OnboardingModel.clearSaved()
     }
 
     func deleteAccount() {
+        Analytics.reset()
         repository.wipe()
         data = AppData()
         availableDeals = []
@@ -150,7 +155,7 @@ final class AppStore {
             await loadLiveDeals()
             await loadCurrentPrices()
         }
-        track("onboarding_completed", ["goal": profile.goal.rawValue])
+        Analytics.track(.onboardingCompleted(goal: profile.goal.rawValue))
     }
 
     func finishPaywall() {
@@ -170,7 +175,6 @@ final class AppStore {
     /// Records a started free trial and schedules the real reminder shown on the paywall timeline.
     func recordTrialStart(days: Int, priceText: String) {
         mutate { $0.trialEndsAt = Calendar.current.date(byAdding: .day, value: days, to: .now) }
-        track("trial_started", ["days": "\(days)"])
         Task { await TrialReminderService.schedule(trialDays: days, priceText: priceText) }
     }
 
@@ -521,7 +525,7 @@ final class AppStore {
             $0.saved.removeAll { $0.recipeId == recipe.id }
             $0.saved.append(SavedRecipe(recipeId: recipe.id, savedAt: .now, expiresAt: expiry))
         }
-        track("recipe_saved", ["recipe": recipe.id])
+        Analytics.track(.recipeSaved(recipeId: recipe.id))
     }
 
     func unsave(_ recipe: Recipe) {
@@ -551,20 +555,26 @@ final class AppStore {
             if addedDeal { d.savingsActions.append(SavingsAction(date: .now, kind: .addedDealToList)) }
         }
         markActive()
-        track("grocery_list_updated", ["recipe": recipe.id])
+        if !p.lines.isEmpty {
+            Analytics.track(.shoppingListItemAdded(source: "recipe", recipeId: recipe.id, dealId: nil, lineCount: p.lines.count))
+        }
     }
 
     func addDealToGrocery(_ deal: Deal) {
+        var added = false
         mutate { d in
             if !d.grocery.contains(where: { $0.dealId == deal.id && !$0.isChecked }) {
                 d.grocery.append(GroceryItem(ingredientId: deal.ingredientId, quantity: Double(deal.multiBuyQuantity ?? 1),
                                              unit: .unit, recipeIds: [], dealId: deal.id, retailerId: deal.retailerId,
                                              estimatedCost: deal.salePrice))
+                added = true
             }
             d.savingsActions.append(SavingsAction(date: .now, kind: .addedDealToList))
         }
         markActive()
-        track("deal_added_to_list", ["deal": deal.id])
+        if added {
+            Analytics.track(.shoppingListItemAdded(source: "deal", recipeId: nil, dealId: deal.id, lineCount: 1))
+        }
     }
 
     func toggleGrocery(_ id: UUID) {
@@ -575,11 +585,19 @@ final class AppStore {
     }
 
     func removeGrocery(_ id: UUID) {
+        let ingredientId = data.grocery.first { $0.id == id }?.ingredientId
         mutate { $0.grocery.removeAll { $0.id == id } }
+        if let ingredientId {
+            Analytics.track(.shoppingListItemRemoved(ingredientId: ingredientId))
+        }
     }
 
     func clearCheckedGrocery() {
+        let removed = data.grocery.filter(\.isChecked).map(\.ingredientId)
         mutate { $0.grocery.removeAll(where: \.isChecked) }
+        for ingredientId in removed {
+            Analytics.track(.shoppingListItemRemoved(ingredientId: ingredientId))
+        }
     }
 
     func dealById(_ id: String?) -> Deal? {
@@ -720,7 +738,7 @@ final class AppStore {
             acceptedStoreIds: myStoreIds,
             blockedStoreIds: blockedStoreIds
         )
-        track("ask_query_sent", ["model": response.model])
+        Analytics.track(.zestyQuestionAsked(isFollowUp: conversationId != nil))
         return response
     }
 }

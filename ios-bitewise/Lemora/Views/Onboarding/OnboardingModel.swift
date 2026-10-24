@@ -187,7 +187,13 @@ final class OnboardingModel {
             }
             return
         }
+        let completedStoreSetup = screen == .stores
+        let locationMethod = a.locMode == "auto" ? "gps" : "postal"
+        let storeCount = a.stores.count
         go(i < Self.steps.count - 1 ? Self.steps[i + 1] : (a.reachedPlan == true ? .plan : .thanks))
+        if completedStoreSetup {
+            Analytics.track(.locationStoreSetupCompleted(method: locationMethod, storeCount: storeCount, context: "onboarding"))
+        }
     }
 
     func back() {

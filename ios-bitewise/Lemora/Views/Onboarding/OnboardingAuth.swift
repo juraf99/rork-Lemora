@@ -296,7 +296,8 @@ extension AppStore {
                                  userId: userId, provider: provider, isNewUser: isNewUser)
         }
         markActive()
-        track(isNewUser ? "account_created" : "account_signed_in", ["provider": provider.rawValue])
+        Analytics.identify(userId: userId)
+        Analytics.track(isNewUser ? .signUp(method: provider.rawValue) : .login(method: provider.rawValue))
     }
 
     func applyOnboarding(profile: UserProfile, notification: NotificationPreference?) {
@@ -307,6 +308,6 @@ extension AppStore {
             if let notification { $0.notificationPreference = notification }
         }
         Task { await loadLiveDeals() }
-        track("onboarding_completed", ["goal": profile.goal.rawValue])
+        Analytics.track(.onboardingCompleted(goal: profile.goal.rawValue))
     }
 }

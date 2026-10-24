@@ -75,6 +75,7 @@ struct ProfileView: View {
             .foregroundStyle(BW.ink)
             .navigationTitle("Profile")
             .bitewiseDestinations()
+            .analyticsScreen("Profile")
             .confirmationDialog("Delete your account?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete everything", role: .destructive) { store.deleteAccount() }
             } message: {
@@ -451,10 +452,22 @@ struct StoresEditView: View {
             subtitle: "Type your postal code or ZIP, or share your location. Then pick the stores you shop at.",
             mood: .cart,
             apply: { model, profile in
+                let previousStores = profile.acceptedStoreIds
+                let previousSource = profile.location.source
+                let previousPostal = profile.location.postalCode
                 let updated = model.makeProfile(base: profile)
                 if model.currentLocation != nil { profile.location = updated.location }
                 profile.storePreferences = updated.storePreferences
                 profile.shopsAtCostco = updated.shopsAtCostco
+                let storesChanged = previousStores != profile.acceptedStoreIds
+                let locationChanged = previousSource != profile.location.source || previousPostal != profile.location.postalCode
+                if (storesChanged || locationChanged), !profile.acceptedStoreIds.isEmpty, !profile.location.postalCode.isEmpty {
+                    Analytics.track(.locationStoreSetupCompleted(
+                        method: profile.location.source == .device ? "gps" : "postal",
+                        storeCount: profile.acceptedStoreIds.count,
+                        context: "profile"
+                    ))
+                }
             }
         ) {
             OBLocationStep()

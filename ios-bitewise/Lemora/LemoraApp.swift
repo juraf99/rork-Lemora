@@ -11,6 +11,7 @@ struct LemoraApp: App {
         AppLanguage.bootstrap()
         LemoraFont.registerAll()
         Clerk.configure(publishableKey: "pk_test_cHJvbW90ZWQtZmVycmV0LTU2OTUuY2xlcmsuYWNjb3VudHMuZGV2JA")
+        Analytics.start()
         // RevenueCat handles purchases, restores and the `lemora_pro` entitlement.
         Purchases.configure(
             with: Configuration.Builder(withAPIKey: "appl_YFWfbULaxOsXSygRqTzkYwezqIk")

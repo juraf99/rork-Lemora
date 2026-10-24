@@ -25,6 +25,7 @@ struct DealsView: View {
             .background(BW.canvas)
             .toolbar(.hidden, for: .navigationBar)
             .bitewiseDestinations()
+            .analyticsScreen("Deals")
             .onAppear {
                 store.track("deals_opened")
                 ensureVisibleDeals()
@@ -750,7 +751,8 @@ struct DealDetailView: View {
         .background(BW.canvas)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
-        .onAppear { store.track("deal_opened", ["deal": dealId]) }
+        .analyticsScreen("Deal")
+        .onAppear { Analytics.track(.dealViewed(dealId: dealId)) }
     }
 }
 

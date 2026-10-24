@@ -91,7 +91,8 @@ struct RecipeDetailView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .onAppear { store.track("recipe_opened", ["recipe": recipe.id]) }
+        .analyticsScreen("Recipe")
+        .onAppear { Analytics.track(.recipeViewed(recipeId: recipe.id)) }
     }
 
     // MARK: Hero

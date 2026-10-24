@@ -50,6 +50,7 @@ struct DiscoverView: View {
             .background(BW.canvas)
             .toolbar(.hidden, for: .navigationBar)
             .bitewiseDestinations()
+            .analyticsScreen("Discover")
             .sheet(isPresented: $showPaywall) {
                 PaywallView(context: .upgrade) { showPaywall = false }
             }
