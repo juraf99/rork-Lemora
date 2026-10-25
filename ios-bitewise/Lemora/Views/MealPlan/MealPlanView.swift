@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - MealPlanView
 
 struct MealPlanView: View {
-    @EnvironmentObject private var store: AppStore
+    @Environment(AppStore.self) private var store
     @State private var selectedDate = Date()
     @State private var showingRecipePicker = false
     @State private var activeSlot: MealSlot = .lunch
@@ -28,7 +28,7 @@ struct MealPlanView: View {
         .navigationTitle("Meal Plan")
         .sheet(isPresented: $showingRecipePicker) {
             RecipePickerSheet(slot: activeSlot, date: selectedDate)
-                .environmentObject(store)
+                .environment(store)
         }
     }
 
@@ -193,7 +193,7 @@ struct MealPlanView: View {
 // MARK: - Recipe Picker Sheet
 
 struct RecipePickerSheet: View {
-    @EnvironmentObject private var store: AppStore
+    @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     let slot: MealSlot
     let date: Date
@@ -244,6 +244,6 @@ struct RecipePickerSheet: View {
 #Preview {
     NavigationStack {
         MealPlanView()
-            .environmentObject(AppStore())
+            .environment(AppStore())
     }
 }
