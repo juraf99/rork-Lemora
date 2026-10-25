@@ -155,7 +155,7 @@ struct SavedView: View {
                 }
             }
             .alert(Text("Delete this collection?"),
-                   isPresented: Binding(get: { deletingCollection != nil }, set: { if !$0 { deletingCollection = nil } }),
+                   isPresented: Binding<Bool>(get: { deletingCollection != nil }, set: { newValue in if !newValue { deletingCollection = nil } }),
                    presenting: deletingCollection) { collection in
                 Button("Delete", role: .destructive) {
                     if filter == .collection(collection.id) { filter = .all }
@@ -319,6 +319,16 @@ struct SavedView: View {
                 }
                 Button("Remove", systemImage: "trash", role: .destructive) { store.unsave(recipe) }
             }
+    }
+
+    private func gridCard(_ item: SavedItem) -> some View {
+        let recipe = item.recipe
+        return SavedRow(recipe: recipe, entry: item.entry, timesCooked: store.timesCooked(recipe),
+                        price: item.price,
+                        collections: store.collections(containing: recipe.id),
+                        onOpen: { path.append(Route.recipe(recipe.id)) },
+                        onCook: { let _ = store.cook(recipe) },
+                        onOrganize: { organizing = OrganizeTarget(id: recipe.id) })
     }
 
     private var groceryBanner: some View {
