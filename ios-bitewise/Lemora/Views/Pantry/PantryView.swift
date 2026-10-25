@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - PantryView
 
 struct PantryView: View {
-    @EnvironmentObject private var store: AppStore
+    @Environment(AppStore.self) private var store
     @State private var showingAddItem = false
     @State private var search = ""
     @State private var selectedCategory: PantryCategory?
@@ -51,7 +51,7 @@ struct PantryView: View {
         }
         .sheet(isPresented: $showingAddItem) {
             AddPantryItemSheet()
-                .environmentObject(store)
+                .environment(store)
         }
     }
 
@@ -185,11 +185,11 @@ struct PantryView: View {
 // MARK: - Add Pantry Item Sheet
 
 struct AddPantryItemSheet: View {
-    @EnvironmentObject private var store: AppStore
+    @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var quantity = ""
-    @State private var selectedUnit: IngredientUnit = .piece
+    @State private var selectedUnit: IngredientUnit = .unit
     @State private var selectedCategory: PantryCategory = .other
     @State private var hasExpiry = false
     @State private var expiryDate = Date().addingTimeInterval(7 * 86400)
@@ -257,6 +257,6 @@ struct AddPantryItemSheet: View {
 #Preview {
     NavigationStack {
         PantryView()
-            .environmentObject(AppStore())
+            .environment(AppStore())
     }
 }
