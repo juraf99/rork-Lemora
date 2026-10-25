@@ -24,7 +24,7 @@ struct SavedView: View {
     }
 
     enum SavedFilter: Hashable {
-        case all, onSale, quick
+        case all, onSale, quick, breakfast, lunch, dinner
         case collection(UUID)
     }
 
@@ -62,6 +62,9 @@ struct SavedView: View {
         case .all: return true
         case .onSale: return item.price.dealCount > 0
         case .quick: return item.recipe.totalMinutes <= 30
+        case .breakfast: return item.recipe.mealType == .breakfast
+        case .lunch: return item.recipe.mealType == .lunch
+        case .dinner: return item.recipe.mealType == .dinner
         case .collection(let id): return store.collection(id)?.recipeIds.contains(item.recipe.id) ?? false
         }
     }
@@ -114,9 +117,10 @@ struct SavedView: View {
                         if items.isEmpty {
                             emptyFilter
                         } else {
-                            LazyVStack(spacing: 14) {
+                            let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+                            LazyVGrid(columns: columns, spacing: 12) {
                                 ForEach(items) { item in
-                                    row(item)
+                                    gridCard(item)
                                 }
                             }
                         }
@@ -138,8 +142,7 @@ struct SavedView: View {
             .bitewiseDestinations()
             .sheet(isPresented: $showGrocery) { GroceryListView() }
             .sheet(isPresented: $showPaywall) { PaywallView(context: .upgrade) { showPaywall = false } }
-            .sheet(item: $cooking) { target in CookedView(recipe: target.recipe, logId: target.id) }
-            .sheet(item: $organizing) { target in CollectionPickerSheet(recipeId: target.id) }
+                        .sheet(item: $organizing) { target in CollectionPickerSheet(recipeId: target.id) }
             .sheet(isPresented: $showNewCollection) {
                 CollectionEditorSheet(existing: nil) { name, emoji in
                     let created = store.createCollection(name: name, emoji: emoji)
@@ -201,6 +204,19 @@ struct SavedView: View {
                 let quick = items.filter { matches($0, .quick) }.count
                 if quick > 0 {
                     filterChip(.quick, emoji: nil, title: String(localized: "Under 30 min"), count: quick)
+                }
+                Divider().frame(height: 20)
+                let breakfastCount = items.filter { matches($0, .breakfast) }.count
+                if breakfastCount > 0 {
+                    filterChip(.breakfast, emoji: nil, title: "Breakfast", count: breakfastCount)
+                }
+                let lunchCount = items.filter { matches($0, .lunch) }.count
+                if lunchCount > 0 {
+                    filterChip(.lunch, emoji: nil, title: "Lunch", count: lunchCount)
+                }
+                let dinnerCount = items.filter { matches($0, .dinner) }.count
+                if dinnerCount > 0 {
+                    filterChip(.dinner, emoji: nil, title: "Dinner", count: dinnerCount)
                 }
                 ForEach(store.collections) { collection in
                     filterChip(.collection(collection.id), emoji: collection.emoji, title: collection.name,
@@ -294,7 +310,7 @@ struct SavedView: View {
                         price: item.price,
                         collections: store.collections(containing: recipe.id),
                         onOpen: { path.append(Route.recipe(recipe.id)) },
-                        onCook: { cooking = CookingTarget(id: store.cook(recipe).id, recipe: recipe) },
+                        onCook: { let _ = store.cook(recipe) },
                         onOrganize: { organizing = OrganizeTarget(id: recipe.id) })
             .contextMenu {
                 Button("Add to collection", systemImage: "folder.badge.plus") { organizing = OrganizeTarget(id: recipe.id) }
