@@ -171,8 +171,8 @@ struct MealPlanView: View {
     // MARK: - Grocery Button
 
     private var groceryButton: some View {
-        let hasEntries = !store.data.mealPlan.filter {
-            weekDates.contains(where: { d in Calendar.current.isDate(d, inSameDayAs: $0.date) })
+        let hasEntries = !store.data.mealPlan.filter { entry in
+            weekDates.contains(where: { d in Calendar.current.isDate(d, inSameDayAs: entry.date) })
         }.isEmpty
 
         return Button {
