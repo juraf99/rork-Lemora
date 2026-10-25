@@ -723,4 +723,61 @@ final class AppStore {
         track("ask_query_sent", ["model": response.model])
         return response
     }
+
+    // MARK: - Recipe Lookup
+
+    func recipe(id: String) -> Recipe? {
+        recipes.first { $0.id == id }
+    }
+
+    // MARK: - Meal Planning
+
+    func addToMealPlan(recipeId: String, date: Date, slot: MealSlot) {
+        mutate { data in
+            // Remove existing entry for same date/slot
+            data.mealPlan.removeAll {
+                Calendar.current.isDate($0.date, inSameDayAs: date) && $0.mealType == slot
+            }
+            data.mealPlan.append(MealPlanEntry(recipeId: recipeId, date: date, mealType: slot))
+        }
+    }
+
+    func removeMealPlanEntry(_ id: UUID) {
+        mutate { data in
+            data.mealPlan.removeAll { $0.id == id }
+        }
+    }
+
+    func markMealEaten(_ id: UUID) {
+        mutate { data in
+            guard let idx = data.mealPlan.firstIndex(where: { $0.id == id }) else { return }
+            data.mealPlan[idx].isEaten.toggle()
+            data.mealPlan[idx].eatenAt = data.mealPlan[idx].isEaten ? Date() : nil
+        }
+    }
+
+    func generateGroceryFromMealPlan(weekDates: [Date]) {
+        let entries = data.mealPlan.filter { entry in
+            weekDates.contains { Calendar.current.isDate($0, inSameDayAs: entry.date) }
+        }
+        for entry in entries {
+            if let recipe = recipe(id: entry.recipeId) {
+                addToGrocery(recipe, servings: 1)
+            }
+        }
+    }
+
+    // MARK: - Pantry
+
+    func addPantryItem(_ item: PantryItem) {
+        mutate { data in
+            data.pantry.append(item)
+        }
+    }
+
+    func removePantryItem(_ id: UUID) {
+        mutate { data in
+            data.pantry.removeAll { $0.id == id }
+        }
+    }
 }
