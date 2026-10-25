@@ -33,7 +33,7 @@ struct SavedView: View {
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .recent: String(localized: "Recently saved")
+            case .recent: String(localized: "Recently liked")
             case .cheapest: String(localized: "Cheapest per serving")
             case .quickest: String(localized: "Quickest")
             case .savings: String(localized: "Biggest savings")
@@ -92,7 +92,7 @@ struct SavedView: View {
                         Button { showPaywall = true } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: "clock")
-                                Text("Free saves last \(store.config.temporarySaveHours / 24) days. Save forever with Premium.")
+                                Text("Free likes last \(store.config.temporarySaveHours / 24) days. Keep forever with Premium.")
                                     .multilineTextAlignment(.leading)
                                 Spacer(minLength: 0)
                                 Image(systemName: "chevron.right").font(.caption.weight(.bold))
@@ -105,7 +105,7 @@ struct SavedView: View {
                     }
 
                     if store.activeSaved.isEmpty {
-                        EmptyStateView(mascot: BWImage.mascotPeek, title: String(localized: "No saved meals yet"),
+                        EmptyStateView(mascot: BWImage.mascotPeek, title: String(localized: "No liked meals yet"),
                                        message: String(localized: "Swipe right on meals you love in Discover and they'll land here."))
                     } else {
                         collectionsBar
@@ -127,8 +127,8 @@ struct SavedView: View {
             }
             .scrollDismissesKeyboard(.immediately)
             .background(BW.canvas)
-            .navigationTitle("Saved")
-            .searchable(text: $query, prompt: Text("Search your saved meals"))
+            .navigationTitle("Liked")
+            .searchable(text: $query, prompt: Text("Search your liked meals"))
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showGrocery = true } label: { cartLabel }
@@ -160,7 +160,7 @@ struct SavedView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: { _ in
-                Text("Your meals stay saved. Only the collection is removed.")
+                Text("Your meals stay liked. Only the collection is removed.")
             }
         }
     }
@@ -273,10 +273,10 @@ struct SavedView: View {
             Image(systemName: query.isEmpty ? "folder" : "magnifyingglass")
                 .font(.system(size: 30, weight: .semibold)).foregroundStyle(BW.amber)
             if !query.isEmpty {
-                Text("No saved meal matches \"\(query)\"").font(.bw(.headline)).foregroundStyle(BW.ink)
+                Text("No liked meal matches \"\(query)\"").font(.bw(.headline)).foregroundStyle(BW.ink)
             } else if case .collection = filter {
                 Text("No meals in this collection yet").font(.bw(.headline)).foregroundStyle(BW.ink)
-                Text("Tap the folder button on any saved meal to add it here.")
+                Text("Tap the folder button on any liked meal to add it here.")
                     .font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
             } else {
                 Text("Nothing here right now").font(.bw(.headline)).foregroundStyle(BW.ink)
