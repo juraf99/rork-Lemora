@@ -44,6 +44,11 @@ struct ProfileView: View {
                     NavigationLink { StrategyEditView() } label: { row("scalemass", String(localized: "Shopping Strategy"), profile.strategy.title) }
                 }
 
+                Section("Kitchen") {
+                    NavigationLink { MealPlanView() } label: { Label("Meal Plan", systemImage: "calendar") }
+                    NavigationLink { PantryView() } label: { Label("Pantry", systemImage: "refrigerator") }
+                }
+
                 Section("App") {
                     Toggle(isOn: Binding(get: { profile.usesMetric }, set: { v in store.updateProfile { $0.usesMetric = v } })) {
                         Label("Metric units", systemImage: "ruler")
