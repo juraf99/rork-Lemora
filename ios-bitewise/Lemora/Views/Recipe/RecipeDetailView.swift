@@ -129,7 +129,7 @@ struct RecipeDetailView: View {
                         .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
                 }
                 .buttonStyle(BWPressableStyle())
-                .accessibilityLabel(store.isSaved(recipe) ? "Remove from saved" : "Save")
+                .accessibilityLabel(store.isSaved(recipe) ? "Remove from liked" : "Like")
                 .sensoryFeedback(.impact(weight: .light), trigger: store.isSaved(recipe))
                 .padding(16)
             }
@@ -449,7 +449,7 @@ struct RecipeDetailView: View {
                         }
                         Spacer(minLength: 4)
                         VStack(alignment: .trailing, spacing: 0) {
-                            Text("Save").font(.bw(.caption2, weight: .bold)).foregroundStyle(BW.leafDeep)
+                            Text("Like").font(.bw(.caption2, weight: .bold)).foregroundStyle(BW.leafDeep)
                             Text(Money.format(swap.saving)).font(.bw(.headline, weight: .heavy)).monospacedDigit().foregroundStyle(BW.leafDeep)
                         }
                     }
@@ -488,7 +488,7 @@ struct RecipeDetailView: View {
         VStack(spacing: 10) {
             if let entry = store.savedEntry(recipe), let expiry = entry.expiresAt {
                 Button { showPaywall = true } label: {
-                    Text("Saved for \(expiry, format: .relative(presentation: .named)) · Save forever with Premium")
+                    Text("Liked \(expiry, format: .relative(presentation: .named)) ago · Keep forever with Premium")
                         .font(.bw(.caption, weight: .semibold)).foregroundStyle(BW.inkSecondary)
                 }
             }
