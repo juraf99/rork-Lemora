@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum AppTab: Hashable {
-    case discover, deals, saved, ask, profile
+    case discover, deals, liked, ask, profile
 }
 
 /// Destinations pushed onto any tab's navigation stack.
@@ -19,9 +19,9 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $tab) {
-            Tab("Discover", systemImage: "magnifyingglass", value: .discover) { DiscoverView() }
             Tab("Deals", systemImage: "tag", value: .deals) { DealsView() }
-            Tab("Saved", systemImage: "bookmark", value: .saved) { SavedView() }
+            Tab("Liked", systemImage: "heart.fill", value: .liked) { SavedView() }
+            Tab("Discover", systemImage: "magnifyingglass", value: .discover) { DiscoverView() }
             Tab("Ask", systemImage: "bubble.left.and.text.bubble.right", value: .ask) { AskView() }
             Tab("Profile", systemImage: "person", value: .profile) { ProfileView() }
         }
