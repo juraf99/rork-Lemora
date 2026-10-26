@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated enum IngredientUnit: String, Codable, CaseIterable, Sendable {
+nonisolated enum IngredientUnit: String, Codable, Sendable {
     case g, ml, unit, tbsp, tsp, cup, can, clove
 
     func format(_ quantity: Double) -> String {

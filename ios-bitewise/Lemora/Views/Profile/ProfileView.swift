@@ -44,11 +44,6 @@ struct ProfileView: View {
                     NavigationLink { StrategyEditView() } label: { row("scalemass", String(localized: "Shopping Strategy"), profile.strategy.title) }
                 }
 
-                Section("Kitchen") {
-                    NavigationLink { MealPlanView() } label: { Label("Meal Plan", systemImage: "calendar") }
-                    NavigationLink { PantryView() } label: { Label("Pantry", systemImage: "refrigerator") }
-                }
-
                 Section("App") {
                     Toggle(isOn: Binding(get: { profile.usesMetric }, set: { v in store.updateProfile { $0.usesMetric = v } })) {
                         Label("Metric units", systemImage: "ruler")
@@ -99,56 +94,17 @@ struct ProfileView: View {
     }
 
     private var header: some View {
-        VStack(spacing: 16) {
-            HStack(spacing: 14) {
-                MascotView(name: BWImage.mascotWave, size: 70, bob: true)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(store.data.account?.name ?? "").font(.bw(.title2)).foregroundStyle(BW.ink)
-                    if let email = store.data.account?.email, !email.isEmpty {
-                        Text(email).font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
-                    }
+        HStack(spacing: 14) {
+            MascotView(name: BWImage.mascotWave, size: 70, bob: true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(store.data.account?.name ?? "").font(.bw(.title2)).foregroundStyle(BW.ink)
+                if let email = store.data.account?.email, !email.isEmpty {
+                    Text(email).font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
                 }
-                Spacer()
+                Text("Saved \(Money.format(store.totalSaved)) with Lemora")
+                    .font(.bw(.subheadline, weight: .bold)).foregroundStyle(BW.leafDeep)
             }
-
-            VStack(spacing: 8) {
-                Text("Total saved with Lemora")
-                    .font(.bw(.subheadline, weight: .medium))
-                    .foregroundStyle(BW.inkSecondary)
-                Text(Money.format(store.totalSaved))
-                    .font(.bw(size: 52, weight: .heavy))
-                    .monospacedDigit()
-                    .foregroundStyle(BW.leafDeep)
-                    .contentTransition(.numericText(value: store.totalSaved))
-                HStack(spacing: 24) {
-                    VStack(spacing: 2) {
-                        Text(Money.format(store.savedThisMonth))
-                            .font(.bw(.title3, weight: .heavy))
-                            .monospacedDigit()
-                            .foregroundStyle(BW.ink)
-                        Text("This month")
-                            .font(.bw(.caption, weight: .medium))
-                            .foregroundStyle(BW.inkSecondary)
-                    }
-                    Rectangle()
-                        .fill(BW.hairline)
-                        .frame(width: 1, height: 32)
-                    VStack(spacing: 2) {
-                        Text("\(store.data.cookLogs.count)")
-                            .font(.bw(.title3, weight: .heavy))
-                            .monospacedDigit()
-                            .foregroundStyle(BW.ink)
-                        Text("Meals cooked")
-                            .font(.bw(.caption, weight: .medium))
-                            .foregroundStyle(BW.inkSecondary)
-                    }
-                }
-                .padding(.top, 4)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 20)
-            .padding(.horizontal, 16)
-            .background(BW.lemonSoft, in: .rect(cornerRadius: 20))
+            Spacer()
         }
         .padding(.vertical, 6)
     }

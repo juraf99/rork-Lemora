@@ -507,10 +507,7 @@ final class OnboardingModel {
     var dietList: [String] {
         a.diets.contains("none") ? ["No Specific Diet"] : a.diets.map { OBCatalog.dietLabel[$0] ?? $0 }
     }
-    func allergenName(_ id: String) -> String {
-        guard let item = OBData.allergens.first(where: { $0.id == id }) else { return id }
-        return AppLanguage.current == .fr ? (item.fr.isEmpty ? item.en : item.fr) : lemoraLocalized(item.en)
-    }
+    func allergenName(_ id: String) -> String { OBData.allergens.first { $0.id == id }?.en ?? id }
 
     // MARK: Generating + savings animations
 

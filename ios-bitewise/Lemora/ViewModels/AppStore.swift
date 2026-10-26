@@ -53,16 +53,6 @@ final class AppStore {
         self.analytics = analytics
         self.configProvider = configProvider
         self.data = repository.load() ?? AppData()
-        if data.likedIds == nil {
-            var seen = Set<String>()
-            var ids: [String] = []
-            for id in data.swipes.reversed().compactMap({ $0.direction == .like ? $0.recipeId : nil })
-                + data.saved.map(\.recipeId) {
-                if seen.insert(id).inserted { ids.append(id) }
-            }
-            data.likedIds = ids
-            repository.save(data)
-        }
         refreshDeals()
     }
 
@@ -499,7 +489,7 @@ final class AppStore {
             $0.tasteWeights = learned
         }
         if direction == .like {
-            like(item.recipe)
+            save(item.recipe)
             markActive()
         }
         refreshRanking()
@@ -508,38 +498,6 @@ final class AppStore {
 
     func restartDiscovery() {
         mutate { $0.queueResetDate = .now }
-    }
-
-    // MARK: Likes (swipe right) vs Saved (kept on purpose)
-
-    var likedIds: [String] { data.likedIds ?? [] }
-
-    func isLiked(_ recipe: Recipe) -> Bool {
-        likedIds.contains(recipe.id)
-    }
-
-    /// Liked from Discover, not yet kept in Saved.
-    var unsavedLikes: [Recipe] {
-        let savedIds = Set(activeSaved.map(\.recipeId))
-        return likedIds.compactMap { id in
-            guard !savedIds.contains(id) else { return nil }
-            return recipes.first { $0.id == id }
-        }
-    }
-
-    func like(_ recipe: Recipe) {
-        mutate { d in
-            var ids = d.likedIds ?? []
-            if !ids.contains(recipe.id) { ids.insert(recipe.id, at: 0) }
-            d.likedIds = ids
-        }
-        track("recipe_liked", ["recipe": recipe.id])
-    }
-
-    func unlike(_ recipe: Recipe) {
-        mutate { d in
-            d.likedIds = (d.likedIds ?? []).filter { $0 != recipe.id }
-        }
     }
 
     // MARK: Saved
@@ -570,26 +528,36 @@ final class AppStore {
         mutate { $0.saved.removeAll { $0.recipeId == recipe.id } }
     }
 
-    // MARK: Grocery list
-
-    func isInPantry(ingredientId: String) -> Bool {
-        let name = IngredientCatalog.name(ingredientId)
-            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-        let plain = ingredientId.replacingOccurrences(of: "_", with: " ")
-            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-        return data.pantry.contains { item in
-            let stored = item.name.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-            guard stored.count > 2 else { return false }
-            return stored == name || stored == plain || (stored.count >= 4 && (name.contains(stored) || plain.contains(stored)))
+    func addToMealPlan(recipeId: String, date: Date, slot: MealSlot) {
+        let day = Calendar.current.startOfDay(for: date)
+        mutate { d in
+            var plan = d.mealPlan ?? []
+            plan.removeAll { Calendar.current.isDate($0.date, inSameDayAs: day) && $0.mealType == slot }
+            plan.append(MealPlanEntry(recipeId: recipeId, date: day, mealType: slot))
+            d.mealPlan = plan
         }
     }
 
-    func addToGrocery(_ recipe: Recipe, servings: Int, includingPantry: Bool = true) {
+    func removeMealPlanEntry(_ id: UUID) {
+        mutate { d in
+            d.mealPlan?.removeAll { $0.id == id }
+        }
+    }
+
+    func generateGrocery(from entries: [MealPlanEntry]) {
+        for entry in entries {
+            guard let recipe = recipes.first(where: { $0.id == entry.recipeId }) else { continue }
+            addToGrocery(recipe, servings: recipe.servings)
+        }
+    }
+
+    // MARK: Grocery list
+
+    func addToGrocery(_ recipe: Recipe, servings: Int) {
         let p = price(for: recipe, servings: servings)
-        let lines = p.lines.filter { includingPantry || !isInPantry(ingredientId: $0.ingredientId) }
         var addedDeal = false
         mutate { d in
-            for line in lines {
+            for line in p.lines {
                 if let idx = d.grocery.firstIndex(where: { $0.ingredientId == line.ingredientId && $0.unit == line.unit && !$0.isChecked }) {
                     d.grocery[idx].quantity += line.quantity
                     if let cost = line.cost {
@@ -666,15 +634,6 @@ final class AppStore {
     func cookLog(_ id: UUID) -> CookLog? { data.cookLogs.first { $0.id == id } }
 
     func timesCooked(_ recipe: Recipe) -> Int { data.cookLogs.filter { $0.recipeId == recipe.id }.count }
-
-    func latestCook(_ recipe: Recipe) -> CookLog? {
-        data.cookLogs.last { $0.recipeId == recipe.id }
-    }
-
-    func cookedToday(_ recipe: Recipe) -> Bool {
-        guard let log = latestCook(recipe) else { return false }
-        return Calendar.current.isDateInToday(log.date)
-    }
 
     var totalSaved: Double { data.cookLogs.filter(\.madeWithDeal).reduce(0) { $0 + $1.savings } }
 
@@ -786,113 +745,5 @@ final class AppStore {
         )
         track("ask_query_sent", ["model": response.model])
         return response
-    }
-
-    // MARK: - Recipe Lookup
-
-    func recipe(id: String) -> Recipe? {
-        recipes.first { $0.id == id }
-    }
-
-    // MARK: - Meal Planning
-
-    func addToMealPlan(recipeId: String, date: Date, slot: MealSlot) {
-        mutate { data in
-            // Remove existing entry for same date/slot
-            data.mealPlan.removeAll {
-                Calendar.current.isDate($0.date, inSameDayAs: date) && $0.mealType == slot
-            }
-            data.mealPlan.append(MealPlanEntry(recipeId: recipeId, date: date, mealType: slot))
-        }
-    }
-
-    func removeMealPlanEntry(_ id: UUID) {
-        mutate { data in
-            data.mealPlan.removeAll { $0.id == id }
-        }
-    }
-
-    func markMealEaten(_ id: UUID) {
-        mutate { data in
-            guard let idx = data.mealPlan.firstIndex(where: { $0.id == id }) else { return }
-            data.mealPlan[idx].isEaten.toggle()
-            data.mealPlan[idx].eatenAt = data.mealPlan[idx].isEaten ? Date() : nil
-        }
-    }
-
-    /// Marks a planned meal eaten and counts its savings once for that day.
-    func eatMeal(_ id: UUID) {
-        guard let entry = data.mealPlan.first(where: { $0.id == id }), !entry.isEaten else { return }
-        guard let recipe = recipe(id: entry.recipeId) else { return }
-        let cal = Calendar.current
-        let already = data.cookLogs.contains { $0.recipeId == recipe.id && cal.isDate($0.date, inSameDayAs: entry.date) }
-        let priced = price(for: recipe)
-        mutate { d in
-            if let idx = d.mealPlan.firstIndex(where: { $0.id == id }) {
-                d.mealPlan[idx].isEaten = true
-                d.mealPlan[idx].eatenAt = .now
-                d.mealPlan[idx].savings = priced.savings
-            }
-            if !already {
-                d.cookLogs.append(CookLog(recipeId: recipe.id, date: entry.date, madeWithDeal: priced.dealCount > 0, savings: priced.savings))
-            }
-        }
-    }
-
-    /// Past planned meals count as eaten. Their savings land on the day they were planned.
-    func settlePastMeals() {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: .now)
-        let due = data.mealPlan.filter { cal.startOfDay(for: $0.date) < today && !$0.isEaten }
-        guard !due.isEmpty else { return }
-        var logs: [CookLog] = []
-        for entry in due {
-            guard let recipe = recipe(id: entry.recipeId) else { continue }
-            let already = data.cookLogs.contains { $0.recipeId == recipe.id && cal.isDate($0.date, inSameDayAs: entry.date) }
-            if already { continue }
-            let priced = price(for: recipe)
-            logs.append(CookLog(recipeId: recipe.id, date: entry.date, madeWithDeal: priced.dealCount > 0, savings: priced.savings))
-        }
-        let ids = Set(due.map(\.id))
-        mutate { d in
-            for idx in d.mealPlan.indices where ids.contains(d.mealPlan[idx].id) {
-                d.mealPlan[idx].isEaten = true
-                d.mealPlan[idx].eatenAt = d.mealPlan[idx].date
-            }
-            d.cookLogs.append(contentsOf: logs)
-        }
-    }
-
-    func undoCookToday(_ recipe: Recipe) {
-        mutate { d in
-            if let idx = d.cookLogs.lastIndex(where: { $0.recipeId == recipe.id && Calendar.current.isDateInToday($0.date) }) {
-                d.cookLogs.remove(at: idx)
-            }
-        }
-    }
-
-    func generateGroceryFromMealPlan(weekDates: [Date]) {
-        let entries = data.mealPlan.filter { entry in
-            weekDates.contains { Calendar.current.isDate($0, inSameDayAs: entry.date) }
-        }
-        for entry in entries {
-            if let recipe = recipe(id: entry.recipeId) {
-                addToGrocery(recipe, servings: 1, includingPantry: false)
-            }
-        }
-    }
-
-    // MARK: - Pantry
-
-    func addPantryItem(_ item: PantryItem) {
-        mutate { data in
-            data.pantry.append(item)
-        }
-    }
-
-    func removePantryItem(_ id: UUID) {
-        mutate { data in
-            data.pantry.removeAll { $0.id == id }
-        }
     }
 }

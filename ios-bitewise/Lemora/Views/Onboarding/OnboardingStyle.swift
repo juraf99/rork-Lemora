@@ -128,7 +128,7 @@ struct OBPrimaryButton: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                Text(verbatim: lemoraLocalized(title))
+                Text(title)
                     .font(OB.font(fontSize, 800))
                     .foregroundStyle(enabled ? OB.ink : OB.disabledText)
                     .opacity(loading ? 0 : 1)

@@ -232,87 +232,43 @@ nonisolated struct AppData: Codable, Sendable {
     var onboardingProgress: OnboardingProgress?
     var notificationPreference: NotificationPreference?
     var collections: [RecipeCollection]?
-    var mealPlan: [MealPlanEntry] = []
-    var pantry: [PantryItem] = []
-    /// Swipe-right likes. Separate from `saved`: a like does not keep the recipe.
-    var likedIds: [String]?
+    var mealPlan: [MealPlanEntry]?
 }
-
-
-// MARK: - Meal Planning
 
 nonisolated struct MealPlanEntry: Codable, Identifiable, Sendable {
     var id: UUID = UUID()
     let recipeId: String
     let date: Date
     let mealType: MealSlot
-    var isEaten: Bool = false
-    var eatenAt: Date?
-    var savings: Double = 0
 }
 
-nonisolated enum MealSlot: String, Codable, Sendable, CaseIterable {
-    case breakfast, lunch, dinner, snack
-    
+nonisolated enum MealSlot: String, Codable, Sendable, CaseIterable, Identifiable {
+    case breakfast, lunch, dinner
+    var id: String { rawValue }
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = MealSlot(rawValue: raw) ?? .dinner
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+
     var label: String {
         switch self {
         case .breakfast: String(localized: "Breakfast")
         case .lunch: String(localized: "Lunch")
         case .dinner: String(localized: "Dinner")
-        case .snack: String(localized: "Snack")
         }
     }
-    
+
     var icon: String {
         switch self {
-        case .breakfast: "sun.rise.fill"
+        case .breakfast: "sunrise.fill"
         case .lunch: "sun.max.fill"
         case .dinner: "moon.stars.fill"
-        case .snack: "leaf.fill"
-        }
-    }
-}
-
-// MARK: - Pantry
-
-nonisolated struct PantryItem: Codable, Identifiable, Sendable {
-    var id: UUID = UUID()
-    let name: String
-    var quantity: Double?
-    var unit: IngredientUnit?
-    var category: PantryCategory = .other
-    var addedAt: Date = Date()
-    var expiresAt: Date?
-}
-
-nonisolated enum PantryCategory: String, Codable, Sendable, CaseIterable {
-    case produce, dairy, protein, grains, frozen, canned, spices, condiments, other
-    
-    var label: String {
-        switch self {
-        case .produce: "Produce"
-        case .dairy: "Dairy"
-        case .protein: "Protein"
-        case .grains: "Grains & Pasta"
-        case .frozen: "Frozen"
-        case .canned: "Canned"
-        case .spices: "Spices"
-        case .condiments: "Condiments"
-        case .other: "Other"
-        }
-    }
-    
-    var icon: String {
-        switch self {
-        case .produce: "carrot.fill"
-        case .dairy: "cup.and.saucer.fill"
-        case .protein: "fish.fill"
-        case .grains: "birthday.cake.fill"
-        case .frozen: "snowflake"
-        case .canned: "shippingbox.fill"
-        case .spices: "leaf.fill"
-        case .condiments: "drop.fill"
-        case .other: "basket.fill"
         }
     }
 }

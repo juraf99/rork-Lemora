@@ -71,12 +71,8 @@ nonisolated final class LanguageBundle: Bundle {
 }
 
 /// A plain text shown in the UI, in the in-app language when a translation exists.
-/// Use this for `String` variables — `Text("literal")` already follows the SwiftUI locale.
 nonisolated func lemoraLocalized(_ text: String) -> String {
-    guard !text.isEmpty else { return text }
-    var resource = LocalizedStringResource(stringLiteral: text)
-    resource.locale = AppLanguage.current.locale
-    return String(localized: resource)
+    Bundle.main.localizedString(forKey: text, value: text, table: nil)
 }
 
 /// Compact language menu (onboarding first page).

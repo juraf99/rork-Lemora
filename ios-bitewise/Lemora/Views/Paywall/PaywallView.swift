@@ -63,6 +63,22 @@ struct PaywallView: View {
             .ignoresSafeArea()
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { ctaBar }
+        .overlay(alignment: .topTrailing) {
+            // TEMPORARY (beta): tester bypass for the hard paywall. Remove before public release.
+            Button {
+                store.enableTesterBypass()
+                onClose()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(BW.ink.opacity(0.55))
+                    .frame(width: 34, height: 34)
+                    .background(.ultraThinMaterial, in: .circle)
+            }
+            .padding(.top, 8)
+            .padding(.trailing, 16)
+            .accessibilityLabel("testerbypass")
+        }
         .sensoryFeedback(.success, trigger: purchaseSuccess)
         .sheet(isPresented: $showPrivacy) { NavigationStack { PrivacyView() } }
         .onAppear {

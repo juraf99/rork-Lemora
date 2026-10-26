@@ -103,9 +103,9 @@ struct OBLoginRow: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            Text(verbatim: lemoraLocalized(question)).font(OB.font(size, 500)).foregroundStyle(OB.muted)
+            Text(question).font(OB.font(size, 500)).foregroundStyle(OB.muted)
             Button(action: action) {
-                Text(verbatim: lemoraLocalized(link)).font(OB.font(size, 800)).foregroundStyle(OB.ink)
+                Text(link).font(OB.font(size, 800)).foregroundStyle(OB.ink)
                     .underline(underline)
                     .padding(.vertical, 4)
                     .padding(.horizontal, 2)
@@ -288,7 +288,7 @@ struct OBStepScreen: View {
             }
             .padding(.top, 26)
 
-            Text(verbatim: lemoraLocalized(nudging ? "Pick one first, I’m waiting!" : reaction))
+            Text(nudging ? "Pick one first, I’m waiting!" : reaction)
                 .font(OB.font(12.5, 700))
                 .foregroundStyle(!m.dietNote.isEmpty && m.screen == .diet ? Color(hex: 0x8A5A00) : OB.green)
                 .frame(maxWidth: .infinity, minHeight: 18, alignment: .leading)
@@ -365,7 +365,7 @@ struct OBHearStep: View {
                 Button { m.setReferral(o.id) } label: {
                     VStack(alignment: .leading, spacing: 10) {
                         hearIcon(o)
-                        Text(verbatim: lemoraLocalized(o.label))
+                        Text(o.label)
                             .font(OB.font(14, 700)).foregroundStyle(OB.ink)
                             .multilineTextAlignment(.leading)
                             .lineLimit(2)
@@ -402,8 +402,8 @@ struct OBGoalStep: View {
                     HStack(spacing: 14) {
                         Text(g.icon).font(.system(size: 18)).frame(width: 40, height: 40).background(Color(hex: g.iconBg), in: .circle)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(verbatim: lemoraLocalized(g.label)).font(OB.font(15, 700)).foregroundStyle(OB.ink)
-                            Text(verbatim: lemoraLocalized(g.sub)).font(OB.font(12, 400)).foregroundStyle(OB.sub)
+                            Text(g.label).font(OB.font(15, 700)).foregroundStyle(OB.ink)
+                            Text(g.sub).font(OB.font(12, 400)).foregroundStyle(OB.sub)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         OBCheck(on: on)
@@ -1204,8 +1204,8 @@ struct OBStrategyStep: View {
                     HStack(spacing: 14) {
                         Text(s.icon).font(.system(size: 20)).frame(width: 46, height: 46).background(Color(hex: s.bg), in: .circle)
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(verbatim: lemoraLocalized(s.label)).font(OB.font(15.5, 800)).tracking(0.31).foregroundStyle(OB.ink)
-                            Text(verbatim: lemoraLocalized(s.sub)).font(OB.font(12.5, 500)).foregroundStyle(OB.sub).lineSpacing(1)
+                            Text(s.label).font(OB.font(15.5, 800)).tracking(0.31).foregroundStyle(OB.ink)
+                            Text(s.sub).font(OB.font(12.5, 500)).foregroundStyle(OB.sub).lineSpacing(1)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         OBRadio(on: on)
