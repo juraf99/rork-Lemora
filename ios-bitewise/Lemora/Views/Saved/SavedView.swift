@@ -5,19 +5,17 @@ struct SavedView: View {
     @State private var path: NavigationPath = NavigationPath()
     @State private var showGrocery: Bool = false
     @State private var showPaywall: Bool = false
-    @State private var cooking: CookingTarget? = nil
     @State private var query: String = ""
+    @State private var mode: LibraryMode = .saved
     @State private var filter: SavedFilter = .all
     @State private var sort: SavedSort = .recent
     @State private var organizing: OrganizeTarget? = nil
     @State private var showNewCollection: Bool = false
     @State private var editingCollection: RecipeCollection? = nil
     @State private var deletingCollection: RecipeCollection? = nil
+    @State private var cookedToast: String = ""
 
-    struct CookingTarget: Identifiable {
-        let id: UUID
-        let recipe: Recipe
-    }
+    enum LibraryMode: Hashable { case saved, weekPlan }
 
     struct OrganizeTarget: Identifiable {
         let id: String
@@ -88,52 +86,67 @@ struct SavedView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    groceryBanner
-                    if !store.has(.permanentSaves) && !store.activeSaved.isEmpty {
-                        Button { showPaywall = true } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: "clock")
-                                Text("Free likes last \(store.config.temporarySaveHours / 24) days. Keep forever with Premium.")
-                                    .multilineTextAlignment(.leading)
-                                Spacer(minLength: 0)
-                                Image(systemName: "chevron.right").font(.caption.weight(.bold))
+            Group {
+                if mode == .weekPlan {
+                    MealPlanView()
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 18) {
+                            groceryBanner
+                            likesStrip
+                            if !store.has(.permanentSaves) && !store.activeSaved.isEmpty {
+                                Button { showPaywall = true } label: {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "clock")
+                                        Text("Free saves last \(store.config.temporarySaveHours / 24) days. Keep forever with Premium.")
+                                            .multilineTextAlignment(.leading)
+                                        Spacer(minLength: 0)
+                                        Image(systemName: "chevron.right").font(.caption.weight(.bold))
+                                    }
+                                    .font(.bw(.footnote, weight: .semibold))
+                                    .foregroundStyle(BW.ink)
+                                    .padding(14)
+                                    .background(BW.lemonSoft, in: .rect(cornerRadius: 16))
+                                }
                             }
-                            .font(.bw(.footnote, weight: .semibold))
-                            .foregroundStyle(BW.ink)
-                            .padding(14)
-                            .background(BW.lemonSoft, in: .rect(cornerRadius: 16))
-                        }
-                    }
 
-                    if store.activeSaved.isEmpty {
-                        EmptyStateView(mascot: BWImage.mascotPeek, title: String(localized: "No liked meals yet"),
-                                       message: String(localized: "Swipe right on meals you love in Discover and they'll land here."))
-                    } else {
-                        collectionsBar
-                        listHeader
-                        let items = visibleItems
-                        if items.isEmpty {
-                            emptyFilter
-                        } else {
-                            let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
-                            LazyVGrid(columns: columns, spacing: 12) {
-                                ForEach(items) { item in
-                                    gridCard(item)
+                            if store.activeSaved.isEmpty {
+                                EmptyStateView(mascot: BWImage.mascotPeek, title: String(localized: "Nothing saved yet"),
+                                               message: String(localized: "Swipe right to like meals. Then save the ones you want to cook this week."))
+                            } else {
+                                collectionsBar
+                                listHeader
+                                let items = visibleItems
+                                if items.isEmpty {
+                                    emptyFilter
+                                } else {
+                                    let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+                                    LazyVGrid(columns: columns, spacing: 12) {
+                                        ForEach(items) { item in
+                                            gridCard(item)
+                                        }
+                                    }
                                 }
                             }
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 24)
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 24)
             }
             .scrollDismissesKeyboard(.immediately)
             .background(BW.canvas)
-            .navigationTitle("Liked")
-            .searchable(text: $query, prompt: Text("Search your liked meals"))
+            .navigationTitle("Saved")
+            .searchable(text: $query, prompt: Text("Search your saved meals"))
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Picker("Library", selection: $mode) {
+                        Text("Saved").tag(LibraryMode.saved)
+                        Text("Week plan").tag(LibraryMode.weekPlan)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 240)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showGrocery = true } label: { cartLabel }
                         .accessibilityLabel("Grocery list, \(groceryCount) items")
@@ -164,6 +177,17 @@ struct SavedView: View {
                 Button("Cancel", role: .cancel) {}
             } message: { _ in
                 Text("Your meals stay liked. Only the collection is removed.")
+            }
+            .overlay(alignment: .top) {
+                if !cookedToast.isEmpty {
+                    Text(cookedToast)
+                        .font(.bw(.subheadline, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 18).padding(.vertical, 12)
+                        .background(BW.leafDeep, in: .capsule)
+                        .padding(.top, 8)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
             }
         }
     }
@@ -310,7 +334,7 @@ struct SavedView: View {
                         price: item.price,
                         collections: store.collections(containing: recipe.id),
                         onOpen: { path.append(Route.recipe(recipe.id)) },
-                        onCook: { let _ = store.cook(recipe) },
+                        onCook: { showCooked(store.cook(recipe)) },
                         onOrganize: { organizing = OrganizeTarget(id: recipe.id) })
             .contextMenu {
                 Button("Add to collection", systemImage: "folder.badge.plus") { organizing = OrganizeTarget(id: recipe.id) }
@@ -327,8 +351,84 @@ struct SavedView: View {
                         price: item.price,
                         collections: store.collections(containing: recipe.id),
                         onOpen: { path.append(Route.recipe(recipe.id)) },
-                        onCook: { let _ = store.cook(recipe) },
+                        onCook: { showCooked(store.cook(recipe)) },
                         onOrganize: { organizing = OrganizeTarget(id: recipe.id) })
+    }
+
+    private func showCooked(_ log: CookLog) {
+        cookedToast = log.savings > 0.01
+            ? String(localized: "Cooked · you saved \(Money.format(log.savings))")
+            : String(localized: "Cooked")
+        Task {
+            try? await Task.sleep(for: .seconds(2.2))
+            if cookedToast.hasPrefix("Cooked") { cookedToast = "" }
+        }
+    }
+
+    private var likesStrip: some View {
+        let likes = store.unsavedLikes
+        return Group {
+            if !likes.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("Likes").font(.bw(.headline)).foregroundStyle(BW.ink)
+                        Text("\(likes.count)")
+                            .font(.bw(.caption, weight: .heavy)).monospacedDigit()
+                            .padding(.horizontal, 7).padding(.vertical, 2)
+                            .background(BW.beigeSoft, in: .capsule)
+                        Spacer()
+                        Text("Swipe right only likes. Save what you want this week.")
+                            .font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(likes) { recipe in
+                                likeChip(recipe)
+                            }
+                        }
+                    }
+                    .scrollClipDisabled()
+                }
+            }
+        }
+    }
+
+    private func likeChip(_ recipe: Recipe) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button { path.append(Route.recipe(recipe.id)) } label: {
+                ZStack(alignment: .topTrailing) {
+                    FoodImage(name: recipe.imageName, height: 86, radius: 14)
+                        .frame(width: 132)
+                    Image(systemName: "heart.fill")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BW.danger)
+                        .padding(6)
+                        .background(.white, in: .circle)
+                        .padding(6)
+                }
+            }
+            .buttonStyle(.plain)
+            Text(recipe.title)
+                .font(.bw(.caption, weight: .bold)).foregroundStyle(BW.ink)
+                .lineLimit(2)
+                .frame(width: 132, alignment: .leading)
+            Button {
+                store.save(recipe)
+            } label: {
+                Text("Save")
+                    .font(.bw(.caption, weight: .heavy))
+                    .foregroundStyle(BW.ink)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .background(BW.lemon, in: .capsule)
+            }
+            .buttonStyle(BWPressableStyle())
+        }
+        .padding(8)
+        .background(BW.card, in: .rect(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(BW.hairline))
     }
 
     private var groceryBanner: some View {
@@ -421,13 +521,17 @@ struct SavedRow: View {
                     .buttonStyle(BWPressableStyle())
                     .accessibilityLabel("Add to collection")
                     Button(action: onCook) {
-                        Label("I cooked this", systemImage: "frying.pan.fill")
+                        let cooked = timesCooked > 0
+                        Label(
+                            cooked ? String(localized: "Cooked") : String(localized: "I cooked this"),
+                            systemImage: cooked ? "checkmark.circle.fill" : "frying.pan.fill"
+                        )
                             .font(.bw(.subheadline, weight: .bold))
                             .foregroundStyle(BW.ink)
                             .lineLimit(1)
                             .padding(.horizontal, 14)
                             .frame(minHeight: 44)
-                            .background(BW.lemon, in: .capsule)
+                            .background(cooked ? BW.leafSoft : BW.lemon, in: .capsule)
                     }
                     .buttonStyle(BWPressableStyle())
                 }

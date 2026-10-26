@@ -234,6 +234,8 @@ nonisolated struct AppData: Codable, Sendable {
     var collections: [RecipeCollection]?
     var mealPlan: [MealPlanEntry] = []
     var pantry: [PantryItem] = []
+    /// Swipe-right likes. Separate from `saved`: a like does not keep the recipe.
+    var likedIds: [String]?
 }
 
 

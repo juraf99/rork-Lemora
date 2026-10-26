@@ -4,7 +4,6 @@ struct RecipeDetailView: View {
     let recipe: Recipe
     @Environment(AppStore.self) private var store
     @State private var servings: Int
-    @State private var cookedLog: CookLog? = nil
     @State private var addedToList: Int = 0
     @State private var showAddedToast: Bool = false
     @State private var toastText: String = ""
@@ -72,9 +71,6 @@ struct RecipeDetailView: View {
             }
         }
         .safeAreaInset(edge: .bottom) { actionBar }
-        .sheet(item: $cookedLog) { log in
-            CookedView(recipe: recipe, logId: log.id)
-        }
         .sheet(isPresented: $showPaywall) {
             PaywallView(context: .upgrade) { showPaywall = false }
         }
@@ -118,19 +114,32 @@ struct RecipeDetailView: View {
                 .padding(16)
             }
             .overlay(alignment: .bottomTrailing) {
-                Button {
-                    if store.isSaved(recipe) { store.unsave(recipe) } else { store.save(recipe) }
-                } label: {
-                    Image(systemName: store.isSaved(recipe) ? "heart.fill" : "heart")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(store.isSaved(recipe) ? BW.danger : BW.ink)
-                        .frame(width: 48, height: 48)
-                        .background(.white, in: .circle)
-                        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+                VStack(spacing: 8) {
+                    Button {
+                        if store.isLiked(recipe) { store.unlike(recipe) } else { store.like(recipe) }
+                    } label: {
+                        Image(systemName: store.isLiked(recipe) ? "heart.fill" : "heart")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(store.isLiked(recipe) ? BW.danger : BW.ink)
+                            .frame(width: 48, height: 48)
+                            .background(.white, in: .circle)
+                            .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+                    }
+                    .buttonStyle(BWPressableStyle())
+                    .accessibilityLabel(store.isLiked(recipe) ? "Unlike" : "Like")
+                    .sensoryFeedback(.impact(weight: .light), trigger: store.isLiked(recipe))
+
+                    if store.isLiked(recipe) && !store.isSaved(recipe) {
+                        Button { store.save(recipe) } label: {
+                            Text("Save")
+                                .font(.bw(.caption, weight: .heavy))
+                                .foregroundStyle(BW.ink)
+                                .padding(.horizontal, 12).padding(.vertical, 6)
+                                .background(BW.lemon, in: .capsule)
+                        }
+                        .buttonStyle(BWPressableStyle())
+                    }
                 }
-                .buttonStyle(BWPressableStyle())
-                .accessibilityLabel(store.isSaved(recipe) ? "Remove from liked" : "Like")
-                .sensoryFeedback(.impact(weight: .light), trigger: store.isSaved(recipe))
                 .padding(16)
             }
     }
@@ -520,13 +529,16 @@ struct RecipeDetailView: View {
                 .buttonStyle(BWSecondaryButtonStyle())
 
                 Button {
-                    cookedLog = store.cook(recipe)
+                    let log = store.cook(recipe)
+                    toast(log.savings > 0.01
+                          ? String(localized: "Cooked · you saved \(Money.format(log.savings))")
+                          : String(localized: "Cooked"))
                 } label: {
-                    Image(systemName: "frying.pan")
+                    Image(systemName: store.cookedToday(recipe) ? "checkmark.circle.fill" : "frying.pan")
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(BW.ink)
                         .frame(width: 56, height: 56)
-                        .background(BW.card, in: .circle)
+                        .background(store.cookedToday(recipe) ? BW.leafSoft : BW.card, in: .circle)
                         .overlay(Circle().strokeBorder(BW.hairline))
                 }
                 .accessibilityLabel("I cooked this")
