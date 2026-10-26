@@ -1,0 +1,18 @@
+---
+description: When Jules-Alexis says /testflight, apply his requested changes then publish a TestFlight build from GitHub main.
+alwaysApply: true
+---
+
+# /testflight
+
+When Jules-Alexis says `/testflight` (or asks for a TestFlight build after changes):
+
+1. Apply the modifications he just asked for. Follow his instructions. Do not add extra scope.
+2. Keep Claude's onboarding/design and Codex's deals/Ask. Do not overwrite a newer deployed `ask-zesty` with older GitHub source.
+3. Run `node scripts/check-integration.mjs`.
+4. Commit the iOS/app changes on a branch from current `origin/main`.
+5. Integrate onto `main` (PR merge or authorized fast-forward) and push. The shared workflow `.github/workflows/testflight_1.yml` only publishes from `main` when `ios-bitewise/**` changes.
+6. Confirm the GitHub Actions run succeeds, including archive and upload.
+7. Report the exact version/build (e.g. `1.0.0 (YYMMDDHHMM)`), commit, and workflow URL. Upload success is not the same as Apple processing or tester visibility. Do not say testers can install until the build number is confirmed from the workflow.
+
+Do not use extra-cost AI models for this. Do not sync the recipe catalogue to Supabase unless he asks.

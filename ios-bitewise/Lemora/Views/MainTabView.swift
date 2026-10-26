@@ -19,20 +19,91 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $tab) {
-            Tab("Deals", systemImage: "tag", value: .deals) { DealsView() }
-            Tab("Liked", systemImage: "heart.fill", value: .liked) { SavedView() }
-            Tab("Discover", systemImage: "magnifyingglass", value: .discover) { DiscoverView() }
-            Tab("Ask", systemImage: "bubble.left.and.text.bubble.right", value: .ask) { AskView() }
-            Tab("Profile", systemImage: "person", value: .profile) { ProfileView() }
+            DealsView().tag(AppTab.deals)
+            SavedView().tag(AppTab.liked)
+            DiscoverView().tag(AppTab.discover)
+            AskView().tag(AppTab.ask)
+            ProfileView().tag(AppTab.profile)
         }
-        .tint(BW.amber)
+        .toolbar(.hidden, for: .tabBar)
+        .tint(BW.ink)
         .sensoryFeedback(.impact(weight: .medium), trigger: tab)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            LemoraTabBar(selection: $tab)
+        }
         .overlay(alignment: .bottom) {
-            // The Deals tab has its own banner.
-            if tab != .deals { NewAreaToast().padding(.bottom, 62) }
+            if tab != .deals { NewAreaToast().padding(.bottom, 78) }
         }
         .animation(.snappy, value: store.checkingNewArea)
         .sensoryFeedback(.success, trigger: store.checkingNewArea) { old, new in old && !new }
+    }
+}
+
+/// v10 tab bar: outline icons, Discover as a raised yellow circle in the middle.
+struct LemoraTabBar: View {
+    @Binding var selection: AppTab
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 0) {
+            item(.deals, title: String(localized: "Deals"), symbol: "tag")
+            item(.liked, title: String(localized: "Saved"), symbol: "bookmark.fill")
+            discover
+            item(.ask, title: String(localized: "Ask"), symbol: "bubble.left.and.text.bubble.right")
+            item(.profile, title: String(localized: "Profile"), symbol: "person")
+        }
+        .padding(.horizontal, 6)
+        .padding(.top, 6)
+        .padding(.bottom, 4)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) { Divider() }
+    }
+
+    private func item(_ tab: AppTab, title: String, symbol: String) -> some View {
+        let on = selection == tab
+        return Button { selection = tab } label: {
+            VStack(spacing: 3) {
+                Image(systemName: symbol)
+                    .font(.system(size: 18, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 10, weight: .heavy))
+            }
+            .foregroundStyle(on ? BW.ink : Color(hex: 0x9A968E))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 7)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(title))
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private var discover: some View {
+        let on = selection == .discover
+        return Button { selection = .discover } label: {
+            VStack(spacing: 3) {
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: 0xEFD35A))
+                        .frame(width: 58, height: 58)
+                        .shadow(color: Color(hex: 0xEFD35A).opacity(0.55), radius: 10, y: 5)
+                    // Same card mark as the attached mock; stroke weight matches the other tab symbols.
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .strokeBorder(Color(hex: 0x1D3A2F), lineWidth: 2.4)
+                        .frame(width: 18, height: 23)
+                }
+                .overlay {
+                    Circle().strokeBorder(Color(hex: 0x1D3A2F), lineWidth: on ? 3 : 0)
+                }
+                .offset(y: -12)
+                Text("Discover")
+                    .font(.system(size: 10, weight: .heavy))
+                    .foregroundStyle(on ? BW.ink : Color(hex: 0x9A968E))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Discover"))
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
 

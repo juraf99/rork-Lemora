@@ -53,6 +53,16 @@ final class AppStore {
         self.analytics = analytics
         self.configProvider = configProvider
         self.data = repository.load() ?? AppData()
+        if data.likedIds == nil {
+            var seen = Set<String>()
+            var ids: [String] = []
+            for id in data.swipes.reversed().compactMap({ $0.direction == .like ? $0.recipeId : nil })
+                + data.saved.map(\.recipeId) {
+                if seen.insert(id).inserted { ids.append(id) }
+            }
+            data.likedIds = ids
+            repository.save(data)
+        }
         refreshDeals()
     }
 
@@ -489,7 +499,7 @@ final class AppStore {
             $0.tasteWeights = learned
         }
         if direction == .like {
-            save(item.recipe)
+            like(item.recipe)
             markActive()
         }
         refreshRanking()
@@ -498,6 +508,38 @@ final class AppStore {
 
     func restartDiscovery() {
         mutate { $0.queueResetDate = .now }
+    }
+
+    // MARK: Likes (swipe right) vs Saved (kept on purpose)
+
+    var likedIds: [String] { data.likedIds ?? [] }
+
+    func isLiked(_ recipe: Recipe) -> Bool {
+        likedIds.contains(recipe.id)
+    }
+
+    /// Liked from Discover, not yet kept in Saved.
+    var unsavedLikes: [Recipe] {
+        let savedIds = Set(activeSaved.map(\.recipeId))
+        return likedIds.compactMap { id in
+            guard !savedIds.contains(id) else { return nil }
+            return recipes.first { $0.id == id }
+        }
+    }
+
+    func like(_ recipe: Recipe) {
+        mutate { d in
+            var ids = d.likedIds ?? []
+            if !ids.contains(recipe.id) { ids.insert(recipe.id, at: 0) }
+            d.likedIds = ids
+        }
+        track("recipe_liked", ["recipe": recipe.id])
+    }
+
+    func unlike(_ recipe: Recipe) {
+        mutate { d in
+            d.likedIds = (d.likedIds ?? []).filter { $0 != recipe.id }
+        }
     }
 
     // MARK: Saved
@@ -611,6 +653,15 @@ final class AppStore {
     func cookLog(_ id: UUID) -> CookLog? { data.cookLogs.first { $0.id == id } }
 
     func timesCooked(_ recipe: Recipe) -> Int { data.cookLogs.filter { $0.recipeId == recipe.id }.count }
+
+    func latestCook(_ recipe: Recipe) -> CookLog? {
+        data.cookLogs.last { $0.recipeId == recipe.id }
+    }
+
+    func cookedToday(_ recipe: Recipe) -> Bool {
+        guard let log = latestCook(recipe) else { return false }
+        return Calendar.current.isDateInToday(log.date)
+    }
 
     var totalSaved: Double { data.cookLogs.filter(\.madeWithDeal).reduce(0) { $0 + $1.savings } }
 
