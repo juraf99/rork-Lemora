@@ -85,14 +85,17 @@ extension View {
     /// Shared destination mapping so every tab can open recipes, deals and streaks.
     func bitewiseDestinations() -> some View {
         navigationDestination(for: Route.self) { route in
-            switch route {
-            case .recipe(let id):
-                RecipeDestinationView(recipeId: id)
-            case .deal(let id): DealDetailView(dealId: id)
-            case .streaks: StreaksView()
-            case .worthItAll: WorthItListView()
-            case .stealsAll: StealsListView()
+            Group {
+                switch route {
+                case .recipe(let id):
+                    RecipeDestinationView(recipeId: id)
+                case .deal(let id): DealDetailView(dealId: id)
+                case .streaks: StreaksView()
+                case .worthItAll: WorthItListView()
+                case .stealsAll: StealsListView()
+                }
             }
+            .toolbar(.visible, for: .navigationBar)
         }
     }
 }

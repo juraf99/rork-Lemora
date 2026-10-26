@@ -87,6 +87,9 @@ struct WeekPlanView: View {
                 .foregroundStyle(BW.inkSecondary)
             if let entry, let recipe {
                 HStack(spacing: 12) {
+                    FoodImage(name: recipe.imageName, height: 58, radius: 12)
+                        .frame(width: 78)
+                        .clipShape(.rect(cornerRadius: 12))
                     NavigationLink(value: Route.recipe(recipe.id)) {
                         Text(recipe.title)
                             .font(.bw(.headline))
@@ -139,9 +142,15 @@ private struct SavedMealPicker: View {
                                 store.addToMealPlan(recipeId: recipe.id, date: date, slot: slot)
                                 dismiss()
                             } label: {
-                                Text(recipe.title)
-                                    .font(.bw(.headline))
-                                    .foregroundStyle(BW.ink)
+                                HStack(spacing: 12) {
+                                    FoodImage(name: recipe.imageName, height: 58, radius: 12)
+                                        .frame(width: 78)
+                                        .clipShape(.rect(cornerRadius: 12))
+                                    Text(recipe.title)
+                                        .font(.bw(.headline))
+                                        .foregroundStyle(BW.ink)
+                                        .multilineTextAlignment(.leading)
+                                }
                             }
                         }
                     }

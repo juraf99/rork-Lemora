@@ -5,7 +5,6 @@ struct SavedView: View {
     @State private var path: NavigationPath = NavigationPath()
     @State private var showGrocery: Bool = false
     @State private var showPaywall: Bool = false
-    @State private var cooking: CookingTarget? = nil
     @State private var query: String = ""
     @State private var filter: SavedFilter = .all
     @State private var sort: SavedSort = .recent
@@ -17,11 +16,6 @@ struct SavedView: View {
 
     enum SavedSection: Hashable {
         case saved, weekPlan
-    }
-
-    struct CookingTarget: Identifiable {
-        let id: UUID
-        let recipe: Recipe
     }
 
     struct OrganizeTarget: Identifiable {
@@ -91,13 +85,22 @@ struct SavedView: View {
     var body: some View {
         NavigationStack(path: $path) {
             VStack(spacing: 0) {
+                HStack(alignment: .center, spacing: 12) {
+                    LemoraPageTitle(title: "Saved")
+                    Spacer(minLength: 8)
+                    Button { showGrocery = true } label: { cartLabel }
+                        .accessibilityLabel("Grocery list, \(groceryCount) items")
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
+
                 Picker("Saved", selection: $section) {
                     Text("Saved").tag(SavedSection.saved)
                     Text("Week plan").tag(SavedSection.weekPlan)
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal, 20)
-                .padding(.top, 4)
                 .padding(.bottom, 8)
                 .sensoryFeedback(.selection, trigger: section)
 
@@ -108,17 +111,10 @@ struct SavedView: View {
                 }
             }
             .background(BW.canvas)
-            .navigationTitle("Saved")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showGrocery = true } label: { cartLabel }
-                        .accessibilityLabel("Grocery list, \(groceryCount) items")
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
             .bitewiseDestinations()
             .sheet(isPresented: $showGrocery) { GroceryListView() }
             .sheet(isPresented: $showPaywall) { PaywallView(context: .upgrade) { showPaywall = false } }
-            .sheet(item: $cooking) { target in CookedView(recipe: target.recipe, logId: target.id) }
             .sheet(item: $organizing) { target in CollectionPickerSheet(recipeId: target.id) }
             .sheet(isPresented: $showNewCollection) {
                 CollectionEditorSheet(existing: nil) { name, emoji in
@@ -148,6 +144,7 @@ struct SavedView: View {
     private var savedList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                    searchField
                     groceryBanner
                     if !store.has(.permanentSaves) && !store.activeSaved.isEmpty {
                         Button { showPaywall = true } label: {
@@ -188,7 +185,20 @@ struct SavedView: View {
             }
             .scrollDismissesKeyboard(.immediately)
             .background(BW.canvas)
-            .searchable(text: $query, prompt: Text("Search your saved meals"))
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(BW.inkSecondary)
+            TextField("Search your saved meals", text: $query)
+                .font(.bw(.body, weight: .regular))
+                .foregroundStyle(BW.ink)
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 44)
+        .background(BW.beige, in: .rect(cornerRadius: 12))
     }
 
     // MARK: Cart
@@ -320,7 +330,7 @@ struct SavedView: View {
                         price: item.price,
                         collections: store.collections(containing: recipe.id),
                         onOpen: { path.append(Route.recipe(recipe.id)) },
-                        onCook: { cooking = CookingTarget(id: store.cook(recipe).id, recipe: recipe) },
+                        onCook: { _ = store.cook(recipe) },
                         onOrganize: { organizing = OrganizeTarget(id: recipe.id) })
             .contextMenu {
                 Button("Add to collection", systemImage: "folder.badge.plus") { organizing = OrganizeTarget(id: recipe.id) }
@@ -421,15 +431,15 @@ struct SavedRow: View {
                     .buttonStyle(BWPressableStyle())
                     .accessibilityLabel("Add to collection")
                     Button(action: onCook) {
-                        Label("I cooked this", systemImage: "frying.pan.fill")
-                            .font(.bw(.subheadline, weight: .bold))
+                        Image(systemName: "frying.pan.fill")
+                            .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(BW.ink)
-                            .lineLimit(1)
-                            .padding(.horizontal, 14)
-                            .frame(minHeight: 44)
-                            .background(BW.lemon, in: .capsule)
+                            .frame(width: 44, height: 44)
+                            .background(BW.lemon, in: .circle)
                     }
                     .buttonStyle(BWPressableStyle())
+                    .accessibilityLabel("I cooked this")
+                    .sensoryFeedback(.success, trigger: timesCooked)
                 }
             }
             .padding(14)

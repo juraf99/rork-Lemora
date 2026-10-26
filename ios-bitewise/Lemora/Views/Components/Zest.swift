@@ -410,6 +410,21 @@ private struct ConfettiPiece {
     let color: Color
 }
 
+/// Page title in the same Figtree ExtraBold and tracking as the Lemora wordmark.
+struct LemoraPageTitle: View {
+    let title: LocalizedStringKey
+    var size: CGFloat = 40
+
+    var body: some View {
+        Text(title)
+            .font(.custom(LemoraFont.name(for: .heavy), size: size))
+            .tracking(-size * 0.025)
+            .foregroundStyle(BW.ink)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+    }
+}
+
 /// The "lemora" wordmark set in Figtree ExtraBold, lowercase, tight tracking.
 struct LemoraWordmark: View {
     var size: CGFloat = 32

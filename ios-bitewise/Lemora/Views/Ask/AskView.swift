@@ -32,6 +32,8 @@ struct AskView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 16) {
+                        LemoraPageTitle(title: "Ask")
+                            .padding(.top, 4)
                         intro
                         ForEach(messages) { message in
                             bubble(message).id(message.id)
@@ -53,7 +55,7 @@ struct AskView: View {
                 }
             }
             .background(BW.canvas)
-            .navigationTitle("Ask")
+            .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .bottom) { composer }
             .bitewiseDestinations()
             .task {

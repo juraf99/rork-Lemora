@@ -12,6 +12,14 @@ struct ProfileView: View {
         NavigationStack(path: $path) {
             List {
                 Section {
+                    LemoraPageTitle(title: "Profile")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 4)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 0, trailing: 20))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                }
+                Section {
                     header
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
@@ -73,7 +81,7 @@ struct ProfileView: View {
             .scrollContentBackground(.hidden)
             .background(BW.canvas)
             .foregroundStyle(BW.ink)
-            .navigationTitle("Profile")
+            .toolbar(.hidden, for: .navigationBar)
             .bitewiseDestinations()
             .confirmationDialog("Delete your account?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete everything", role: .destructive) { store.deleteAccount() }
@@ -334,6 +342,7 @@ private struct ProfileEditor<Content: View>: View {
     var body: some View {
         content($draft)
             .background(BW.canvas)
+            .toolbar(.visible, for: .navigationBar)
             .toolbar(.hidden, for: .tabBar)
             .onAppear {
                 if !loaded { draft = store.data.profile; loaded = true }
