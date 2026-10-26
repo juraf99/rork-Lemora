@@ -32,7 +32,7 @@ struct MainTabView: View {
             LemoraTabBar(selection: $tab)
         }
         .overlay(alignment: .bottom) {
-            if tab != .deals { NewAreaToast().padding(.bottom, 58) }
+            if tab != .deals { NewAreaToast().padding(.bottom, 72) }
         }
         .animation(.snappy, value: store.checkingNewArea)
         .sensoryFeedback(.success, trigger: store.checkingNewArea) { old, new in old && !new }
@@ -51,21 +51,28 @@ struct LemoraTabBar: View {
             item(.ask, title: Text("Ask"), symbol: "bubble.left.and.text.bubble.right")
             item(.profile, title: Text("Profile"), symbol: "person")
         }
-        .padding(.horizontal, 4)
-        .padding(.top, 6)
-        .padding(.bottom, 2)
-        .background(.bar)
-        .overlay(alignment: .top) { Divider() }
+        .padding(.horizontal, 6)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) { Divider().opacity(0.35) }
     }
 
     private func item(_ tab: AppTab, title: Text, symbol: String) -> some View {
         let on = selection == tab
         return Button { selection = tab } label: {
-            VStack(spacing: 2) {
+            VStack(spacing: 3) {
                 Image(systemName: symbol)
                     .font(.system(size: 22, weight: .regular))
                     .symbolVariant(on ? .fill : .none)
-                    .frame(height: 28)
+                    .frame(width: 46, height: 30)
+                    .background {
+                        if on {
+                            Capsule().fill(.white.opacity(0.72))
+                                .background(.ultraThinMaterial, in: Capsule())
+                                .frame(width: 48, height: 30)
+                        }
+                    }
                 title
                     .font(.system(size: 10, weight: .medium))
             }
@@ -83,12 +90,14 @@ struct LemoraTabBar: View {
                 ZStack {
                     Circle()
                         .fill(Color(hex: 0xEFD35A))
-                        .frame(width: 34, height: 34)
+                        .frame(width: 46, height: 46)
+                        .shadow(color: Color(hex: 0xEFD35A).opacity(0.55), radius: 8, y: 3)
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(BW.ink)
                 }
-                .frame(height: 34)
+                .frame(height: 46)
+                .offset(y: -6)
                 Text("Discover")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(on ? BW.amber : Color(hex: 0x8E8E93))

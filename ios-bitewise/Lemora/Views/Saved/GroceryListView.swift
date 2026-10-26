@@ -86,45 +86,50 @@ struct GroceryListView: View {
     private var list: some View {
         List {
             Section {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(String(localized: "From your week plan · \(weekMeals.count) meals"))
-                        .font(.bw(.subheadline, weight: .medium))
-                        .foregroundStyle(BW.inkSecondary)
-                    if !skipped.isEmpty {
-                        pantryBanner
-                    }
+                if !skipped.isEmpty {
+                    pantryBanner
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+                        .listRowSeparator(.hidden)
                 }
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0))
-            }
-
-            Section {
                 ForEach(buyItems) { item in
                     GroceryRow(item: item, deal: store.dealById(item.dealId), meals: mealNote(item)) { store.toggleGrocery(item.id) }
                         .swipeActions {
                             Button("Delete", systemImage: "trash", role: .destructive) { store.removeGrocery(item.id) }
                         }
-                        .listRowBackground(BW.card)
+                        .listRowInsets(EdgeInsets(top: 16, leading: 20, bottom: 16, trailing: 20))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparatorTint(BW.hairline)
                 }
+            } header: {
+                Text(String(localized: "From your week plan · \(weekMeals.count) meals"))
+                    .font(.bw(.subheadline, weight: .regular))
+                    .foregroundStyle(BW.inkSecondary)
+                    .textCase(nil)
+                    .padding(.top, 10)
+                    .padding(.bottom, 14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if !skipped.isEmpty {
                 Section {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 12) {
                         Text("Already in your pantry · not added")
-                            .font(.bw(.caption, weight: .heavy))
+                            .font(.bw(.caption, weight: .semibold))
                             .foregroundStyle(BW.inkSecondary)
+                            .tracking(0.6)
                             .textCase(.uppercase)
                         ChipFlow(items: skipped.map(\.id)) { id in
                             Text(IngredientCatalog.name(id))
-                                .font(.bw(.subheadline, weight: .semibold))
+                                .font(.bw(.subheadline, weight: .medium))
                                 .foregroundStyle(BW.ink)
-                                .padding(.horizontal, 12)
+                                .padding(.horizontal, 14)
                                 .padding(.vertical, 8)
-                                .background(BW.beigeSoft, in: Capsule())
+                                .background(.ultraThinMaterial, in: Capsule())
                         }
                     }
                     .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 18, leading: 20, bottom: 8, trailing: 20))
                 }
             }
         }
@@ -159,10 +164,10 @@ struct GroceryListView: View {
     }
 
     private func mealNote(_ item: GroceryItem) -> String {
-        let titles = item.recipeIds.compactMap { id in store.recipes.first { $0.id == id }?.title }
-        if titles.isEmpty { return item.unit.format(item.quantity) }
-        let days = titles.prefix(2).joined(separator: ", ")
-        return "\(item.unit.format(item.quantity)) · \(days)"
+        let count = item.recipeIds.count
+        let quantity = item.unit.format(item.quantity)
+        if count == 0 { return quantity }
+        return String(localized: "\(quantity) · \(count) meals")
     }
 
     private var totals: some View {
@@ -201,32 +206,32 @@ struct GroceryRow: View {
 
     var body: some View {
         Button(action: onToggle) {
-            HStack(spacing: 12) {
+            HStack(alignment: .center, spacing: 14) {
                 Text(IngredientCatalog.emoji(item.ingredientId))
-                    .font(.title2)
-                    .frame(width: 36)
+                    .font(.system(size: 26))
+                    .frame(width: 34)
                     .opacity(item.isChecked ? 0.4 : 1)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(IngredientCatalog.name(item.ingredientId))
-                        .font(.bw(.body, weight: .heavy))
+                        .font(.bw(.body, weight: .semibold))
                         .foregroundStyle(item.isChecked ? BW.inkSecondary : BW.ink)
                         .strikethrough(item.isChecked)
-                    Text(meals.isEmpty ? "~\(item.unit.format(item.quantity))" : meals)
-                        .font(.bw(.footnote, weight: .medium))
+                    Text(meals.isEmpty ? item.unit.format(item.quantity) : meals)
+                        .font(.bw(.footnote, weight: .regular))
                         .foregroundStyle(BW.inkSecondary)
                         .lineLimit(1)
                 }
-                Spacer(minLength: 8)
+                Spacer(minLength: 12)
                 if let badge {
                     Text(badge)
-                        .font(.bw(.caption2, weight: .heavy))
+                        .font(.bw(.caption2, weight: .semibold))
                         .foregroundStyle(badge.hasPrefix("-") ? BW.ink : BW.leafDeep)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(badge.hasPrefix("-") ? BW.beigeSoft : BW.leafSoft, in: Capsule())
+                        .background(.ultraThinMaterial, in: Capsule())
                 }
                 Text(item.estimatedCost.map(Money.format) ?? "—")
-                    .font(.bw(.subheadline, weight: .heavy))
+                    .font(.bw(.body, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(BW.ink)
             }

@@ -72,7 +72,7 @@ struct SavedView: View {
         HStack(spacing: 8) {
             toggleSide(.saved) {
                 HStack(spacing: 6) {
-                    Image(systemName: "heart.fill")
+                    Image(systemName: "bookmark.fill")
                         .font(.system(size: 13, weight: .semibold))
                     Text(mode == .saved ? String(localized: "Saved · \(likedRecipes.count)") : String(localized: "Saved"))
                 }
@@ -149,7 +149,7 @@ struct SavedView: View {
                         Text(type.title)
                             .font(.bw(.subheadline, weight: .heavy))
                             .foregroundStyle(BW.ink)
-                        Text(String(localized: "\(liked(type).count) liked"))
+                        Text(String(localized: "\(liked(type).count) saved"))
                             .font(.bw(.caption, weight: .medium))
                             .foregroundStyle(BW.inkSecondary)
                     }
@@ -234,10 +234,10 @@ struct SavedView: View {
 
     private var allLikedTitle: String {
         switch meal {
-        case .breakfast: String(localized: "All breakfast you liked")
-        case .lunch: String(localized: "All lunch you liked")
-        case .dinner: String(localized: "All dinner you liked")
-        default: String(localized: "All meals you liked")
+        case .breakfast: String(localized: "All breakfast you saved")
+        case .lunch: String(localized: "All lunch you saved")
+        case .dinner: String(localized: "All dinner you saved")
+        default: String(localized: "All meals you saved")
         }
     }
 
