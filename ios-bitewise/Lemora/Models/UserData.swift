@@ -256,10 +256,10 @@ nonisolated enum MealSlot: String, Codable, Sendable, CaseIterable {
     
     var label: String {
         switch self {
-        case .breakfast: "Breakfast"
-        case .lunch: "Lunch"
-        case .dinner: "Dinner"
-        case .snack: "Snack"
+        case .breakfast: String(localized: "Breakfast")
+        case .lunch: String(localized: "Lunch")
+        case .dinner: String(localized: "Dinner")
+        case .snack: String(localized: "Snack")
         }
     }
     

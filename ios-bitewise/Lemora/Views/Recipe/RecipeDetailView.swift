@@ -41,6 +41,7 @@ struct RecipeDetailView: View {
                 hero
                 VStack(alignment: .leading, spacing: 20) {
                     titleBlock
+                    eatenToggle
                     statTiles
                     if hasSavings { savingsCard }
                     if !smartSwaps.isEmpty { zestySwapCard }
@@ -50,6 +51,7 @@ struct RecipeDetailView: View {
                     }
                     servingsStepper
                     ingredients
+                    spices
                     macros
                     steps
                     compatibility
@@ -146,9 +148,33 @@ struct RecipeDetailView: View {
 
     private var titleBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
+            Text(recipe.mealType.title.uppercased())
+                .font(.bw(.caption, weight: .heavy))
+                .foregroundStyle(BW.inkSecondary)
             Text(recipe.title).font(.bw(.title, weight: .heavy)).foregroundStyle(BW.ink)
             Text(recipe.summary).font(.bw(.body, weight: .regular)).foregroundStyle(BW.inkSecondary)
         }
+    }
+
+    private var eatenToggle: some View {
+        Toggle(isOn: Binding(
+            get: { store.cookedToday(recipe) },
+            set: { on in
+                if on { _ = store.cook(recipe) } else { store.undoCookToday(recipe) }
+            }
+        )) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Mark as eaten")
+                    .font(.bw(.headline))
+                    .foregroundStyle(.white)
+                Text(String(localized: "Adds \(Money.format(price.savings)) to your savings"))
+                    .font(.bw(.caption, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.75))
+            }
+        }
+        .tint(Color(hex: 0xEFD35A))
+        .padding(16)
+        .background(BW.ink, in: .rect(cornerRadius: 18))
     }
 
     // MARK: Stat tiles (protein · per serving · minutes)
@@ -341,6 +367,50 @@ struct RecipeDetailView: View {
         }
     }
 
+    private var seasoningLines: [PriceLine] {
+        price.lines.filter { isSeasoning($0.ingredientId) }
+    }
+
+    private func isSeasoning(_ id: String) -> Bool {
+        let name = id.lowercased()
+        let keys = ["garlic", "cumin", "paprika", "pepper", "salt", "oregano", "basil", "chili", "chilli", "ginger", "spice", "seasoning", "cinnamon", "thyme", "rosemary", "oil"]
+        return keys.contains { name.contains($0) }
+    }
+
+    @ViewBuilder
+    private var spices: some View {
+        let lines = seasoningLines
+        if !lines.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Spices & seasoning")
+                        .font(.bw(.title3))
+                        .foregroundStyle(BW.ink)
+                    Text(String(localized: "\(lines.count) for flavour"))
+                        .font(.bw(.caption, weight: .heavy))
+                        .foregroundStyle(Color(hex: 0xC47A3A))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(hex: 0xF8E6D4), in: Capsule())
+                }
+                ChipFlow(items: lines.map(\.ingredientId)) { id in
+                    let owned = store.isInPantry(ingredientId: id)
+                    HStack(spacing: 6) {
+                        Image(systemName: owned ? "checkmark" : "circle")
+                            .font(.caption.weight(.bold))
+                        Text(IngredientCatalog.name(id))
+                            .lineLimit(1)
+                    }
+                    .font(.bw(.caption, weight: .semibold))
+                    .foregroundStyle(owned ? BW.leafDeep : BW.ink)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(owned ? BW.leafSoft : Color(hex: 0xF8E6D4), in: Capsule())
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     private func ingredientRow(_ line: PriceLine) -> some View {
         let onSale = line.deal != nil && line.savings > 0.01
@@ -356,6 +426,19 @@ struct RecipeDetailView: View {
                 }
             }
             Spacer()
+            if store.isInPantry(ingredientId: line.ingredientId) {
+                Text("In pantry")
+                    .font(.bw(.caption2, weight: .heavy))
+                    .foregroundStyle(BW.inkSecondary)
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(BW.beigeSoft, in: Capsule())
+            } else if onSale {
+                Text("On sale")
+                    .font(.bw(.caption2, weight: .heavy))
+                    .foregroundStyle(BW.leafDeep)
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(BW.leafSoft, in: Capsule())
+            }
             if onSale {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(Money.format(line.regularCost))
@@ -503,46 +586,22 @@ struct RecipeDetailView: View {
             }
 
             Button {
-                store.addToGrocery(recipe, servings: servings)
+                store.addToGrocery(recipe, servings: servings, includingPantry: false)
                 store.track("cook_tonight", ["recipe": recipe.id])
                 addedToList += 1
                 withAnimation(.spring) { tonightSet = true }
-                toast(String(localized: "Tonight's dinner is set · added to your list"))
+                toast(String(localized: "Added to your grocery list"))
             } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: tonightSet ? "checkmark.circle.fill" : "fork.knife")
-                    if hasSavings {
-                        Text("Cook this tonight · save \(Money.format(price.savings))").monospacedDigit()
-                    } else {
-                        Text("Cook this tonight")
-                    }
-                }
-                .lineLimit(1).minimumScaleFactor(0.8)
+                Text("Add to grocery list")
+                    .lineLimit(1).minimumScaleFactor(0.8)
             }
             .buttonStyle(BWPrimaryButtonStyle())
             .sensoryFeedback(.success, trigger: addedToList)
 
-            HStack(spacing: 10) {
-                Button { showGrocery = true } label: {
-                    Label("View grocery list", systemImage: "cart")
-                }
-                .buttonStyle(BWSecondaryButtonStyle())
-
-                Button {
-                    let log = store.cook(recipe)
-                    toast(log.savings > 0.01
-                          ? String(localized: "Cooked · you saved \(Money.format(log.savings))")
-                          : String(localized: "Cooked"))
-                } label: {
-                    Image(systemName: store.cookedToday(recipe) ? "checkmark.circle.fill" : "frying.pan")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(BW.ink)
-                        .frame(width: 56, height: 56)
-                        .background(store.cookedToday(recipe) ? BW.leafSoft : BW.card, in: .circle)
-                        .overlay(Circle().strokeBorder(BW.hairline))
-                }
-                .accessibilityLabel("I cooked this")
+            Button { showGrocery = true } label: {
+                Label("View grocery list", systemImage: "cart")
             }
+            .buttonStyle(BWSecondaryButtonStyle())
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)
