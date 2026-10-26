@@ -664,6 +664,7 @@ struct OBPaywallScreen: View {
     @State private var purchasing = false
     @State private var message: String?
     @State private var showPrivacy = false
+    @State private var didTrackPaywall = false
 
     private var sub: SubscriptionService { store.subscription }
     private var annual: Bool { m.a.plan == "annual" }
@@ -829,7 +830,12 @@ struct OBPaywallScreen: View {
         }
         .sheet(isPresented: $showPrivacy) { NavigationStack { PrivacyView() } }
         .task { if !sub.productsAvailable { await sub.loadProducts() } }
-        .onAppear { store.track("paywall_viewed", ["context": "onboarding_v2"]) }
+        .analyticsScreen("Paywall")
+        .onAppear {
+            guard !didTrackPaywall else { return }
+            didTrackPaywall = true
+            Analytics.track(.paywallViewed(context: m.paywallOnly ? "lapsed" : "onboarding"))
+        }
     }
 
     private var hero: some View {
@@ -896,7 +902,6 @@ struct OBPaywallScreen: View {
         do {
             if try await sub.purchase(product) {
                 if annual, let days = trialDays { store.recordTrialStart(days: days, priceText: annualPrice) }
-                store.track("subscription_started", ["plan": product.id])
                 m.a.completed = true
                 m.go(.done)
             }

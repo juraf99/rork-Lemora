@@ -13,6 +13,14 @@ final class SubscriptionService {
     static let entitlementId = "lemora_pro"
     /// TestFlight / sandbox build: purchases are free tests.
     static var isTestFlight: Bool { Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt" }
+    /// Debug builds and TestFlight receipts are sandbox traffic. App Store release builds are not.
+    static var isSandbox: Bool {
+        #if DEBUG
+        true
+        #else
+        isTestFlight
+        #endif
+    }
 
     private(set) var products: [Product] = []
     private(set) var hasActiveSubscription = false
@@ -51,14 +59,32 @@ final class SubscriptionService {
         do {
             let result = try await Purchases.shared.logIn(userId)
             apply(result.customerInfo)
+            // Set after logIn so the attribute lands on this Clerk user, not whoever was current before.
+            setPostHogUserId(userId)
         } catch {
             logger.error("RevenueCat logIn failed")
         }
     }
 
     func logOut() async {
-        _ = try? await Purchases.shared.logOut()
+        do {
+            _ = try await Purchases.shared.logOut()
+            // logOut succeeded, so this clears the new anonymous user. A failed logOut leaves the
+            // identified customer alone, including `$posthogUserId`.
+            setPostHogUserId(nil)
+        } catch {
+            logger.error("RevenueCat logOut failed")
+        }
         await refreshEntitlements()
+    }
+
+    /// Sets RevenueCat's `$posthogUserId` subscriber attribute to the Clerk user id.
+    /// `setPostHogUserID` is not on purchases-ios 5.0.0 (this target's minimum); `setAttributes` is,
+    /// and an empty string deletes the attribute.
+    func setPostHogUserId(_ userId: String?) {
+        guard Purchases.isConfigured else { return }
+        let value = userId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        Purchases.shared.attribution.setAttributes(["$posthogUserId": value])
     }
 
     func loadProducts() async {
@@ -137,9 +163,24 @@ final class SubscriptionService {
             storeProduct = await Purchases.shared.products([product.id]).first
         }
         guard let storeProduct else { return false }
+        let wasActive = hasActiveSubscription
+        let wasInTrial = isInTrial
+        let fromProductId = activeProductId
         let result = try await Purchases.shared.purchase(product: storeProduct)
         if result.userCancelled { return false }
         apply(result.customerInfo)
+        if hasActiveSubscription {
+            let sandbox = Self.isSandbox
+            if wasActive {
+                if fromProductId != product.id {
+                    Analytics.track(.subscriptionPlanChanged(fromProductId: fromProductId, toProductId: product.id, isSandbox: sandbox))
+                }
+            } else if isInTrial && !wasInTrial {
+                Analytics.track(.trialStarted(productId: product.id, isSandbox: sandbox))
+            } else {
+                Analytics.track(.subscriptionPurchased(productId: product.id, isSandbox: sandbox))
+            }
+        }
         return hasActiveSubscription
     }
 
@@ -163,6 +204,9 @@ final class SubscriptionService {
     func restore() async {
         if let info = try? await Purchases.shared.restorePurchases() {
             apply(info)
+            if hasActiveSubscription {
+                Analytics.track(.restorePurchases(productId: activeProductId, isTrial: isInTrial, isSandbox: Self.isSandbox))
+            }
         } else {
             await refreshEntitlements()
         }

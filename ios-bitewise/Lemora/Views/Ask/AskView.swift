@@ -56,6 +56,7 @@ struct AskView: View {
             .navigationTitle("Ask")
             .safeAreaInset(edge: .bottom) { composer }
             .bitewiseDestinations()
+            .analyticsScreen("Ask")
             .task {
                 do { allowance = try await store.zestyAllowance(); accessNote = nil }
                 catch { accessNote = error.localizedDescription }

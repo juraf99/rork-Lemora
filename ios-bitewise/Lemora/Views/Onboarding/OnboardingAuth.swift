@@ -27,7 +27,11 @@ extension OnboardingModel {
         errorText = nil
         Task { @MainActor in
             do {
-                if Clerk.shared.user != nil { try? await Clerk.shared.auth.signOut() }
+                await store.awaitSessionTeardown()
+                if Clerk.shared.user != nil {
+                    Analytics.reset()
+                    try? await Clerk.shared.auth.signOut()
+                }
                 let result = try await op()
                 var isNew = false
                 switch result {
@@ -54,7 +58,11 @@ extension OnboardingModel {
         errorText = nil
         Task { @MainActor in
             do {
-                if Clerk.shared.user != nil { try? await Clerk.shared.auth.signOut() }
+                await store.awaitSessionTeardown()
+                if Clerk.shared.user != nil {
+                    Analytics.reset()
+                    try? await Clerk.shared.auth.signOut()
+                }
                 if emailMode == .create {
                     let signUp = try await Clerk.shared.auth.signUp(emailAddress: mail, password: password)
                     pendingSignUpStore = try await signUp.sendEmailCode()
@@ -110,6 +118,7 @@ extension OnboardingModel {
         busy = true
         Task { @MainActor in
             do {
+                await store.awaitSessionTeardown()
                 try await Clerk.shared.auth.startHostedAuth(mode: .signIn)
                 if Clerk.shared.user != nil { await didAuthenticate(store, provider: .email, isNew: false) }
             } catch {
@@ -291,12 +300,17 @@ extension OnboardingModel {
 
 extension AppStore {
     func applyAccount(name: String, email: String, userId: String, provider: AuthProvider, isNewUser: Bool) {
+        let previousId = data.account?.userId
+        if let previousId, !previousId.isEmpty, previousId != userId {
+            Analytics.reset()
+        }
         mutate {
             $0.account = Account(name: name, email: email, createdAt: $0.account?.createdAt ?? .now,
                                  userId: userId, provider: provider, isNewUser: isNewUser)
         }
         markActive()
-        track(isNewUser ? "account_created" : "account_signed_in", ["provider": provider.rawValue])
+        Analytics.identify(userId: userId)
+        Analytics.track(isNewUser ? .signUp(method: provider.rawValue) : .login(method: provider.rawValue))
     }
 
     func applyOnboarding(profile: UserProfile, notification: NotificationPreference?) {
@@ -307,6 +321,6 @@ extension AppStore {
             if let notification { $0.notificationPreference = notification }
         }
         Task { await loadLiveDeals() }
-        track("onboarding_completed", ["goal": profile.goal.rawValue])
+        Analytics.track(.onboardingCompleted(goal: profile.goal.rawValue))
     }
 }

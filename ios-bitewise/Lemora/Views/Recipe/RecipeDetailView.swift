@@ -11,6 +11,8 @@ struct RecipeDetailView: View {
     @State private var showPaywall: Bool = false
     @State private var showGrocery: Bool = false
     @State private var tonightSet: Bool = false
+    @State private var trackedRecipeId: String?
+    @State private var trackedSwapRecipeId: String?
 
     init(recipe: Recipe) {
         self.recipe = recipe
@@ -91,7 +93,12 @@ struct RecipeDetailView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .onAppear { store.track("recipe_opened", ["recipe": recipe.id]) }
+        .analyticsScreen("Recipe")
+        .onAppear {
+            guard trackedRecipeId != recipe.id else { return }
+            trackedRecipeId = recipe.id
+            Analytics.track(.recipeViewed(recipeId: recipe.id))
+        }
     }
 
     // MARK: Hero
@@ -472,7 +479,11 @@ struct RecipeDetailView: View {
         }
         .padding(16)
         .background(BW.lemonSoft, in: .rect(cornerRadius: 22))
-        .onAppear { store.track("smart_swap_shown", ["recipe": recipe.id, "count": "\(swaps.count)"]) }
+        .onAppear {
+            guard trackedSwapRecipeId != recipe.id else { return }
+            trackedSwapRecipeId = recipe.id
+            Analytics.track(.smartSwapShown(recipeId: recipe.id, count: swaps.count))
+        }
     }
 
     private func toast(_ text: String) {
@@ -495,7 +506,7 @@ struct RecipeDetailView: View {
 
             Button {
                 store.addToGrocery(recipe, servings: servings)
-                store.track("cook_tonight", ["recipe": recipe.id])
+                Analytics.track(.cookTonight(recipeId: recipe.id))
                 addedToList += 1
                 withAnimation(.spring) { tonightSet = true }
                 toast(String(localized: "Tonight's dinner is set · added to your list"))

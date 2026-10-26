@@ -17,6 +17,7 @@ struct PaywallView: View {
     @State private var zestTalking: Bool = false
     @State private var showPrivacy: Bool = false
     @State private var purchaseSuccess: Int = 0
+    @State private var didTrackPaywall = false
 
     private var sub: SubscriptionService { store.subscription }
     private var terms: PaywallTerms { .make(sub: sub, config: store.config, annualSelected: annualSelected) }
@@ -65,8 +66,12 @@ struct PaywallView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) { ctaBar }
         .sensoryFeedback(.success, trigger: purchaseSuccess)
         .sheet(isPresented: $showPrivacy) { NavigationStack { PrivacyView() } }
+        .analyticsScreen("Paywall")
         .onAppear {
-            store.track("paywall_viewed", ["context": context == .onboarding ? "onboarding" : "upgrade"])
+            if !didTrackPaywall {
+                didTrackPaywall = true
+                Analytics.track(.paywallViewed(context: context == .onboarding ? "onboarding" : "upgrade"))
+            }
             appeared = true
         }
     }
@@ -254,7 +259,6 @@ struct PaywallView: View {
                 if let days = current.trialDays {
                     store.recordTrialStart(days: days, priceText: current.annualPrice)
                 }
-                store.track("subscription_started", ["plan": product.id])
                 purchaseSuccess += 1
                 onClose()
             }

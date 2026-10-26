@@ -97,6 +97,7 @@ struct GroceryListView: View {
             .background(BW.canvas)
             .navigationTitle("Grocery List")
             .navigationBarTitleDisplayMode(.inline)
+            .analyticsScreen("Grocery List")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     if items.contains(where: \.isChecked) {

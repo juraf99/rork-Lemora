@@ -25,8 +25,8 @@ struct DealsView: View {
             .background(BW.canvas)
             .toolbar(.hidden, for: .navigationBar)
             .bitewiseDestinations()
+            .analyticsScreen("Deals")
             .onAppear {
-                store.track("deals_opened")
                 ensureVisibleDeals()
             }
             .onChange(of: store.deals) { _, _ in ensureVisibleDeals() }
@@ -84,7 +84,7 @@ struct DealsView: View {
             toggleButton(String(localized: "My Stores"), selected: myStoresOnly) { myStoresOnly = true }
             toggleButton(String(localized: "All Stores"), selected: !myStoresOnly) {
                 myStoresOnly = false
-                store.track("all_stores_enabled")
+                Analytics.track(.allStoresEnabled)
             }
         }
         .padding(4)
@@ -675,6 +675,7 @@ struct DealDetailView: View {
     let dealId: String
     @Environment(AppStore.self) private var store
     @State private var added: Int = 0
+    @State private var trackedDealId: String?
 
     private var deal: Deal? { store.dealById(dealId) }
 
@@ -750,7 +751,12 @@ struct DealDetailView: View {
         .background(BW.canvas)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
-        .onAppear { store.track("deal_opened", ["deal": dealId]) }
+        .analyticsScreen("Deal")
+        .onAppear {
+            guard trackedDealId != dealId else { return }
+            trackedDealId = dealId
+            Analytics.track(.dealViewed(dealId: dealId))
+        }
     }
 }
 
@@ -788,6 +794,7 @@ struct RecipeRow: View {
 
 struct WorthItListView: View {
     @Environment(AppStore.self) private var store
+    @State private var didTrackOpen = false
 
     var body: some View {
         ScrollView {
@@ -803,13 +810,18 @@ struct WorthItListView: View {
         .background(BW.canvas)
         .navigationTitle("Worth It This Week")
         .toolbar(.hidden, for: .tabBar)
-        .onAppear { store.track("worth_it_opened") }
+        .onAppear {
+            guard !didTrackOpen else { return }
+            didTrackOpen = true
+            Analytics.track(.worthItOpened)
+        }
     }
 }
 
 struct StealsListView: View {
     @Environment(AppStore.self) private var store
     @State private var category: GroceryCategory? = nil
+    @State private var didTrackOpen = false
 
     private var items: [Deal] {
         store.steals(myStoresOnly: false).filter { category == nil || $0.category == category }
@@ -841,6 +853,10 @@ struct StealsListView: View {
         .background(BW.canvas)
         .navigationTitle("Steals of the Week")
         .toolbar(.hidden, for: .tabBar)
-        .onAppear { store.track("steals_opened") }
+        .onAppear {
+            guard !didTrackOpen else { return }
+            didTrackOpen = true
+            Analytics.track(.stealsOpened)
+        }
     }
 }

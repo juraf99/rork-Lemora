@@ -54,5 +54,6 @@ file when the variable is not already provided by the environment.
 - App Store product: Lemora; bundle ID `app.rork.yuf0zn4n53irodch38mtc`; Apple team `CV768N46QD`.
 - Supabase project reference: `fsucqlqsafoligouzgrl`.
 - Clerk issuer currently configured in the app and both authenticated functions: `https://promoted-ferret-5695.clerk.accounts.dev`.
+- Product analytics: PostHog iOS SDK in the Lemora target. The client ingestion key and host live in `PostHogSettings`. People are identified with the Clerk user id (`Account.userId`), which is also the key for Supabase onboarding profiles. There is no separate Supabase Auth user id. Identify again only after `Analytics.reset()` when the signed-in user changes. Do not send email addresses, postal codes, or error text as event or person properties. Session replay stays off, and GeoIP is disabled. Deleting a PostHog person on account deletion is a server-side job with a personal API key; never put that key in the app.
 
 These are identifiers, not secrets. Server API keys remain in their configured secret stores. A switch from Clerk's current development instance to a production instance is a separate coordinated migration.

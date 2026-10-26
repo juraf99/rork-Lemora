@@ -13,6 +13,7 @@ struct OnboardingFlowView: View {
     @State private var index: Int = 0
     @State private var forward: Bool = true
     @State private var preview: PlanPreview? = nil
+    @State private var didTrackStart = false
 
     private var steps: [OnboardingStep] {
         var s: [OnboardingStep] = [.goal]
@@ -48,7 +49,11 @@ struct OnboardingFlowView: View {
             if isQuestion || step == .summary { footer }
         }
         .background(BW.canvas)
-        .onAppear { store.track("onboarding_started") }
+        .onAppear {
+            guard !didTrackStart else { return }
+            didTrackStart = true
+            Analytics.track(.onboardingStarted)
+        }
     }
 
     private var header: some View {
@@ -145,7 +150,7 @@ struct OnboardingFlowView: View {
             Button {
                 if step == .strategy {
                     preview = store.planPreview(for: profile)
-                    store.track("plan_build_started")
+                    Analytics.track(.planBuildStarted)
                 }
                 if step == .summary && store.isSignedIn {
                     store.completeOnboarding(with: profile)

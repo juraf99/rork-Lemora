@@ -36,7 +36,10 @@ struct LemoraOnboardingView: View {
         }
         .onAppear {
             ZestyGaze.shared.start()
-            store.track("onboarding_v2_viewed", ["screen": model.screen.rawValue])
+            Analytics.track(.onboardingStepViewed(step: model.screen.rawValue))
+        }
+        .onChange(of: model.screen) { _, screen in
+            Analytics.track(.onboardingStepViewed(step: screen.rawValue))
         }
         .task { await model.restoreRemoteAnswersIfNeeded() }
     }

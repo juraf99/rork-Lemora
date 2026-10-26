@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import ClerkKit
 
 /// Single source of app state. Views read from it and call intent methods; business rules live here
 /// and in the engines, never in views.
@@ -17,6 +18,8 @@ final class AppStore {
     /// When the current area load started (drives the ~1 min progress shown to the user).
     private(set) var checkingStartedAt = Date.now
     private var dealLoadID = 0
+    /// In-flight Clerk and RevenueCat sign-out. The next login awaits this so it cannot be undone.
+    @ObservationIgnored private var sessionTeardown: Task<Void, Never>?
     private var lastDealsLoadAt: Date = .distantPast
     private(set) var dealLoadError: String?
     private(set) var currentPricesLoaded = false
@@ -59,6 +62,10 @@ final class AppStore {
     // MARK: Lifecycle
 
     func bootstrap() async {
+        if let userId = data.account?.userId, !userId.isEmpty {
+            Analytics.identify(userId: userId)
+            subscription.setPostHogUserId(userId)
+        }
         syncCurrency()
         config = await configProvider.fetch()
         await subscription.start()
@@ -71,7 +78,6 @@ final class AppStore {
             _ = await group.next()
             group.cancelAll()
         }
-        analytics.track("app_opened", [:])
     }
 
     func loadRecipeCatalogue() async {
@@ -88,7 +94,7 @@ final class AppStore {
             recipeCatalogueError = nil
         } catch {
             recipeCatalogueError = error.localizedDescription
-            analytics.track("recipe_catalogue_load_failed", ["error": error.localizedDescription])
+            Analytics.track(.recipeCatalogueLoadFailed)
         }
     }
 
@@ -110,9 +116,10 @@ final class AppStore {
     func setCurrency(_ currency: AppCurrency?) {
         CurrencyState.shared.override = currency
         syncCurrency()
-        track("currency_changed", ["currency": currency?.rawValue ?? "auto"])
+        Analytics.track(.currencyChanged(currency: currency?.rawValue ?? "auto"))
     }
 
+    /// Device log only. Product events go through `Analytics` so free-text errors never reach PostHog.
     func track(_ event: String, _ props: [String: String] = [:]) {
         analytics.track(event, props)
     }
@@ -123,20 +130,39 @@ final class AppStore {
 
     func signIn(name: String, email: String) {
         mutate { $0.account = Account(name: name, email: email, createdAt: .now) }
-        track("account_created")
+        Analytics.track(.accountCreated)
     }
 
     func signOut() {
+        Analytics.reset()
         mutate { $0.account = nil }
         OnboardingModel.clearSaved()
+        startSessionTeardown()
     }
 
     func deleteAccount() {
+        Analytics.reset()
         repository.wipe()
         data = AppData()
         availableDeals = []
         availableStorePrices = []
         refreshDeals()
+        startSessionTeardown()
+    }
+
+    /// Clerk and RevenueCat sign-out. Stored so a later login can wait for it to finish.
+    private func startSessionTeardown() {
+        let previous = sessionTeardown
+        sessionTeardown = Task { @MainActor in
+            await previous?.value
+            try? await Clerk.shared.auth.signOut()
+            await self.subscription.logOut()
+        }
+    }
+
+    /// Waits for an in-flight sign-out or account deletion before a new Clerk session starts.
+    func awaitSessionTeardown() async {
+        await sessionTeardown?.value
     }
 
     // MARK: Onboarding
@@ -150,7 +176,7 @@ final class AppStore {
             await loadLiveDeals()
             await loadCurrentPrices()
         }
-        track("onboarding_completed", ["goal": profile.goal.rawValue])
+        Analytics.track(.onboardingCompleted(goal: profile.goal.rawValue))
     }
 
     func finishPaywall() {
@@ -164,13 +190,12 @@ final class AppStore {
 
     func finishWelcome() {
         mutate { $0.welcomeSeen = true }
-        track("welcome_completed")
+        Analytics.track(.welcomeCompleted)
     }
 
     /// Records a started free trial and schedules the real reminder shown on the paywall timeline.
     func recordTrialStart(days: Int, priceText: String) {
         mutate { $0.trialEndsAt = Calendar.current.date(byAdding: .day, value: days, to: .now) }
-        track("trial_started", ["days": "\(days)"])
         Task { await TrialReminderService.schedule(trialDays: days, priceText: priceText) }
     }
 
@@ -350,7 +375,7 @@ final class AppStore {
                 availableDeals = []
                 refreshDeals()
             }
-            analytics.track("live_deals_load_failed", ["error": error.localizedDescription])
+            Analytics.track(.liveDealsLoadFailed)
         }
     }
 
@@ -372,7 +397,7 @@ final class AppStore {
             currentPriceLoadError = error.localizedDescription
             if !currentPricesLoaded { availableStorePrices = [] }
             refreshDeals()
-            analytics.track("current_prices_load_failed", ["error": error.localizedDescription])
+            Analytics.track(.currentPricesLoadFailed)
         }
     }
 
@@ -521,7 +546,7 @@ final class AppStore {
             $0.saved.removeAll { $0.recipeId == recipe.id }
             $0.saved.append(SavedRecipe(recipeId: recipe.id, savedAt: .now, expiresAt: expiry))
         }
-        track("recipe_saved", ["recipe": recipe.id])
+        Analytics.track(.recipeSaved(recipeId: recipe.id))
     }
 
     func unsave(_ recipe: Recipe) {
@@ -551,20 +576,26 @@ final class AppStore {
             if addedDeal { d.savingsActions.append(SavingsAction(date: .now, kind: .addedDealToList)) }
         }
         markActive()
-        track("grocery_list_updated", ["recipe": recipe.id])
+        if !p.lines.isEmpty {
+            Analytics.track(.shoppingListItemAdded(source: "recipe", recipeId: recipe.id, dealId: nil, lineCount: p.lines.count))
+        }
     }
 
     func addDealToGrocery(_ deal: Deal) {
+        var added = false
         mutate { d in
             if !d.grocery.contains(where: { $0.dealId == deal.id && !$0.isChecked }) {
                 d.grocery.append(GroceryItem(ingredientId: deal.ingredientId, quantity: Double(deal.multiBuyQuantity ?? 1),
                                              unit: .unit, recipeIds: [], dealId: deal.id, retailerId: deal.retailerId,
                                              estimatedCost: deal.salePrice))
+                added = true
             }
             d.savingsActions.append(SavingsAction(date: .now, kind: .addedDealToList))
         }
         markActive()
-        track("deal_added_to_list", ["deal": deal.id])
+        if added {
+            Analytics.track(.shoppingListItemAdded(source: "deal", recipeId: nil, dealId: deal.id, lineCount: 1))
+        }
     }
 
     func toggleGrocery(_ id: UUID) {
@@ -575,11 +606,19 @@ final class AppStore {
     }
 
     func removeGrocery(_ id: UUID) {
+        let ingredientId = data.grocery.first { $0.id == id }?.ingredientId
         mutate { $0.grocery.removeAll { $0.id == id } }
+        if let ingredientId {
+            Analytics.track(.shoppingListItemRemoved(ingredientId: ingredientId))
+        }
     }
 
     func clearCheckedGrocery() {
+        let removed = data.grocery.filter(\.isChecked).map(\.ingredientId)
         mutate { $0.grocery.removeAll(where: \.isChecked) }
+        for ingredientId in removed {
+            Analytics.track(.shoppingListItemRemoved(ingredientId: ingredientId))
+        }
     }
 
     func dealById(_ id: String?) -> Deal? {
@@ -720,7 +759,7 @@ final class AppStore {
             acceptedStoreIds: myStoreIds,
             blockedStoreIds: blockedStoreIds
         )
-        track("ask_query_sent", ["model": response.model])
+        Analytics.track(.zestyQuestionAsked(isFollowUp: conversationId != nil))
         return response
     }
 

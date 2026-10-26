@@ -50,11 +50,11 @@ struct DiscoverView: View {
             .background(BW.canvas)
             .toolbar(.hidden, for: .navigationBar)
             .bitewiseDestinations()
+            .analyticsScreen("Discover")
             .sheet(isPresented: $showPaywall) {
                 PaywallView(context: .upgrade) { showPaywall = false }
             }
             .onAppear {
-                store.track("discover_opened")
                 if pinnedId == nil { pinnedId = store.discoverQueue.first?.id }
                 prefetchNextImages()
             }

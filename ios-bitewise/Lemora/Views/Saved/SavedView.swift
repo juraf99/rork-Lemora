@@ -140,6 +140,7 @@ struct SavedView: View {
                 }
             }
             .bitewiseDestinations()
+            .analyticsScreen("Saved")
             .sheet(isPresented: $showGrocery) { GroceryListView() }
             .sheet(isPresented: $showPaywall) { PaywallView(context: .upgrade) { showPaywall = false } }
                         .sheet(item: $organizing) { target in CollectionPickerSheet(recipeId: target.id) }

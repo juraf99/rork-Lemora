@@ -10,6 +10,7 @@
 		5B5B5B5B5B5B5B5B5B5B5B01 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 5B5B5B5B5B5B5B5B5B5B5B02 /* Supabase */; };
 		XXB9508B171746A581F028XX /* ClerkKit in Frameworks */ = {isa = PBXBuildFile; productRef = XX694FD0783DAD8A35242CXX /* ClerkKit */; };
 		5B5B5B5B5B5B5B5B5B5B5B04 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 5B5B5B5B5B5B5B5B5B5B5B05 /* RevenueCat */; };
+		PH0A00000000000000000001 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = PH0A00000000000000000002 /* PostHog */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -61,6 +62,7 @@
 				5B5B5B5B5B5B5B5B5B5B5B01 /* Supabase in Frameworks */,
 				XXB9508B171746A581F028XX /* ClerkKit in Frameworks */,
 				5B5B5B5B5B5B5B5B5B5B5B04 /* RevenueCat in Frameworks */,
+				PH0A00000000000000000001 /* PostHog in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -124,6 +126,7 @@
 				5B5B5B5B5B5B5B5B5B5B5B02 /* Supabase */,
 				XX694FD0783DAD8A35242CXX /* ClerkKit */,
 				5B5B5B5B5B5B5B5B5B5B5B05 /* RevenueCat */,
+				PH0A00000000000000000002 /* PostHog */,
 			);
 			productName = Lemora;
 			productReference = 105FC57A2E9EAD3100EA8BCF /* Lemora.app */;
@@ -222,6 +225,7 @@
 				5B5B5B5B5B5B5B5B5B5B5B03 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				XX3DB027AECFDAD03266F3XX /* XCRemoteSwiftPackageReference "clerk-ios" */,
 				5B5B5B5B5B5B5B5B5B5B5B06 /* XCRemoteSwiftPackageReference "purchases-ios" */,
+				PH0A00000000000000000003 /* XCRemoteSwiftPackageReference "posthog-ios" */,
 			);
 		};
 /* End PBXProject section */
@@ -633,6 +637,14 @@
 				minimumVersion = 5.0.0;
 			};
 		};
+		PH0A00000000000000000003 /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/PostHog/posthog-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.92.4;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -650,6 +662,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 5B5B5B5B5B5B5B5B5B5B5B06 /* XCRemoteSwiftPackageReference "purchases-ios" */;
 			productName = RevenueCat;
+		};
+		PH0A00000000000000000002 /* PostHog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = PH0A00000000000000000003 /* XCRemoteSwiftPackageReference "posthog-ios" */;
+			productName = PostHog;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
