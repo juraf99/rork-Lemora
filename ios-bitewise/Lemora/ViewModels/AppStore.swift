@@ -572,11 +572,24 @@ final class AppStore {
 
     // MARK: Grocery list
 
-    func addToGrocery(_ recipe: Recipe, servings: Int) {
+    func isInPantry(ingredientId: String) -> Bool {
+        let name = IngredientCatalog.name(ingredientId)
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+        let plain = ingredientId.replacingOccurrences(of: "_", with: " ")
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+        return data.pantry.contains { item in
+            let stored = item.name.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            guard stored.count > 2 else { return false }
+            return stored == name || stored == plain || (stored.count >= 4 && (name.contains(stored) || plain.contains(stored)))
+        }
+    }
+
+    func addToGrocery(_ recipe: Recipe, servings: Int, includingPantry: Bool = true) {
         let p = price(for: recipe, servings: servings)
+        let lines = p.lines.filter { includingPantry || !isInPantry(ingredientId: $0.ingredientId) }
         var addedDeal = false
         mutate { d in
-            for line in p.lines {
+            for line in lines {
                 if let idx = d.grocery.firstIndex(where: { $0.ingredientId == line.ingredientId && $0.unit == line.unit && !$0.isChecked }) {
                     d.grocery[idx].quantity += line.quantity
                     if let cost = line.cost {
@@ -807,13 +820,64 @@ final class AppStore {
         }
     }
 
+    /// Marks a planned meal eaten and counts its savings once for that day.
+    func eatMeal(_ id: UUID) {
+        guard let entry = data.mealPlan.first(where: { $0.id == id }), !entry.isEaten else { return }
+        guard let recipe = recipe(id: entry.recipeId) else { return }
+        let cal = Calendar.current
+        let already = data.cookLogs.contains { $0.recipeId == recipe.id && cal.isDate($0.date, inSameDayAs: entry.date) }
+        let priced = price(for: recipe)
+        mutate { d in
+            if let idx = d.mealPlan.firstIndex(where: { $0.id == id }) {
+                d.mealPlan[idx].isEaten = true
+                d.mealPlan[idx].eatenAt = .now
+                d.mealPlan[idx].savings = priced.savings
+            }
+            if !already {
+                d.cookLogs.append(CookLog(recipeId: recipe.id, date: entry.date, madeWithDeal: priced.dealCount > 0, savings: priced.savings))
+            }
+        }
+    }
+
+    /// Past planned meals count as eaten. Their savings land on the day they were planned.
+    func settlePastMeals() {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: .now)
+        let due = data.mealPlan.filter { cal.startOfDay(for: $0.date) < today && !$0.isEaten }
+        guard !due.isEmpty else { return }
+        var logs: [CookLog] = []
+        for entry in due {
+            guard let recipe = recipe(id: entry.recipeId) else { continue }
+            let already = data.cookLogs.contains { $0.recipeId == recipe.id && cal.isDate($0.date, inSameDayAs: entry.date) }
+            if already { continue }
+            let priced = price(for: recipe)
+            logs.append(CookLog(recipeId: recipe.id, date: entry.date, madeWithDeal: priced.dealCount > 0, savings: priced.savings))
+        }
+        let ids = Set(due.map(\.id))
+        mutate { d in
+            for idx in d.mealPlan.indices where ids.contains(d.mealPlan[idx].id) {
+                d.mealPlan[idx].isEaten = true
+                d.mealPlan[idx].eatenAt = d.mealPlan[idx].date
+            }
+            d.cookLogs.append(contentsOf: logs)
+        }
+    }
+
+    func undoCookToday(_ recipe: Recipe) {
+        mutate { d in
+            if let idx = d.cookLogs.lastIndex(where: { $0.recipeId == recipe.id && Calendar.current.isDateInToday($0.date) }) {
+                d.cookLogs.remove(at: idx)
+            }
+        }
+    }
+
     func generateGroceryFromMealPlan(weekDates: [Date]) {
         let entries = data.mealPlan.filter { entry in
             weekDates.contains { Calendar.current.isDate($0, inSameDayAs: entry.date) }
         }
         for entry in entries {
             if let recipe = recipe(id: entry.recipeId) {
-                addToGrocery(recipe, servings: 1)
+                addToGrocery(recipe, servings: 1, includingPantry: false)
             }
         }
     }

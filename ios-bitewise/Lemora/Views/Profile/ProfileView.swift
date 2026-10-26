@@ -15,11 +15,21 @@ struct ProfileView: View {
                     header
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
+                    statGrid
+                        .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 4, trailing: 0))
+                        .listRowBackground(Color.clear)
                 }
 
                 Section {
-                    Button { path.append(Route.streaks) } label: { streakRow }
-                        .listRowBackground(BW.lemonSoft)
+                    NavigationLink { PantryView() } label: {
+                        row("takeoutbag.and.cup.and.straw", String(localized: "My pantry"), String(localized: "\(store.data.pantry.count) items"))
+                    }
+                    NavigationLink { GoalEditView() } label: {
+                        row("target", String(localized: "Goals & diet"), profile.allGoals.map(\.title).joined(separator: ", "))
+                    }
+                    NavigationLink { StoresEditView() } label: {
+                        row("cart", String(localized: "My stores"), String(localized: "\(store.myStoreIds.count) stores"))
+                    }
                 }
 
                 Section("Subscription") {
@@ -42,11 +52,6 @@ struct ProfileView: View {
                             profile.postalCode.isEmpty ? String(localized: "Not set") : "\(profile.postalCode) · \(store.myStoreIds.count)")
                     }
                     NavigationLink { StrategyEditView() } label: { row("scalemass", String(localized: "Shopping Strategy"), profile.strategy.title) }
-                }
-
-                Section("Kitchen") {
-                    NavigationLink { MealPlanView() } label: { Label("Meal Plan", systemImage: "calendar") }
-                    NavigationLink { PantryView() } label: { Label("Pantry", systemImage: "refrigerator") }
                 }
 
                 Section("App") {
@@ -98,73 +103,117 @@ struct ProfileView: View {
         return items.isEmpty ? String(localized: "None") : items.joined(separator: ", ")
     }
 
-    private var header: some View {
-        VStack(spacing: 16) {
-            HStack(spacing: 14) {
-                MascotView(name: BWImage.mascotWave, size: 70, bob: true)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(store.data.account?.name ?? "").font(.bw(.title2)).foregroundStyle(BW.ink)
-                    if let email = store.data.account?.email, !email.isEmpty {
-                        Text(email).font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
-                    }
-                }
-                Spacer()
-            }
-
-            VStack(spacing: 8) {
-                Text("Total saved with Lemora")
-                    .font(.bw(.subheadline, weight: .medium))
-                    .foregroundStyle(BW.inkSecondary)
-                Text(Money.format(store.totalSaved))
-                    .font(.bw(size: 52, weight: .heavy))
-                    .monospacedDigit()
-                    .foregroundStyle(BW.leafDeep)
-                    .contentTransition(.numericText(value: store.totalSaved))
-                HStack(spacing: 24) {
-                    VStack(spacing: 2) {
-                        Text(Money.format(store.savedThisMonth))
-                            .font(.bw(.title3, weight: .heavy))
-                            .monospacedDigit()
-                            .foregroundStyle(BW.ink)
-                        Text("This month")
-                            .font(.bw(.caption, weight: .medium))
-                            .foregroundStyle(BW.inkSecondary)
-                    }
-                    Rectangle()
-                        .fill(BW.hairline)
-                        .frame(width: 1, height: 32)
-                    VStack(spacing: 2) {
-                        Text("\(store.data.cookLogs.count)")
-                            .font(.bw(.title3, weight: .heavy))
-                            .monospacedDigit()
-                            .foregroundStyle(BW.ink)
-                        Text("Meals cooked")
-                            .font(.bw(.caption, weight: .medium))
-                            .foregroundStyle(BW.inkSecondary)
-                    }
-                }
-                .padding(.top, 4)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 20)
-            .padding(.horizontal, 16)
-            .background(BW.lemonSoft, in: .rect(cornerRadius: 20))
-        }
-        .padding(.vertical, 6)
+    private var savedThisWeek: Double {
+        let cal = Calendar.current
+        return store.data.cookLogs.filter { $0.madeWithDeal && cal.isDate($0.date, equalTo: .now, toGranularity: .weekOfYear) }
+            .reduce(0) { $0 + $1.savings }
     }
 
-    private var streakRow: some View {
-        HStack(spacing: 14) {
-            Image(GrowthStage.forWeeks(store.savingsStreakWeeks).imageName)
-                .resizable().scaledToFit().frame(width: 52, height: 52)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Streaks").font(.bw(.headline)).foregroundStyle(BW.ink)
-                Text("Savings \(store.savingsStreakWeeks) wk · Wise \(store.wiseStreakDays) d")
-                    .font(.bw(.subheadline, weight: .medium)).foregroundStyle(BW.inkSecondary)
+    private var weekGoal: Double { store.data.profile.weeklyBudget ?? 25 }
+
+    private var header: some View {
+        let left = max(0, weekGoal - savedThisWeek)
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                Text("You saved this week")
+                    .font(.bw(.caption, weight: .heavy))
+                    .foregroundStyle(Color(hex: 0xEFD35A))
+                    .textCase(.uppercase)
+                Spacer()
+                Button { path.append(Route.streaks) } label: {
+                    Text(String(localized: "\(store.wiseStreakDays) days"))
+                        .font(.bw(.caption, weight: .heavy))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.white.opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
             }
-            Spacer()
-            Image(systemName: "chevron.right").font(.subheadline.weight(.bold)).foregroundStyle(BW.outline)
+            HStack(alignment: .center, spacing: 8) {
+                Text(Money.format(savedThisWeek))
+                    .font(.bw(size: 48, weight: .heavy))
+                    .foregroundStyle(.white)
+                    .monospacedDigit()
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                MascotView(name: BWImage.mascotCheer, size: 78)
+            }
+            Text(String(localized: "Goal \(Money.format(weekGoal)) / week · \(Money.format(left)) to go"))
+                .font(.bw(.footnote, weight: .medium))
+                .foregroundStyle(.white.opacity(0.8))
+            ProgressView(value: min(savedThisWeek / max(weekGoal, 1), 1))
+                .tint(Color(hex: 0xEFD35A))
+            weekBars
         }
+        .padding(18)
+        .background(BW.ink, in: .rect(cornerRadius: 28))
+    }
+
+    private var weekBars: some View {
+        let cal = Calendar.current
+        let start = cal.dateInterval(of: .weekOfYear, for: .now)?.start ?? .now
+        let amounts: [Double] = (0..<7).map { offset in
+            let day = cal.date(byAdding: .day, value: offset, to: start) ?? start
+            return store.data.cookLogs.filter { $0.madeWithDeal && cal.isDate($0.date, inSameDayAs: day) }
+                .reduce(0) { $0 + $1.savings }
+        }
+        let peak = max(amounts.max() ?? 0, 1)
+        return HStack(alignment: .bottom, spacing: 10) {
+            ForEach(0..<7, id: \.self) { index in
+                let day = cal.date(byAdding: .day, value: index, to: start) ?? start
+                let today = cal.isDateInToday(day)
+                VStack(spacing: 6) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(today ? Color(hex: 0xEFD35A) : (amounts[index] > 0 ? BW.leaf : Color.white.opacity(0.25)))
+                        .frame(width: 18, height: max(4, 46 * amounts[index] / peak))
+                    Text(shortDay(day))
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private func shortDay(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = AppLanguage.current.locale
+        f.setLocalizedDateFormatFromTemplate("EEEEE")
+        return f.string(from: date)
+    }
+
+    private var statGrid: some View {
+        let meals = store.data.cookLogs.count
+        let average = meals > 0 ? store.totalSaved / Double(meals) : 0
+        return VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                statCard(String(localized: "This month"), Money.format(store.savedThisMonth), accent: false)
+                statCard(String(localized: "Since you joined"), Money.format(store.totalSaved), accent: false)
+            }
+            HStack(spacing: 10) {
+                statCard(String(localized: "Meals eaten"), "\(meals)", accent: false)
+                statCard(String(localized: "Avg per meal"), Money.format(average), accent: true)
+            }
+        }
+    }
+
+    private func statCard(_ title: String, _ value: String, accent: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.bw(.caption, weight: .medium))
+                .foregroundStyle(BW.inkSecondary)
+            Text(value)
+                .font(.bw(.title2))
+                .foregroundStyle(accent ? BW.leafDeep : BW.ink)
+                .monospacedDigit()
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(BW.card, in: .rect(cornerRadius: 18))
     }
 
     private func row(_ symbol: String, _ title: String, _ value: String) -> some View {
