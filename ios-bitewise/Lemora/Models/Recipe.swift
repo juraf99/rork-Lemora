@@ -3,22 +3,24 @@ import Foundation
 nonisolated enum IngredientUnit: String, Codable, Sendable {
     case g, ml, unit, tbsp, tsp, cup, can, clove
 
+    /// Quantity with its unit in the language picked in the app ("2 tbsp", "2 c. à soupe", "2 cdas").
     func format(_ quantity: Double) -> String {
+        let locale = AppLanguage.current.locale
         let q = quantity.rounded(toPlaces: quantity < 10 ? 1 : 0)
-        let number = q.formatted(.number.precision(.fractionLength(0...1)))
+        let number = q.formatted(.number.precision(.fractionLength(0...1)).locale(locale))
         switch self {
         case .g:
-            if quantity >= 1000 { return "\((quantity / 1000).formatted(.number.precision(.fractionLength(0...1)))) kg" }
+            if quantity >= 1000 { return "\((quantity / 1000).formatted(.number.precision(.fractionLength(0...1)).locale(locale))) kg" }
             return "\(number) g"
         case .ml:
-            if quantity >= 1000 { return "\((quantity / 1000).formatted(.number.precision(.fractionLength(0...1)))) L" }
+            if quantity >= 1000 { return "\((quantity / 1000).formatted(.number.precision(.fractionLength(0...1)).locale(locale))) L" }
             return "\(number) ml"
         case .unit: return number
-        case .tbsp: return "\(number) tbsp"
-        case .tsp: return "\(number) tsp"
-        case .cup: return quantity == 1 ? "1 cup" : "\(number) cups"
-        case .can: return quantity == 1 ? "1 can" : "\(number) cans"
-        case .clove: return quantity == 1 ? "1 clove" : "\(number) cloves"
+        case .tbsp: return quantity == 1 ? String(localized: "1 tbsp") : String(localized: "\(number) tbsp")
+        case .tsp: return quantity == 1 ? String(localized: "1 tsp") : String(localized: "\(number) tsp")
+        case .cup: return quantity == 1 ? String(localized: "1 cup") : String(localized: "\(number) cups")
+        case .can: return quantity == 1 ? String(localized: "1 can") : String(localized: "\(number) cans")
+        case .clove: return quantity == 1 ? String(localized: "1 clove") : String(localized: "\(number) cloves")
         }
     }
 }
