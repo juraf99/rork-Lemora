@@ -44,15 +44,15 @@ nonisolated struct RecommendationEngine {
         let ingredients = recipe.ingredients.compactMap { IngredientCatalog.ingredient($0.ingredientId) }
 
         for allergen in profile.allergies where recipe.identifiedAllergenKeys.contains(allergen.databaseId) {
-            return "Contains \(allergen.title)"
+            return String(localized: "Contains \(allergen.title)")
         }
         for allergen in profile.allergies where recipe.possibleAllergenKeys.contains(allergen.databaseId) {
-            return "May contain \(allergen.title)"
+            return String(localized: "May contain \(allergen.title)")
         }
 
         for allergen in profile.allergies {
-            if ingredients.contains(where: { $0.contains.contains(allergen) }) { return "Contains \(allergen.title)" }
-            if ingredients.contains(where: { $0.mayContain.contains(allergen) }) { return "May contain \(allergen.title)" }
+            if ingredients.contains(where: { $0.contains.contains(allergen) }) { return String(localized: "Contains \(allergen.title)") }
+            if ingredients.contains(where: { $0.mayContain.contains(allergen) }) { return String(localized: "May contain \(allergen.title)") }
         }
 
         let searchable = recipe.ingredients.map { ($0.rawText + " " + IngredientCatalog.name($0.ingredientId)).lowercased() }
@@ -60,7 +60,7 @@ nonisolated struct RecommendationEngine {
             let term = allergy.name.trimmingCharacters(in: .whitespaces).lowercased()
             let exactIngredient = recipe.ingredients.contains { $0.ingredientId == allergy.id }
             if exactIngredient || (!term.isEmpty && searchable.contains(where: { $0.contains(term) })) {
-                return "Contains \(allergy.name)"
+                return String(localized: "Contains \(lemoraLocalized(allergy.name))")
             }
         }
 
@@ -68,7 +68,7 @@ nonisolated struct RecommendationEngine {
             let term = dislike.name.trimmingCharacters(in: .whitespaces).lowercased()
             let exactIngredient = recipe.ingredients.contains { $0.ingredientId == dislike.id }
             if exactIngredient || (!term.isEmpty && searchable.contains(where: { $0.contains(term) })) {
-                return "Includes \(dislike.name)"
+                return String(localized: "Includes \(lemoraLocalized(dislike.name))")
             }
         }
 
@@ -77,27 +77,27 @@ nonisolated struct RecommendationEngine {
         for diet in profile.diets where diet.isStrict {
             let remoteKey = Self.databaseDietKey(diet)
             if !recipe.verifiedDietKeys.isEmpty || !recipe.rejectedDietKeys.isEmpty {
-                if !recipe.verifiedDietKeys.contains(remoteKey) { return "Diet compatibility not verified" }
+                if !recipe.verifiedDietKeys.contains(remoteKey) { return String(localized: "Diet compatibility not verified") }
                 continue
             }
             switch diet {
             case .vegetarian:
-                if !animals.isDisjoint(with: [.meat, .pork, .poultry, .fish, .shellfish]) { return "Not vegetarian" }
+                if !animals.isDisjoint(with: [.meat, .pork, .poultry, .fish, .shellfish]) { return String(localized: "Not vegetarian") }
             case .vegan:
-                if !animals.isSubset(of: [.none]) { return "Not vegan" }
+                if !animals.isSubset(of: [.none]) { return String(localized: "Not vegan") }
             case .pescatarian:
-                if !animals.isDisjoint(with: [.meat, .pork, .poultry]) { return "Not pescatarian" }
+                if !animals.isDisjoint(with: [.meat, .pork, .poultry]) { return String(localized: "Not pescatarian") }
             case .glutenFree:
-                if hasAllergen(.wheat) { return "May contain gluten" }
+                if hasAllergen(.wheat) { return String(localized: "May contain gluten") }
             case .dairyFree, .lactoseFree:
-                if hasAllergen(.milk) { return "Contains dairy" }
+                if hasAllergen(.milk) { return String(localized: "Contains dairy") }
             case .keto:
-                guard let carbs = recipe.nutrition.carbs else { return "Keto compatibility not verified" }
-                if carbs > 25 { return "Too many carbs for keto" }
+                guard let carbs = recipe.nutrition.carbs else { return String(localized: "Keto compatibility not verified") }
+                if carbs > 25 { return String(localized: "Too many carbs for keto") }
             case .halal:
-                if animals.contains(.pork) { return "Not halal" }
+                if animals.contains(.pork) { return String(localized: "Not halal") }
             case .kosher:
-                if animals.contains(.pork) || animals.contains(.shellfish) { return "Not kosher" }
+                if animals.contains(.pork) || animals.contains(.shellfish) { return String(localized: "Not kosher") }
             default:
                 break
             }
@@ -213,7 +213,7 @@ nonisolated struct RecommendationEngine {
         // Deals
         let dealScore = min(1, price.savingsFraction * 2.5)
         if let headline = price.headlineDeal, let deal = headline.deal {
-            reasons.insert(.init(code: .currentDeal, text: String(localized: "\(IngredientCatalog.name(headline.ingredientId)) is on sale at \(deal.retailerDisplayName)")), at: 0)
+            reasons.insert(.init(code: .currentDeal, text: String(localized: "\(lemoraLocalized(IngredientCatalog.name(headline.ingredientId))) is on sale at \(deal.retailerDisplayName)")), at: 0)
         }
 
         // Budget
