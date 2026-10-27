@@ -54,6 +54,23 @@ final class AppStore {
         self.configProvider = configProvider
         self.data = repository.load() ?? AppData()
         refreshDeals()
+        NotificationCenter.default.addObserver(forName: .lemoraLanguageChanged, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reloadForLanguage() }
+        }
+    }
+
+    /// The language picked in the app changed: recipes, their reasons and labels are rebuilt in it.
+    func reloadForLanguage() {
+        let cached = SupabaseService.cachedRecipeCatalogue()
+        if cached.isEmpty {
+            recipes = recipes.filter { recipe in !RecipeCatalog.all.contains { $0.id == recipe.id } }
+                + RecipeCatalog.all
+            Task { await loadRecipeCatalogue(force: true) }
+        } else {
+            let ids = Set(cached.map(\.id))
+            recipes = cached + RecipeCatalog.all.filter { !ids.contains($0.id) }
+        }
+        refreshRanking()
     }
 
     // MARK: Lifecycle
@@ -74,11 +91,11 @@ final class AppStore {
         analytics.track("app_opened", [:])
     }
 
-    func loadRecipeCatalogue() async {
+    func loadRecipeCatalogue(force: Bool = false) async {
         do {
             let result = try await SupabaseService.shared.fetchRecipeCatalogue()
             let fetched = result.recipes
-            if !fetched.isEmpty && (result.changed || !catalogueFromCache) {
+            if !fetched.isEmpty && (force || result.changed || !catalogueFromCache) {
                 let fetchedIds = Set(fetched.map(\.id))
                 recipes = fetched + RecipeCatalog.all.filter { !fetchedIds.contains($0.id) }
                 refreshRanking()
@@ -827,7 +844,11 @@ final class AppStore {
         cal.firstWeekday = 2
         let start = cal.dateInterval(of: .weekOfYear, for: .now)?.start ?? .now
         let days = Set(data.activeDays)
-        let symbols = ["M", "T", "W", "T", "F", "S", "S"]
+        // Mon–Sun initials in the app language (L M M J V S D in French).
+        var symbolCalendar = Calendar(identifier: .gregorian)
+        symbolCalendar.locale = AppLanguage.current.locale
+        let narrow = symbolCalendar.veryShortStandaloneWeekdaySymbols
+        let symbols = narrow.count == 7 ? Array(narrow[1...6]) + [narrow[0]] : ["M", "T", "W", "T", "F", "S", "S"]
         // Only the days of the current streak are checked: once a streak breaks, older days are cleared.
         let streak = wiseStreakDays
         let anchor = days.contains(dayKey(.now)) ? Date.now : (cal.date(byAdding: .day, value: -1, to: .now) ?? .now)
