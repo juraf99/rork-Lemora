@@ -59,9 +59,9 @@ struct WeekPlanView: View {
                         selectedDate = calendar.startOfDay(for: day)
                     } label: {
                         VStack(spacing: 4) {
-                            Text(day.formatted(.dateTime.weekday(.narrow)))
+                            Text(verbatim: day.formatted(.dateTime.weekday(.narrow).locale(AppFormat.locale)))
                                 .font(.bw(.caption, weight: .semibold))
-                            Text(day.formatted(.dateTime.day()))
+                            Text(verbatim: day.formatted(.dateTime.day().locale(AppFormat.locale)))
                                 .font(.bw(.headline))
                         }
                         .foregroundStyle(selected ? Color.white : BW.ink)
