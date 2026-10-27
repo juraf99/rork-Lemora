@@ -202,6 +202,7 @@ struct OBStepScreen: View {
         switch m.screen {
         case .hear: return ("How did you hear about us?", "Just so I know who to thank.", .talking)
         case .goal: return ("What are your goals?", "Pick all that apply. This shapes everything I recommend.", .idea)
+        case .weightAsk: return ("", "", .idea)
         case .branch:
             return m.isBodyGoal ? ("Let’s set your numbers", "Used to size portions and protein.", .idle)
                                 : ("What do you love eating?", "Pick a few. Swipes refine the rest.", .idle)
@@ -260,7 +261,7 @@ struct OBStepScreen: View {
                     ZStack(alignment: .leading) {
                         Capsule().fill(OB.track)
                         Capsule().fill(OB.lemon)
-                            .frame(width: geo.size.width * CGFloat(idx + 1) / CGFloat(OnboardingModel.steps.count))
+                            .frame(width: geo.size.width * CGFloat(idx + 1) / CGFloat(max(1, m.flow.count)))
                             .animation(.timingCurve(0.3, 0.7, 0.3, 1, duration: 0.45), value: idx)
                     }
                 }
@@ -273,6 +274,7 @@ struct OBStepScreen: View {
                     .disabled([.location, .stores].contains(m.screen))
             }
 
+            if m.screen != .weightAsk {
             HStack(alignment: .bottom, spacing: 10) {
                 ZestyMascot(mood: mood, size: 64, seedKey: "z\(m.screen.rawValue)")
                     .id("z\(m.screen.rawValue)\(m.bump)\(nudging ? "n" : "")\(mood.rawValue)")
@@ -296,6 +298,7 @@ struct OBStepScreen: View {
                 .padding(.top, 10)
                 .opacity((m.reacted || nudging) ? 1 : 0)
                 .animation(.easeInOut(duration: 0.25), value: m.reacted)
+            }
 
             ScrollView {
                 stepBody
@@ -336,6 +339,7 @@ struct OBStepScreen: View {
         switch m.screen {
         case .hear: OBHearStep()
         case .goal: OBGoalStep()
+        case .weightAsk: OBWeightAskStep()
         case .branch: if m.isBodyGoal { OBBodyStep() } else { OBTasteStep() }
         case .people: OBPeopleStep()
         case .diet: OBDietStep()
@@ -414,6 +418,62 @@ struct OBGoalStep: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+}
+
+/// "Do you have a target weight?" before the weight page. "No" skips the weight page.
+struct OBWeightAskStep: View {
+    @Environment(OnboardingModel.self) private var m
+
+    var body: some View {
+        let yes = m.a.hasTargetWeight ?? true
+        VStack(spacing: 0) {
+            ZestyMascot(mood: m.reacted ? .happy : .idea, size: 118, seedKey: "zweightAsk")
+                .id("zweightAsk\(m.bump)")
+                .frame(width: 150, height: 150)
+                .background(OB.sunSoft, in: .circle)
+                .padding(.top, 8)
+            OBText(lemoraText("Do you have a target weight?", fr: "As-tu un poids visé ?", es: "¿Tienes un peso objetivo?"),
+                   28, 800, tracking: -0.02, align: .center)
+                .padding(.top, 26)
+            OBText(lemoraText("It helps us size your portions. You can change it later.",
+                              fr: "Ça nous aide à ajuster tes portions. Tu peux le changer plus tard.",
+                              es: "Nos ayuda a ajustar tus porciones. Puedes cambiarlo después."),
+                   15, 500, color: OB.sub, align: .center)
+                .padding(.top, 8)
+                .padding(.horizontal, 12)
+            VStack(spacing: 12) {
+                option("🎯", fill: OB.sunSoft,
+                       title: lemoraText("Yes, I have one", fr: "Oui, j’en ai un", es: "Sí, tengo uno"),
+                       sub: lemoraText("We’ll ask for the number next", fr: "On te demande le chiffre ensuite", es: "Te pedimos la cifra después"),
+                       on: yes) { m.setHasTargetWeight(true) }
+                option("👌", fill: OB.mint,
+                       title: lemoraText("No target weight", fr: "Non, pas de poids visé", es: "No, sin peso objetivo"),
+                       sub: lemoraText("We’ll move on", fr: "On passe à la suite", es: "Pasamos a lo siguiente"),
+                       on: !yes) { m.setHasTargetWeight(false) }
+            }
+            .padding(.top, 30)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func option(_ icon: String, fill: Color, title: String, sub: String, on: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Text(icon).font(.system(size: 20))
+                    .frame(width: 52, height: 52)
+                    .background(fill, in: .circle)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(verbatim: title).font(OB.font(16, 800)).foregroundStyle(OB.ink)
+                    Text(verbatim: sub).font(OB.font(13, 400)).foregroundStyle(OB.sub)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                OBRadio(on: on)
+            }
+            .padding(.horizontal, 18).padding(.vertical, 16)
+            .obCard(on)
+        }
+        .buttonStyle(.plain)
     }
 }
 
