@@ -492,6 +492,8 @@ struct RecipeDetailView: View {
 
             Button {
                 store.addToGrocery(recipe, servings: servings)
+                // On tonight's plan: it counts in "Saved with Lemora" once the day is over.
+                store.addToMealPlan(recipeId: recipe.id, date: .now, slot: .dinner)
                 store.track("cook_tonight", ["recipe": recipe.id])
                 addedToList += 1
                 withAnimation(.spring) { tonightSet = true }
