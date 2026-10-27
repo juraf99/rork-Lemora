@@ -14,6 +14,8 @@ nonisolated struct OnboardingAnswers: Codable, Hashable, Sendable {
     var household: Int = 2
     var current: Int = 182
     var target: Int = 168
+    /// "Do you have a target weight?" nil = not answered yet (shown as yes). false skips the weight page.
+    var hasTargetWeight: Bool? = nil
     var unit: String = "lb"
     var cuisines: [String] = ["all"]
     var diets: [String] = ["none"]
@@ -54,14 +56,14 @@ nonisolated struct SavingsEstimate: Codable, Hashable, Sendable {
 @Observable
 final class OnboardingModel {
     enum Screen: String, Codable, CaseIterable {
-        case landing, signin, hear, goal, branch, people, diet, allergies, dislikes, meals, location, stores, budget, strategy
+        case landing, signin, hear, goal, weightAsk, branch, people, diet, allergies, dislikes, meals, location, stores, budget, strategy
         case thanks, notif, ready, generating, savings, reminder, plan, account, email, verify, paywall, done
     }
 
     enum AuthContext { case new, existing, merge }
     enum EmailMode { case create, signin }
 
-    static let steps: [Screen] = [.hear, .goal, .branch, .people, .diet, .allergies, .dislikes, .meals, .location, .stores, .budget, .strategy]
+    static let steps: [Screen] = [.hear, .goal, .weightAsk, .branch, .people, .diet, .allergies, .dislikes, .meals, .location, .stores, .budget, .strategy]
     private static let storageKey = "lemora-onboarding-v2"
     private static let screenKey = "lemora-onboarding-v2-screen"
 
@@ -157,7 +159,17 @@ final class OnboardingModel {
 
     // MARK: Navigation
 
-    var stepIndex: Int? { Self.steps.firstIndex(of: screen) }
+    /// Questions actually shown: the target-weight question only for body goals,
+    /// and the weight page is skipped when they have no target weight.
+    var flow: [Screen] {
+        Self.steps.filter { s in
+            if s == .weightAsk { return isBodyGoal }
+            if s == .branch && isBodyGoal { return a.hasTargetWeight != false }
+            return true
+        }
+    }
+
+    var stepIndex: Int? { flow.firstIndex(of: screen) }
 
     func go(_ s: Screen) {
         genTask?.cancel()
@@ -187,18 +199,24 @@ final class OnboardingModel {
             }
             return
         }
-        go(i < Self.steps.count - 1 ? Self.steps[i + 1] : (a.reachedPlan == true ? .plan : .thanks))
+        if screen == .weightAsk && a.hasTargetWeight == nil { a.hasTargetWeight = true }
+        let steps = flow
+        go(i < steps.count - 1 ? steps[i + 1] : (a.reachedPlan == true ? .plan : .thanks))
     }
 
     func back() {
         guard let i = stepIndex else { return }
-        go(i > 0 ? Self.steps[i - 1] : .landing)
+        let steps = flow
+        go(i > 0 ? steps[i - 1] : .landing)
     }
 
     func skip() {
         guard let i = stepIndex else { return }
-        go(i < Self.steps.count - 1 ? Self.steps[i + 1] : (a.reachedPlan == true ? .plan : .thanks))
+        let steps = flow
+        go(i < steps.count - 1 ? steps[i + 1] : (a.reachedPlan == true ? .plan : .thanks))
     }
+
+    func setHasTargetWeight(_ value: Bool) { a.hasTargetWeight = value; react() }
 
     var canContinue: Bool {
         switch screen {

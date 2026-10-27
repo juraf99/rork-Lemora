@@ -250,7 +250,7 @@ extension OnboardingModel {
         p.goal = goals[a.goal] ?? .saveMoney
         p.goals = Set(selectedGoals.compactMap { goals[$0] })
         p.usesMetric = a.unit == "kg"
-        if isBodyGoal {
+        if isBodyGoal && a.hasTargetWeight != false {
             p.weightKg = Double(a.current) * 0.4536
             p.goalWeightKg = Double(a.target) * 0.4536
         }
