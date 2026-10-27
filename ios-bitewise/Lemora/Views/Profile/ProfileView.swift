@@ -105,33 +105,107 @@ struct ProfileView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 14) {
-            MascotView(name: BWImage.mascotWave, size: 70, bob: true)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(store.data.account?.name ?? "").font(.bw(.title2)).foregroundStyle(BW.ink)
-                if let email = store.data.account?.email, !email.isEmpty {
-                    Text(email).font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 16) {
+                MascotView(name: BWImage.mascotCheer, size: 58, bob: true)
+                    .frame(width: 72, height: 72)
+                    .background(BW.lemonSoft, in: .circle)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(store.data.account?.name ?? "")
+                        .font(.bw(.title2, weight: .heavy)).foregroundStyle(BW.ink)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                    if let email = store.data.account?.email, !email.isEmpty {
+                        Text(email).font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
+                            .lineLimit(1).minimumScaleFactor(0.8)
+                    }
                 }
-                Text("Saved \(Money.format(store.totalSaved)) with Lemora")
-                    .font(.bw(.subheadline, weight: .bold)).foregroundStyle(BW.leafDeep)
+                Spacer(minLength: 0)
             }
-            Spacer()
+            savingsCard
         }
         .padding(.vertical, 6)
+        .onAppear { store.logPastPlannedMeals() }
+    }
+
+    /// Money saved with Lemora: meals cooked by hand plus planned meals whose day is over.
+    private var savingsCard: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(lemoraText("Saved with Lemora", fr: "Économisé avec Lemora", es: "Ahorrado con Lemora"))
+                        .font(.bw(.subheadline, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.75))
+                    Text(Money.format(store.totalSaved))
+                        .font(.bw(size: 50, weight: .black))
+                        .monospacedDigit()
+                        .foregroundStyle(BW.lemon)
+                        .lineLimit(1).minimumScaleFactor(0.5)
+                        .contentTransition(.numericText(value: store.totalSaved))
+                }
+                Spacer(minLength: 0)
+                Image(BWImage.mascotCart)
+                    .resizable().scaledToFit()
+                    .frame(width: 96, height: 96)
+                    .accessibilityHidden(true)
+            }
+            HStack(spacing: 12) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 14, weight: .black))
+                    .foregroundStyle(BW.ink)
+                    .frame(width: 30, height: 30)
+                    .background(BW.lemon, in: .circle)
+                Text(savingsHint)
+                    .font(.bw(.subheadline, weight: .bold))
+                    .foregroundStyle(.white)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .background(.white.opacity(0.09), in: .rect(cornerRadius: 22))
+        }
+        .padding(20)
+        .background(Color(hex: 0x1F3B2F), in: .rect(cornerRadius: 26))
+        .animation(.spring(response: 0.4), value: store.totalSaved)
+    }
+
+    private var savingsHint: String {
+        let meals = store.mealsCookedCount
+        guard store.totalSaved > 0.009 || meals > 0 else {
+            return lemoraText("Check off a cooked meal to start", fr: "Coche un repas cuisiné pour commencer", es: "Marca una comida cocinada para empezar")
+        }
+        let month = Money.format(store.savedThisMonth)
+        return lemoraText("\(meals) meals cooked · \(month) this month",
+                          fr: "\(meals) repas cuisinés · \(month) ce mois-ci",
+                          es: "\(meals) comidas cocinadas · \(month) este mes")
+    }
+
+    private var streakLevel: String {
+        switch GrowthStage.forDays(store.wiseStreakDays) {
+        case .sprout: lemoraText("Wise level", fr: "Niveau Sage", es: "Nivel Sabio")
+        case .plant: lemoraText("Savvy level", fr: "Niveau Futé", es: "Nivel Astuto")
+        case .lemon: lemoraText("Master level", fr: "Niveau Maître", es: "Nivel Maestro")
+        }
     }
 
     private var streakRow: some View {
-        HStack(spacing: 14) {
-            Image(GrowthStage.forWeeks(store.savingsStreakWeeks).imageName)
-                .resizable().scaledToFit().frame(width: 52, height: 52)
+        let days = store.wiseStreakDays
+        return HStack(spacing: 14) {
+            Image(GrowthStage.forDays(days).imageName)
+                .resizable().scaledToFit().frame(width: 34, height: 34)
+                .frame(width: 56, height: 56)
+                .background(.white, in: .circle)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Streaks").font(.bw(.headline)).foregroundStyle(BW.ink)
-                Text("Savings \(store.savingsStreakWeeks) wk · Wise \(store.wiseStreakDays) d")
+                Text(days == 1
+                     ? lemoraText("Streak · 1 day", fr: "Série · 1 jour", es: "Racha · 1 día")
+                     : lemoraText("Streak · \(days) days", fr: "Série · \(days) jours", es: "Racha · \(days) días"))
+                    .font(.bw(.headline, weight: .heavy)).foregroundStyle(BW.ink)
+                Text(streakLevel)
                     .font(.bw(.subheadline, weight: .medium)).foregroundStyle(BW.inkSecondary)
             }
             Spacer()
-            Image(systemName: "chevron.right").font(.subheadline.weight(.bold)).foregroundStyle(BW.outline)
+            Image(systemName: "chevron.right").font(.headline.weight(.bold)).foregroundStyle(BW.ink)
         }
+        .padding(.vertical, 6)
     }
 
     private func row(_ symbol: String, _ title: String, _ value: String) -> some View {
