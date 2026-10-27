@@ -5,6 +5,7 @@ struct RecipeDetailView: View {
     @Environment(AppStore.self) private var store
     @State private var servings: Int
     @State private var cookedTimes: Int = 0
+    @State private var servingsSet: Bool = false
     @State private var addedToList: Int = 0
     @State private var showAddedToast: Bool = false
     @State private var toastText: String = ""
@@ -72,6 +73,12 @@ struct RecipeDetailView: View {
             }
         }
         .safeAreaInset(edge: .bottom) { actionBar }
+        .onAppear {
+            // Start at the household size: prices then match what they really pay.
+            guard !servingsSet else { return }
+            servingsSet = true
+            servings = store.defaultServings(for: recipe)
+        }
         .sheet(isPresented: $showPaywall) {
             PaywallView(context: .upgrade) { showPaywall = false }
         }
@@ -283,6 +290,7 @@ struct RecipeDetailView: View {
     }
 
     private var servingsStepper: some View {
+        VStack(alignment: .leading, spacing: 8) {
         HStack {
             Text("Servings").font(.bw(.headline)).foregroundStyle(BW.ink)
             Spacer()
@@ -298,6 +306,16 @@ struct RecipeDetailView: View {
             .accessibilityLabel("More servings")
         }
         .foregroundStyle(BW.ink)
+            if servings < recipe.servings {
+                Label(lemoraText("Fewer portions don’t divide every cost: a pack of meat, a can or a bunch of herbs is bought whole. The price per portion includes it.",
+                                 fr: "Moins de portions ne divise pas tous les coûts : un paquet de viande, une conserve ou une botte d’herbes s’achète au complet. Le prix par portion en tient compte.",
+                                 es: "Menos porciones no dividen todos los costos: un paquete de carne, una lata o un manojo de hierbas se compra entero. El precio por porción lo incluye."),
+                      systemImage: "info.circle")
+                    .font(.bw(.caption, weight: .medium))
+                    .foregroundStyle(BW.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
         .animation(.snappy, value: servings)
         .sensoryFeedback(.selection, trigger: servings)
     }
