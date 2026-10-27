@@ -65,12 +65,14 @@ nonisolated struct PricingEngine {
         let lines = recipe.ingredients.map { item -> PriceLine in
             let compatibleIds = Self.compatibleDealIds(for: item.ingredientId)
             let gramsPerUnit = IngredientMatch.gramsPerUnit[item.ingredientId]
+            // Cost follows what is bought, which doesn't always shrink with the portions (fixed costs).
+            let bought = item.quantity * Self.purchaseScale(for: item, scale: scale)
             let observedCosts = compatibleIds.flatMap { pricesByIngredient[$0] ?? [] }.filter { !$0.isDiscounted }.compactMap {
-                $0.cost(for: item.quantity * scale, unit: item.unit)
+                $0.cost(for: bought, unit: item.unit)
             }
-            let regular = observedCosts.min() ?? item.estimatedCost.map { $0 * scale }
+            let regular = observedCosts.min() ?? item.estimatedCost.map { $0 * Self.purchaseScale(for: item, scale: scale) }
             let candidates = compatibleIds.flatMap { byIngredient[$0] ?? [] }.compactMap { deal -> (Deal, Double)? in
-                guard let converted = deal.cost(for: item.quantity * scale, unit: item.unit, gramsPerUnit: gramsPerUnit) else {
+                guard let converted = deal.cost(for: bought, unit: item.unit, gramsPerUnit: gramsPerUnit) else {
                     // Percentage-based fallback is used only when the provider supplied a discount.
                     guard deal.discountPercent != nil else { return nil }
                     guard let regular else { return nil }
@@ -88,6 +90,39 @@ nonisolated struct PricingEngine {
                              regularCost: regular, cost: discounted, deal: appliedDeal)
         }
         return RecipePrice(lines: lines, servings: max(1, servings))
+    }
+
+    /// Share of an ingredient you still pay for when cooking fewer portions than the recipe makes.
+    /// Cooking alone isn't a quarter of the price: a pack of chicken, a can, a bunch of herbs or a whole
+    /// onion is bought whole. Spices and oils last many meals, so they shrink almost fully.
+    /// Cooking more portions than the recipe stays linear.
+    static func purchaseScale(for item: RecipeIngredient, scale: Double) -> Double {
+        guard scale < 1 else { return scale }
+        let category = IngredientCatalog.ingredient(item.ingredientId)?.category
+            ?? CatalogIngredientInfo.info[item.ingredientId]?.category
+            ?? .other
+        let fixed: Double
+        switch item.unit {
+        case .tsp, .tbsp, .clove:
+            fixed = 0.15
+        case .can:
+            fixed = 1
+        case .unit:
+            // Whole items: round up to what you actually buy.
+            guard item.quantity > 0 else { return scale }
+            let needed = (item.quantity * scale).rounded(.up)
+            return min(1, max(scale, needed / item.quantity))
+        default:
+            switch category {
+            case .protein, .dairy: fixed = 0.4
+            case .produce: fixed = 0.35
+            case .bakery: fixed = 0.5
+            case .frozen: fixed = 0.2
+            case .pantry: fixed = 0.1
+            default: fixed = 0.3
+            }
+        }
+        return fixed + (1 - fixed) * scale
     }
 
     /// Strict: only deals for the same food count (see IngredientMatch). Near-identical swaps are suggested by Zesty instead.
