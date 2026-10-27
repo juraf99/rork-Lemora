@@ -105,7 +105,7 @@ struct GroceryListView: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(dealsInList > 0 ? String(localized: "Nice picks! You're saving with \(dealsInList) deals.") : String(localized: "Happy shopping!"))
                                         .font(.bw(.subheadline, weight: .bold)).foregroundStyle(BW.ink)
-                                    Text(estimatedTotal.map { "Estimated total ~\(Money.format($0))" } ?? String(localized: "Estimated total unavailable"))
+                                    Text(estimatedTotal.map { String(localized: "Estimated total ~\(Money.format($0))") } ?? String(localized: "Estimated total unavailable"))
                                         .font(.bw(.footnote, weight: .medium)).monospacedDigit().foregroundStyle(BW.inkSecondary)
                                 }
                             }
