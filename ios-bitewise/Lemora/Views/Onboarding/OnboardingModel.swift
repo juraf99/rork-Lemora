@@ -462,6 +462,34 @@ final class OnboardingModel {
         location.request()
     }
 
+    /// Location already allowed (for example before an app update): find it again without asking.
+    func locateIfAlreadyAllowed() {
+        guard currentLocation == nil, !locating, location.isAuthorized else { return }
+        a.locMode = "auto"
+        locating = true
+        location.requestIfAuthorized()
+    }
+
+    /// City instead of a postal code, for people who'd rather not share theirs.
+    var cityQuery = ""
+    var cityLooking = false
+    var cityNotFound = false
+
+    func findCity() async {
+        let query = cityQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard query.count >= 2, !cityLooking else { return }
+        cityLooking = true
+        cityNotFound = false
+        defer { cityLooking = false }
+        guard let found = await LocationService.postalCode(forCity: query, country: a.country) else {
+            cityNotFound = true
+            return
+        }
+        applyDevicePostal(found.postal)
+        a.locMode = "manual"
+        if let loc = currentLocation, !found.place.isEmpty { cityByPostal[loc.postal] = found.place }
+    }
+
     /// Called when the one-shot location lookup resolves.
     func applyDevicePostal(_ code: String) {
         locating = false
