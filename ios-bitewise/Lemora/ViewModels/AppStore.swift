@@ -184,7 +184,7 @@ final class AppStore {
         let active = source.filter { $0.isActive(at: now) && !blocked.contains($0.retailerId) }
         let scoped = mine.isEmpty ? active : active.filter { mine.contains($0.retailerId) }
         let previewPrices = Dictionary(uniqueKeysWithValues: recipes.map {
-            ($0.id, pricing.price(recipe: $0, servings: $0.servings, deals: scoped))
+            ($0.id, pricing.price(recipe: $0, servings: min(12, max(1, profile.householdSize)), deals: scoped))
         })
         let matches = engine.rank(recipes: recipes, profile: profile, taste: [:], seen: [],
                                   prices: previewPrices, weights: config.weights)
@@ -386,9 +386,15 @@ final class AppStore {
         return currentStorePrices.filter { myStoreIds.contains($0.retailerId) }
     }
 
+    /// Portions priced by default: the people in the household. Prices include fixed costs,
+    /// so a meal for one costs more per portion than the recipe for four divided by four.
+    func defaultServings(for recipe: Recipe) -> Int { min(12, max(1, data.profile.householdSize)) }
+
     func price(for recipe: Recipe, servings: Int? = nil) -> RecipePrice {
-        if servings == nil || servings == recipe.servings, let cached = prices[recipe.id] { return cached }
-        return pricing.price(recipe: recipe, servings: servings ?? recipe.servings,
+        let household = defaultServings(for: recipe)
+        let wanted = servings ?? household
+        if wanted == household, let cached = prices[recipe.id] { return cached }
+        return pricing.price(recipe: recipe, servings: wanted,
                              deals: pricingDeals, currentPrices: pricingStorePrices)
     }
 
@@ -403,7 +409,7 @@ final class AppStore {
     private func refreshRanking() {
         let scoped = pricingDeals
         prices = Dictionary(uniqueKeysWithValues: recipes.map {
-            ($0.id, pricing.price(recipe: $0, servings: $0.servings, deals: scoped, currentPrices: pricingStorePrices))
+            ($0.id, pricing.price(recipe: $0, servings: defaultServings(for: $0), deals: scoped, currentPrices: pricingStorePrices))
         })
         let seen = Set(data.swipes.map(\.recipeId))
         ranked = engine.rank(recipes: recipes, profile: data.profile, taste: data.tasteWeights, seen: seen,
@@ -561,7 +567,7 @@ final class AppStore {
     func generateGrocery(from entries: [MealPlanEntry]) {
         for entry in entries {
             guard let recipe = recipes.first(where: { $0.id == entry.recipeId }) else { continue }
-            addToGrocery(recipe, servings: recipe.servings)
+            addToGrocery(recipe, servings: defaultServings(for: recipe))
         }
     }
 
@@ -703,7 +709,7 @@ final class AppStore {
     func estimatedSavings(for recipe: Recipe) -> Double {
         let p = price(for: recipe)
         if p.savings > 0.009 { return p.savings }
-        let servings = Double(max(recipe.servings, 1))
+        let servings = Double(max(p.servings, 1))
         let storePrices = recipe.storePricesPerServing.values.filter { $0 > 0 }
         var spread = 0.0
         if storePrices.count >= 2, let low = storePrices.min() {
