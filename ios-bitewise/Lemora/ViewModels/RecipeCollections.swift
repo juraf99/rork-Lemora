@@ -94,8 +94,8 @@ struct CollectionPickerSheet: View {
                     if store.collections.isEmpty {
                         Text("Start with one of these")
                             .font(.bw(.headline)).foregroundStyle(BW.ink)
-                        ChipFlow(items: CollectionSuggestions.all.map(\.name)) { name in
-                            let emoji = CollectionSuggestions.all.first { $0.name == name }?.emoji ?? "📁"
+                        ChipFlow(items: CollectionSuggestions.all.map { lemoraLocalized($0.name) }) { name in
+                            let emoji = CollectionSuggestions.all.first { lemoraLocalized($0.name) == name }?.emoji ?? "📁"
                             Button {
                                 let c = store.createCollection(name: name, emoji: emoji)
                                 store.toggleRecipe(recipeId, in: c.id)
@@ -220,8 +220,8 @@ struct CollectionEditorSheet: View {
 
                     if existing == nil {
                         Text("Ideas").font(.bw(.headline)).foregroundStyle(BW.ink)
-                        ChipFlow(items: CollectionSuggestions.all.map(\.name)) { idea in
-                            let e = CollectionSuggestions.all.first { $0.name == idea }?.emoji ?? "📁"
+                        ChipFlow(items: CollectionSuggestions.all.map { lemoraLocalized($0.name) }) { idea in
+                            let e = CollectionSuggestions.all.first { lemoraLocalized($0.name) == idea }?.emoji ?? "📁"
                             Button {
                                 name = idea
                                 emoji = e
