@@ -423,6 +423,20 @@ final class AppStore {
     func compatibility(of recipe: Recipe) -> [(DietPreference, TriState)] { engine.compatibility(of: recipe) }
     func allergens(of recipe: Recipe) -> (contains: [Allergen], mayContain: [Allergen]) { engine.allergens(of: recipe) }
 
+    /// Recipes shown under Worth It This Week: deal-powered first, then the best value for the week,
+    /// so the section always has recipes.
+    var worthItRecipes: [ScoredRecipe] {
+        let deal = worthIt
+        let ids = Set(deal.map(\.id))
+        func value(_ item: ScoredRecipe) -> Double {
+            let weekly: Double = item.price.weeklyValueScore
+            let fit: Double = item.score
+            return weekly * 0.7 + fit * 0.3
+        }
+        let rest = ranked.filter { !ids.contains($0.id) }.sorted { value($0) > value($1) }
+        return deal + rest
+    }
+
     /// Worth It This Week: safe, personalized recipes that currently use deals.
     var worthIt: [ScoredRecipe] {
         ranked.filter { $0.price.dealCount > 0 }.sorted {
@@ -675,12 +689,43 @@ final class AppStore {
         mutate { d in
             if let i = d.cookLogs.firstIndex(where: { $0.id == logId }) {
                 let old = d.cookLogs[i]
-                d.cookLogs[i] = CookLog(id: old.id, recipeId: old.recipeId, date: old.date, madeWithDeal: value, savings: old.savings)
+                d.cookLogs[i] = CookLog(id: old.id, recipeId: old.recipeId, date: old.date, madeWithDeal: value, savings: old.savings, planEntryId: old.planEntryId)
             }
         }
     }
 
     func cookLog(_ id: UUID) -> CookLog? { data.cookLogs.first { $0.id == id } }
+
+    /// Meals in the week plan count as cooked once their day is over. Each one is logged once,
+    /// with the savings it had then, so the total in Profile stays true and stable.
+    func logPastPlannedMeals() {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: .now)
+        let logged = Set(data.cookLogs.compactMap(\.planEntryId))
+        let due = (data.mealPlan ?? []).filter { cal.startOfDay(for: $0.date) < today && !logged.contains($0.id) }
+        guard !due.isEmpty else { return }
+        var newLogs: [CookLog] = []
+        for entry in due {
+            guard let recipe = recipes.first(where: { $0.id == entry.recipeId }) else {
+                newLogs.append(CookLog(recipeId: entry.recipeId, date: entry.date, madeWithDeal: false, savings: 0, planEntryId: entry.id))
+                continue
+            }
+            // Already checked off by hand that day: keep it, don't count it twice.
+            let cookedByHand = data.cookLogs.contains {
+                $0.planEntryId == nil && $0.recipeId == entry.recipeId && cal.isDate($0.date, inSameDayAs: entry.date)
+            }
+            let p = price(for: recipe)
+            let counts = !cookedByHand && p.savings > 0.009
+            newLogs.append(CookLog(recipeId: recipe.id, date: entry.date, madeWithDeal: counts && p.dealCount > 0,
+                                   savings: counts ? p.savings : 0, planEntryId: entry.id))
+        }
+        mutate { $0.cookLogs.append(contentsOf: newLogs) }
+    }
+
+    /// Meals counted as cooked: checked off by hand, or planned and past.
+    var mealsCookedCount: Int {
+        data.cookLogs.filter { $0.planEntryId == nil || $0.savings > 0.009 }.count
+    }
 
     func timesCooked(_ recipe: Recipe) -> Int { data.cookLogs.filter { $0.recipeId == recipe.id }.count }
 
@@ -794,5 +839,14 @@ final class AppStore {
         )
         track("ask_query_sent", ["model": response.model])
         return response
+    }
+}
+
+/// A short UI text in the in-app language (for texts not yet in Localizable.xcstrings).
+func lemoraText(_ en: String, fr: String, es: String) -> String {
+    switch LanguageState.shared.current {
+    case .fr: fr
+    case .es: es
+    case .en: en
     }
 }
