@@ -4,7 +4,13 @@ import SwiftUI
 struct PantryView: View {
     @Environment(AppStore.self) private var store
     @State private var draft = ""
+    @State private var notFound: String?
     @FocusState private var focused: Bool
+
+    /// Catalogue ingredients matching what is typed. Only these can be added.
+    private var suggestions: [String] {
+        PantryStock.search(draft)
+    }
 
     private struct Row: Identifiable {
         let id: String
@@ -63,8 +69,10 @@ struct PantryView: View {
                     TextField("Add an item", text: $draft)
                         .font(.bw(.body, weight: .medium))
                         .focused($focused)
+                        .autocorrectionDisabled()
                         .submitLabel(.done)
                         .onSubmit(add)
+                        .onChange(of: draft) { _, _ in notFound = nil }
                     Button(action: add) {
                         Text("Add")
                             .font(.bw(.subheadline, weight: .bold))
@@ -77,6 +85,36 @@ struct PantryView: View {
                     .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 .listRowBackground(BW.beige.opacity(0.55))
+
+                if let notFound {
+                    Text("“\(notFound)” isn’t in our ingredient list. Pick one of the suggestions.")
+                        .font(.bw(.footnote, weight: .semibold))
+                        .foregroundStyle(.red)
+                        .listRowBackground(Color.clear)
+                } else if draft.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 && suggestions.isEmpty {
+                    Text("No ingredient found. Try another spelling.")
+                        .font(.bw(.footnote, weight: .semibold))
+                        .foregroundStyle(BW.inkSecondary)
+                        .listRowBackground(Color.clear)
+                }
+
+                ForEach(suggestions, id: \.self) { id in
+                    Button { pick(id) } label: {
+                        HStack(spacing: 12) {
+                            IngredientThumb(ingredientId: id, size: 30)
+                            Text(verbatim: PantryStock.displayName(id))
+                                .font(.bw(.body, weight: .semibold))
+                                .foregroundStyle(BW.ink)
+                            Spacer()
+                            Image(systemName: PantryStock.covers(id, stocks: store.pantryItems) ? "checkmark.circle.fill" : "plus.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(BW.leaf)
+                        }
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(BW.card)
+                }
             }
 
             Section {
@@ -131,9 +169,21 @@ struct PantryView: View {
     }
 
     private func add() {
-        let text = draft
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        if store.addToPantry(named: text) {
+            draft = ""
+            notFound = nil
+            focused = false
+        } else {
+            notFound = text
+        }
+    }
+
+    private func pick(_ ingredientId: String) {
+        store.addToPantry(ingredientId: ingredientId)
         draft = ""
+        notFound = nil
         focused = false
-        store.addToPantry(named: text)
     }
 }

@@ -166,7 +166,7 @@ struct StreaksView: View {
     private func actLabel(_ act: Act, on: Bool, off: Bool) -> some View {
         let (icon, bg, title, sub): (String, Color, String, String) = {
             switch act {
-            case .cook: return ("🍳", Self.todoSoft, String(localized: "Cook a meal"), String(localized: "Tap “Cook this tonight” on any recipe"))
+            case .cook: return ("🍳", Self.todoSoft, String(localized: "Cook a meal"), String(localized: "Tap the pan on any recipe once it’s cooked"))
             case .deal: return ("🏷️", Self.doneSoft, String(localized: "Use a deal"), String(localized: "Add a meal with a deal to your list"))
             case .save: return ("♥", Color(hex: 0xFBE4DF), String(localized: "Save a recipe"), String(localized: "Swipe right on something you like"))
             }

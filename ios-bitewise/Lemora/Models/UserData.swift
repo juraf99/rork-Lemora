@@ -228,6 +228,72 @@ nonisolated struct PantryStock: Codable, Identifiable, Hashable, Sendable {
         return [fold(english), fold(lemoraLocalized(english)), fold(ingredientId.replacingOccurrences(of: "_", with: " "))]
     }
 
+    /// Ingredients of the Lemora catalogue that match what is typed, best first.
+    /// Only these can be added to the pantry, so every item maps to a real ingredient.
+    static func search(_ query: String, limit: Int = 6) -> [String] {
+        let q = fold(query)
+        guard q.count >= 2 else { return [] }
+        var best: [String: (score: Double, id: String)] = [:]
+        for (id, terms) in searchTerms() {
+            var top: Double = 0
+            for (index, term) in terms.enumerated() {
+                var score: Double = 0
+                if term == q { score = 120 }
+                else if term.hasPrefix(q) { score = 100 - min(20, Double(term.count - q.count) * 0.6) }
+                else if term.split(whereSeparator: { $0 == " " || $0 == "-" || $0 == "'" }).contains(where: { $0.hasPrefix(q) }) { score = 80 }
+                else if term.contains(q) { score = 60 }
+                else if q.count >= 3 && distance(q, String(term.prefix(q.count))) <= (q.count > 5 ? 2 : 1) { score = 40 }
+                if index > 0 { score -= 4 }
+                top = max(top, score)
+            }
+            guard top > 0 else { continue }
+            // One row per name shown ("Bean sprouts" exists under two ids).
+            let shown = fold(displayName(id))
+            if let current = best[shown], current.score >= top { continue }
+            best[shown] = (top, id)
+        }
+        return best.values
+            .sorted { $0.score != $1.score ? $0.score > $1.score : displayName($0.id).count < displayName($1.id).count }
+            .prefix(limit)
+            .map { $0.id }
+    }
+
+    /// The catalogue ingredient whose name (in any language or synonym) is exactly what was typed.
+    static func exactIngredientId(_ query: String) -> String? {
+        if let id = matchingIngredientId(query) { return id }
+        let q = fold(query)
+        guard q.count >= 2 else { return nil }
+        return searchTerms().first { $0.1.contains(q) }?.0
+    }
+
+    /// Name in the app language first, then English, the id and the onboarding synonyms (French names too).
+    private static func searchTerms() -> [(String, [String])] {
+        let extra = Dictionary(OBData.ingredients.map { ($0.id, [$0.en, $0.fr] + $0.syn) }, uniquingKeysWith: { a, _ in a })
+        let ids = Set(IngredientCatalog.all.keys).union(CatalogIngredientInfo.info.keys)
+        return ids.map { id in
+            let english = IngredientCatalog.name(id)
+            var terms = [fold(lemoraLocalized(english)), fold(english), fold(id.replacingOccurrences(of: "_", with: " "))]
+            terms += (extra[id] ?? []).map(fold)
+            var seen = Set<String>()
+            return (id, terms.filter { !$0.isEmpty && seen.insert($0).inserted })
+        }
+    }
+
+    private static func distance(_ a: String, _ b: String) -> Int {
+        let a = Array(a), b = Array(b)
+        if a.isEmpty { return b.count }
+        if b.isEmpty { return a.count }
+        var previous = Array(0...b.count)
+        for i in 1...a.count {
+            var current = [i] + Array(repeating: 0, count: b.count)
+            for j in 1...b.count {
+                current[j] = min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1))
+            }
+            previous = current
+        }
+        return previous[b.count]
+    }
+
     private static func nameTable() -> [String: String] {
         var table: [String: String] = [:]
         let ids = Set(IngredientCatalog.all.keys).union(CatalogIngredientInfo.info.keys)

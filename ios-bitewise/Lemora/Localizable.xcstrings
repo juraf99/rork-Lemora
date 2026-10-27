@@ -27806,6 +27806,54 @@
           }
         }
       }
+    },
+    "Added to your list": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouté à ta liste"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadido a tu lista"
+          }
+        }
+      }
+    },
+    "“%@” isn’t in our ingredient list. Pick one of the suggestions.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "« %@ » n’est pas dans notre liste d’ingrédients. Choisis une des suggestions."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” no está en nuestra lista de ingredientes. Elige una de las sugerencias."
+          }
+        }
+      }
+    },
+    "Tap the pan on any recipe once it’s cooked": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touche la poêle sur une recette une fois cuisinée"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toca la sartén en cualquier receta cuando la hayas cocinado"
+          }
+        }
+      }
     }
   }
 }

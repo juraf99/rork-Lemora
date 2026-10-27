@@ -661,20 +661,14 @@ final class AppStore {
         }
     }
 
-    func addToPantry(named query: String) {
+    /// Adds the catalogue ingredient named exactly like this. Returns false when it is not in the catalogue:
+    /// the pantry only holds real ingredients, so recipes and the grocery list can recognize them.
+    @discardableResult
+    func addToPantry(named query: String) -> Bool {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        if let id = PantryStock.matchingIngredientId(trimmed) {
-            addToPantry(ingredientId: id)
-            return
-        }
-        let folded = PantryStock.fold(trimmed)
-        mutate { d in
-            var items = d.pantry ?? []
-            guard !items.contains(where: { $0.ingredientId == nil && PantryStock.fold($0.name) == folded }) else { return }
-            items.append(PantryStock(ingredientId: nil, name: trimmed))
-            d.pantry = items
-        }
+        guard let id = PantryStock.exactIngredientId(trimmed) else { return false }
+        addToPantry(ingredientId: id)
+        return true
     }
 
     func removeFromPantry(ingredientId: String) {

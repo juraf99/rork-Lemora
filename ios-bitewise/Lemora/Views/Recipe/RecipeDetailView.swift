@@ -510,20 +510,14 @@ struct RecipeDetailView: View {
 
             Button {
                 store.addToGrocery(recipe, servings: servings)
-                // On tonight's plan: it counts in "Saved with Lemora" once the day is over.
-                store.addToMealPlan(recipeId: recipe.id, date: .now, slot: .dinner)
-                store.track("cook_tonight", ["recipe": recipe.id])
+                store.track("add_to_list", ["recipe": recipe.id])
                 addedToList += 1
                 withAnimation(.spring) { tonightSet = true }
-                toast(String(localized: "Tonight's dinner is set · added to your list"))
+                toast(String(localized: "Added to your list"))
             } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: tonightSet ? "checkmark.circle.fill" : "fork.knife")
-                    if hasSavings {
-                        Text("Cook this tonight · save \(Money.format(price.savings))").monospacedDigit()
-                    } else {
-                        Text("Cook this tonight")
-                    }
+                    Image(systemName: tonightSet ? "checkmark.circle.fill" : "cart.badge.plus")
+                    Text("Add to my list")
                 }
                 .lineLimit(1).minimumScaleFactor(0.8)
             }
