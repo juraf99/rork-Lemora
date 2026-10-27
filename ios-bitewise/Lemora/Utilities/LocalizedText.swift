@@ -7,7 +7,9 @@ import SwiftUI
 // This initializer (declared in the app, so it is used instead of SwiftUI's own for `Text(String)`)
 // looks every string up in Localizable.xcstrings. Strings with no translation, such as recipe titles
 // that are already translated or a person's name, are shown unchanged.
+// Disfavored like SwiftUI's own, so `Text("literal \(x)")` still uses the catalog key with its placeholders.
 extension Text {
+    @_disfavoredOverload
     nonisolated init<S: StringProtocol>(_ content: S) {
         self.init(verbatim: lemoraLocalized(String(content)))
     }
