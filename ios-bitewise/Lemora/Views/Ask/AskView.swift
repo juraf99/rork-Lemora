@@ -32,7 +32,7 @@ struct AskView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 16) {
-                        LemoraPageTitle(title: "Ask")
+                        LemoraWordmark(size: 40)
                             .padding(.top, 4)
                         intro
                         ForEach(messages) { message in

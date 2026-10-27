@@ -557,7 +557,9 @@ final class AppStore {
         let p = price(for: recipe, servings: servings)
         var addedDeal = false
         mutate { d in
+            let stocked = d.pantry ?? []
             for line in p.lines {
+                if PantryStock.covers(line.ingredientId, stocks: stocked) { continue }
                 if let idx = d.grocery.firstIndex(where: { $0.ingredientId == line.ingredientId && $0.unit == line.unit && !$0.isChecked }) {
                     d.grocery[idx].quantity += line.quantity
                     if let cost = line.cost {
@@ -579,6 +581,7 @@ final class AppStore {
 
     func addDealToGrocery(_ deal: Deal) {
         mutate { d in
+            if PantryStock.covers(deal.ingredientId, stocks: d.pantry ?? []) { return }
             if !d.grocery.contains(where: { $0.dealId == deal.id && !$0.isChecked }) {
                 d.grocery.append(GroceryItem(ingredientId: deal.ingredientId, quantity: Double(deal.multiBuyQuantity ?? 1),
                                              unit: .unit, recipeIds: [], dealId: deal.id, retailerId: deal.retailerId,
@@ -603,6 +606,52 @@ final class AppStore {
 
     func clearCheckedGrocery() {
         mutate { $0.grocery.removeAll(where: \.isChecked) }
+    }
+
+    var pantryItems: [PantryStock] { data.pantry ?? [] }
+
+    /// Grocery lines the person still needs to buy. Pantry items stay saved, but they leave this list.
+    var groceryToBuy: [GroceryItem] {
+        data.grocery.filter { !PantryStock.covers($0.ingredientId, stocks: pantryItems) }
+    }
+
+    func addToPantry(ingredientId: String) {
+        mutate { d in
+            var items = d.pantry ?? []
+            guard !PantryStock.covers(ingredientId, stocks: items) else { return }
+            items.append(PantryStock(ingredientId: ingredientId, name: IngredientCatalog.name(ingredientId)))
+            d.pantry = items
+        }
+    }
+
+    func addToPantry(named query: String) {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if let id = PantryStock.matchingIngredientId(trimmed) {
+            addToPantry(ingredientId: id)
+            return
+        }
+        let folded = PantryStock.fold(trimmed)
+        mutate { d in
+            var items = d.pantry ?? []
+            guard !items.contains(where: { $0.ingredientId == nil && PantryStock.fold($0.name) == folded }) else { return }
+            items.append(PantryStock(ingredientId: nil, name: trimmed))
+            d.pantry = items
+        }
+    }
+
+    func removeFromPantry(ingredientId: String) {
+        mutate { d in
+            d.pantry?.removeAll { stock in
+                stock.ingredientId == ingredientId || (stock.ingredientId == nil && PantryStock.covers(ingredientId, stocks: [stock]))
+            }
+        }
+    }
+
+    func removeFromPantry(id: UUID) {
+        mutate { d in
+            d.pantry?.removeAll { $0.id == id }
+        }
     }
 
     func dealById(_ id: String?) -> Deal? {

@@ -256,7 +256,7 @@ nonisolated struct ZestyService: Sendable {
             acceptedStoreIds: acceptedStoreIds.sorted(),
             blockedStoreIds: blockedStoreIds.sorted(),
             savedRecipeIds: data.saved.map(\.recipeId),
-            groceryItems: data.grocery.map {
+            groceryItems: data.grocery.filter { !PantryStock.covers($0.ingredientId, stocks: data.pantry ?? []) }.map {
                 ZestyGroceryContext(
                     ingredientId: $0.ingredientId,
                     quantity: $0.quantity,

@@ -47,7 +47,7 @@ struct SavedView: View {
         let price: RecipePrice
     }
 
-    private var groceryCount: Int { store.data.grocery.filter { !$0.isChecked }.count }
+    private var groceryCount: Int { store.groceryToBuy.filter { !$0.isChecked }.count }
 
     private var allItems: [SavedItem] {
         store.activeSaved.compactMap { entry in
@@ -86,7 +86,7 @@ struct SavedView: View {
         NavigationStack(path: $path) {
             VStack(spacing: 0) {
                 HStack(alignment: .center, spacing: 12) {
-                    LemoraPageTitle(title: "Saved")
+                    LemoraWordmark(size: 40)
                     Spacer(minLength: 8)
                     Button { showGrocery = true } label: { cartLabel }
                         .accessibilityLabel("Grocery list, \(groceryCount) items")

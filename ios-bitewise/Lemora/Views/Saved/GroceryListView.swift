@@ -16,8 +16,10 @@ struct GroceryListView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var grouping: Grouping = .store
+    @State private var showPantry = false
 
-    private var items: [GroceryItem] { store.data.grocery }
+    private var items: [GroceryItem] { store.groceryToBuy }
+    private var keptAtHome: Int { store.data.grocery.count - items.count }
 
     private var sections: [(title: String, items: [GroceryItem])] {
         let grouped: [String: [GroceryItem]]
@@ -50,19 +52,37 @@ struct GroceryListView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if items.isEmpty {
-                    EmptyStateView(mascot: BWImage.mascotPeek, title: String(localized: "Your list is empty"),
-                                   message: String(localized: "Open a recipe and tap Add to Grocery List. Matching ingredients merge automatically."))
-                        .frame(maxHeight: .infinity)
+                if items.isEmpty && keptAtHome == 0 {
+                    VStack(spacing: 0) {
+                        pantryButton
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
+                        EmptyStateView(mascot: BWImage.mascotPeek, title: String(localized: "Your list is empty"),
+                                       message: String(localized: "Open a recipe and tap Add to Grocery List. Matching ingredients merge automatically."))
+                            .frame(maxHeight: .infinity)
+                    }
                 } else {
                     List {
                         Section {
-                            Picker("Group by", selection: $grouping) {
-                                ForEach(Grouping.allCases) { Text($0.title).tag($0) }
+                            if !items.isEmpty {
+                                Picker("Group by", selection: $grouping) {
+                                    ForEach(Grouping.allCases) { Text($0.title).tag($0) }
+                                }
+                                .pickerStyle(.segmented)
+                                .listRowBackground(Color.clear)
+                                .listRowInsets(EdgeInsets())
                             }
-                            .pickerStyle(.segmented)
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets())
+                            pantryButton
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                                .listRowBackground(Color.clear)
+                                .listRowInsets(EdgeInsets(top: 8, leading: 4, bottom: 0, trailing: 4))
+                            if keptAtHome > 0 {
+                                Text(String(localized: "\(keptAtHome) items skipped. You already have them at home."))
+                                    .font(.bw(.footnote, weight: .semibold))
+                                    .foregroundStyle(BW.leafDeep)
+                                    .listRowBackground(Color.clear)
+                            }
                         }
 
                         ForEach(sections, id: \.title) { section in
@@ -78,6 +98,7 @@ struct GroceryListView: View {
                             }
                         }
 
+                        if !items.isEmpty {
                         Section {
                             HStack(spacing: 12) {
                                 MascotView(name: BWImage.mascotCheer, size: 60, bob: true)
@@ -89,6 +110,7 @@ struct GroceryListView: View {
                                 }
                             }
                             .listRowBackground(BW.lemonSoft)
+                        }
                         }
                     }
                     .scrollContentBackground(.hidden)
@@ -107,8 +129,18 @@ struct GroceryListView: View {
                     Button("Done") { dismiss() }.fontWeight(.bold)
                 }
             }
+            .navigationDestination(isPresented: $showPantry) { PantryView() }
         }
         .presentationDragIndicator(.visible)
+    }
+
+    private var pantryButton: some View {
+        Button { showPantry = true } label: {
+            Label("Pantry", systemImage: "cabinet")
+                .font(.bw(.subheadline, weight: .semibold))
+                .foregroundStyle(BW.inkSecondary)
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -126,7 +158,7 @@ struct GroceryRow: View {
                     .contentTransition(.symbolEffect(.replace))
                 IngredientThumb(ingredientId: item.ingredientId, size: 30)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(IngredientCatalog.name(item.ingredientId))
+                    Text(verbatim: PantryStock.displayName(item.ingredientId))
                         .font(.bw(.body, weight: .semibold))
                         .foregroundStyle(item.isChecked ? BW.inkSecondary : BW.ink)
                         .strikethrough(item.isChecked)

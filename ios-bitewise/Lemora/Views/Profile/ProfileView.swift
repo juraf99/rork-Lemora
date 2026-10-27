@@ -45,6 +45,9 @@ struct ProfileView: View {
                 }
 
                 Section("Shopping") {
+                    NavigationLink { PantryView() } label: {
+                        row("cabinet", String(localized: "Pantry"), store.pantryItems.isEmpty ? String(localized: "None") : String(localized: "\(store.pantryItems.count) items"))
+                    }
                     NavigationLink { StoresEditView() } label: {
                         row("storefront", String(localized: "Where I shop"),
                             profile.postalCode.isEmpty ? String(localized: "Not set") : "\(profile.postalCode) · \(store.myStoreIds.count)")

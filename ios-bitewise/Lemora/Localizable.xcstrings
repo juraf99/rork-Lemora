@@ -19461,6 +19461,8 @@
     "minutes": {"extractionState": "manual", "localizations": {"fr": {"stringUnit": {"state": "translated", "value": "minutes"}}, "es": {"stringUnit": {"state": "translated", "value": "minutos"}}}},
     "month": {"extractionState": "manual", "localizations": {"fr": {"stringUnit": {"state": "translated", "value": "mois"}}, "es": {"stringUnit": {"state": "translated", "value": "mes"}}}},
     "protein": {"extractionState": "manual", "localizations": {"fr": {"stringUnit": {"state": "translated", "value": "protéines"}}, "es": {"stringUnit": {"state": "translated", "value": "proteína"}}}},
-    "year": {"extractionState": "manual", "localizations": {"fr": {"stringUnit": {"state": "translated", "value": "an"}}, "es": {"stringUnit": {"state": "translated", "value": "año"}}}}
+    "year": {"extractionState": "manual", "localizations": {"fr": {"stringUnit": {"state": "translated", "value": "an"}}, "es": {"stringUnit": {"state": "translated", "value": "año"}}}},
+    "Check what you already have at home. Those items leave the list and won’t be added again.": {"extractionState": "manual", "localizations": {"fr": {"stringUnit": {"state": "translated", "value": "Coche ce que tu as déjà à la maison. Ces articles sortent de la liste, et ne seront plus ajoutés."}}, "es": {"stringUnit": {"state": "translated", "value": "Marca lo que ya tienes en casa. Esos artículos salen de la lista y no se vuelven a añadir."}}}},
+    "Add an item": {"extractionState": "manual", "localizations": {"fr": {"stringUnit": {"state": "translated", "value": "Ajouter un aliment"}}, "es": {"stringUnit": {"state": "translated", "value": "Añadir un alimento"}}}}
   }
 }

@@ -56,3 +56,9 @@ file when the variable is not already provided by the environment.
 - Clerk issuer currently configured in the app and both authenticated functions: `https://promoted-ferret-5695.clerk.accounts.dev`.
 
 These are identifiers, not secrets. Server API keys remain in their configured secret stores. A switch from Clerk's current development instance to a production instance is a separate coordinated migration.
+
+## Pantry and page titles
+
+Saved and Ask use the lowercase `lemora` wordmark as their page title, the same Figtree ExtraBold as Aubaines and Discover. The Saved screen still switches between Enregistrés and Plan de la semaine.
+
+The grocery list has a small Pantry button at the top. Profile’s Shopping section opens the same screen. Checking an item, or adding one by name, stores it at home: that ingredient leaves the grocery list and is skipped the next time a recipe or deal would add it. Unchecking puts it back on the list if it was already there. The list is stored on the device in `AppData.pantry` and is not synced to Supabase.

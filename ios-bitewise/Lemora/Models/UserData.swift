@@ -186,6 +186,60 @@ nonisolated struct GroceryItem: Codable, Identifiable, Sendable {
     var estimatedCost: Double?
 }
 
+/// Something already at home. A matching grocery line stays off the list and is not added again.
+nonisolated struct PantryStock: Codable, Identifiable, Hashable, Sendable {
+    var id: UUID = UUID()
+    var ingredientId: String?
+    var name: String
+
+    static func fold(_ text: String) -> String {
+        text.replacingOccurrences(of: "œ", with: "oe")
+            .replacingOccurrences(of: "Œ", with: "oe")
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "fr"))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func displayName(_ ingredientId: String) -> String {
+        lemoraLocalized(IngredientCatalog.name(ingredientId))
+    }
+
+    static func covers(_ ingredientId: String, stocks: [PantryStock]) -> Bool {
+        let keys = nameKeys(ingredientId)
+        for stock in stocks {
+            if stock.ingredientId == ingredientId { return true }
+            if stock.ingredientId == nil, keys.contains(fold(stock.name)) { return true }
+        }
+        return false
+    }
+
+    /// Exact name in the current language, then a simple plural (`oignons` → `oignon`).
+    static func matchingIngredientId(_ query: String) -> String? {
+        let folded = fold(query)
+        guard folded.count >= 2 else { return nil }
+        let table = nameTable()
+        if let id = table[folded] { return id }
+        let singular = folded.hasSuffix("es") ? String(folded.dropLast(2)) : (folded.hasSuffix("s") ? String(folded.dropLast()) : folded)
+        guard singular.count >= 3, singular != folded else { return nil }
+        return table[singular]
+    }
+
+    private static func nameKeys(_ ingredientId: String) -> Set<String> {
+        let english = IngredientCatalog.name(ingredientId)
+        return [fold(english), fold(lemoraLocalized(english)), fold(ingredientId.replacingOccurrences(of: "_", with: " "))]
+    }
+
+    private static func nameTable() -> [String: String] {
+        var table: [String: String] = [:]
+        let ids = Set(IngredientCatalog.all.keys).union(CatalogIngredientInfo.info.keys)
+        for id in ids {
+            let english = IngredientCatalog.name(id)
+            table[fold(english)] = id
+            table[fold(lemoraLocalized(english))] = id
+        }
+        return table
+    }
+}
+
 nonisolated struct CookLog: Codable, Identifiable, Sendable {
     var id: UUID = UUID()
     let recipeId: String
@@ -221,6 +275,8 @@ nonisolated struct AppData: Codable, Sendable {
     var swipes: [SwipeEvent] = []
     var saved: [SavedRecipe] = []
     var grocery: [GroceryItem] = []
+    /// Optional so lists saved before the pantry still open.
+    var pantry: [PantryStock]?
     var cookLogs: [CookLog] = []
     var savingsActions: [SavingsAction] = []
     var activeDays: [String] = []
