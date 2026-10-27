@@ -208,6 +208,16 @@ struct AskView: View {
         .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(BW.hairline))
     }
 
+    /// Nutrition status from the server ("verified", "estimated", …) in the app language.
+    static func statusLabel(_ status: String) -> String {
+        switch status.lowercased() {
+        case "verified": String(localized: "Verified")
+        case "estimated": String(localized: "Estimated")
+        case "unknown": String(localized: "Unknown")
+        default: lemoraLocalized(status.capitalized)
+        }
+    }
+
     private func nutritionSummary(_ nutrition: ZestyNutrition) -> some View {
         let values: [(String, Double?, String)] = [
             (String(localized: "Calories"), nutrition.calories, "kcal"),
@@ -223,7 +233,7 @@ struct AskView: View {
             HStack(spacing: 5) {
                 Text(String(localized: "Nutrition per serving"))
                     .font(.bw(.caption, weight: .bold))
-                Text("· \(nutrition.status.capitalized)")
+                Text(verbatim: "· " + Self.statusLabel(nutrition.status))
                     .font(.bw(.caption, weight: .semibold))
                     .foregroundStyle(BW.inkSecondary)
             }
