@@ -27854,6 +27854,86 @@
           }
         }
       }
+    },
+    "Your city": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta ville"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu ciudad"
+          }
+        }
+      }
+    },
+    "Find": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trouver"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar"
+          }
+        }
+      }
+    },
+    "We couldn’t find that city. Check the spelling or enter your postal code.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On n’a pas trouvé cette ville. Vérifie l’orthographe ou entre ton code postal."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No encontramos esa ciudad. Revisa la ortografía o escribe tu código postal."
+          }
+        }
+      }
+    },
+    "We’ll use the deals around your city centre.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On utilisera les aubaines autour du centre de ta ville."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usaremos las ofertas cerca del centro de tu ciudad."
+          }
+        }
+      }
+    },
+    "Not comfortable sharing your postal code? Use your city instead": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas à l’aise de donner ton code postal ? Entre juste ta ville"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Prefieres no dar tu código postal? Usa solo tu ciudad"
+          }
+        }
+      }
     }
   }
 }
