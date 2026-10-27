@@ -7,7 +7,8 @@ nonisolated enum RecipeCatalog {
         RecipeIngredient(ingredientId: id, rawText: raw, quantity: q, unit: u, estimatedCost: cost)
     }
 
-    static let all: [Recipe] = [
+    /// English source recipes. `all` returns them in the language picked in the app.
+    private static let source: [Recipe] = [
         Recipe(
             id: "burrito_bowl", title: "Crispy Chicken Burrito Bowl",
             summary: "Smoky seared chicken over rice with black beans, charred corn, fresh pico and creamy lime crema.",
@@ -221,5 +222,18 @@ nonisolated enum RecipeCatalog {
         ),
     ]
 
-    static let byId: [String: Recipe] = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
+    /// The bundled recipes in the language picked in the app (titles, descriptions and steps are in Localizable.xcstrings).
+    static var all: [Recipe] {
+        source.map { r in
+            Recipe(id: r.id, title: lemoraLocalized(r.title), summary: lemoraLocalized(r.summary), imageName: r.imageName,
+                   cuisine: r.cuisine, mealType: r.mealType, mainProtein: r.mainProtein, servings: r.servings,
+                   prepMinutes: r.prepMinutes, cookMinutes: r.cookMinutes, ingredients: r.ingredients,
+                   steps: r.steps.map { lemoraLocalized($0) }, nutrition: r.nutrition, tags: r.tags, source: r.source,
+                   verifiedDietKeys: r.verifiedDietKeys, rejectedDietKeys: r.rejectedDietKeys,
+                   identifiedAllergenKeys: r.identifiedAllergenKeys, possibleAllergenKeys: r.possibleAllergenKeys,
+                   priceStatus: r.priceStatus, storePricesPerServing: r.storePricesPerServing)
+        }
+    }
+
+    static var byId: [String: Recipe] { Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) }) }
 }
