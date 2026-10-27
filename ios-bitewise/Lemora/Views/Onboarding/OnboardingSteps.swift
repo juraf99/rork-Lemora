@@ -940,6 +940,8 @@ struct OBLocationStep: View {
     @Environment(OnboardingModel.self) private var m
     /// The postal code field only opens after "Enter manually" (or when location fails).
     @State private var showManual = false
+    /// City search for people who'd rather not give their postal code.
+    @State private var showCity = false
 
     var body: some View {
         @Bindable var m = m
@@ -1030,6 +1032,47 @@ struct OBLocationStep: View {
                         .foregroundStyle(loc != nil ? OB.green : OB.faint)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 6)
+
+                    if showCity {
+                        HStack(spacing: 8) {
+                            TextField("", text: $m.cityQuery, prompt: Text("Your city").foregroundStyle(OB.faint))
+                                .textContentType(.addressCity)
+                                .font(OB.font(15, 700))
+                                .foregroundStyle(OB.ink)
+                                .autocorrectionDisabled()
+                                .submitLabel(.search)
+                                .onSubmit { Task { await m.findCity() } }
+                                .onChange(of: m.cityQuery) { _, _ in m.cityNotFound = false }
+                                .padding(.horizontal, 16).padding(.vertical, 12)
+                                .overlay(Capsule().strokeBorder(OB.inputBorder, lineWidth: 1.5))
+                            Button { Task { await m.findCity() } } label: {
+                                Group {
+                                    if m.cityLooking { ProgressView().tint(.white) } else { Text("Find").font(OB.font(14, 800)) }
+                                }
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16).padding(.vertical, 12)
+                                .background(OB.ink, in: .capsule)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(m.cityLooking)
+                        }
+                        Text(m.cityNotFound ? "We couldn’t find that city. Check the spelling or enter your postal code." : "We’ll use the deals around your city centre.")
+                            .font(OB.font(12, 700))
+                            .foregroundStyle(m.cityNotFound ? .red : OB.faint)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 6)
+                    } else {
+                        Button { withAnimation(.snappy) { showCity = true } } label: {
+                            Text("Not comfortable sharing your postal code? Use your city instead")
+                                .font(OB.font(12.5, 700))
+                                .foregroundStyle(OB.green)
+                                .underline()
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 6)
+                    }
                 }
                 .padding(14)
                 .background(.white, in: .rect(cornerRadius: 20))
@@ -1038,6 +1081,8 @@ struct OBLocationStep: View {
             }
         }
         .task(id: loc?.postal) { await m.lookupCity() }
+        // Location already allowed before (an app update, a second pass through onboarding): no retyping.
+        .onAppear { m.locateIfAlreadyAllowed() }
         .onChange(of: m.a.locMode) { _, mode in
             if mode == "manual" { withAnimation(.snappy) { showManual = true } }
         }
