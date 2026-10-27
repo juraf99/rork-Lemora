@@ -213,7 +213,7 @@ struct OBStepScreen: View {
         case .meals: return ("What kind of recipes are you looking for?", "Pick the meals you want ideas for.", .idea)
         case .location: return ("Where are you shopping from?", "I use this to find stores and deals near you.", .thinking)
         case .stores: return ("Where do you shop?", "Pick every store you’d go to.", .cart)
-        case .budget: return ("What’s your weekly grocery budget?", "For your whole household. I started from \(hh) \(hh == 1 ? "person" : "people").", .thinking)
+        case .budget: return ("What’s your weekly grocery budget?", hh == 1 ? String(localized: "For your whole household. I started from 1 person.") : String(localized: "For your whole household. I started from \(hh) people."), .thinking)
         case .strategy: return ("How do you like to shop?", "I’ll plan your list around this.", .cart)
         default: return ("", "", .idle)
         }
@@ -225,15 +225,20 @@ struct OBStepScreen: View {
         case .hear: return a.referral == "friends_family" ? "Tell them Zesty says hi!" : "Thanks! Good to know."
         case .goal: return OBCatalog.goalReaction[a.goal] ?? ""
         case .branch: return "Got it."
-        case .people: return a.household == 1 ? "Cooking for one, got it." : "Cooking for \(a.household >= 5 ? "5+" : String(a.household)), got it."
+        case .people:
+            if a.household == 1 { return String(localized: "Cooking for one, got it.") }
+            return a.household >= 5 ? String(localized: "Cooking for 5+, got it.") : String(localized: "Cooking for \(a.household), got it.")
         case .diet: return m.dietNote.isEmpty ? "Got it. I’ll match every recipe to this." : m.dietNote
         case .allergies:
-            return a.noAllergy ? "Great, no restrictions to track." : "\(a.allergies.count) allergen\(a.allergies.count > 1 ? "s" : "") excluded, always."
+            if a.noAllergy { return String(localized: "Great, no restrictions to track.") }
+            return a.allergies.count == 1 ? String(localized: "1 allergen excluded, always.") : String(localized: "\(a.allergies.count) allergens excluded, always.")
         case .dislikes:
-            return a.dislikes.isEmpty ? "Okay, anything goes." : "Noted. I’ll keep \(a.dislikes.count) food\(a.dislikes.count > 1 ? "s" : "") off your plate."
+            if a.dislikes.isEmpty { return String(localized: "Okay, anything goes.") }
+            return a.dislikes.count == 1 ? String(localized: "Noted. I’ll keep 1 food off your plate.") : String(localized: "Noted. I’ll keep \(a.dislikes.count) foods off your plate.")
         case .meals:
-            return (a.meals ?? []).isEmpty ? "Everything it is, breakfast to dessert." : "Got it. I’ll focus on " + m.mealList.joined(separator: ", ").lowercased() + "."
-        case .stores: return "\(a.stores.count) store\(a.stores.count > 1 ? "s" : "") selected."
+            if (a.meals ?? []).isEmpty { return String(localized: "Everything it is, breakfast to dessert.") }
+            return String(localized: "Got it. I’ll focus on \(AppFormat.list(m.mealList).lowercased()).")
+        case .stores: return a.stores.count == 1 ? String(localized: "1 store selected.") : String(localized: "\(a.stores.count) stores selected.")
         case .budget: return a.noBudget ? "Fine by me. I’ll still find the best value." : "Nice. I’ll work with that."
         case .strategy: return OBCatalog.strategyReaction[a.strategy] ?? ""
         default: return ""
@@ -770,9 +775,11 @@ struct OBSearchResults: View {
                 Button { pick(r) } label: {
                     HStack(spacing: 10) {
                         VStack(alignment: .leading, spacing: 0) {
-                            Text(r.en).font(OB.font(14, 700)).foregroundStyle(OB.ink)
-                            Text((r.via.map { "matches “\($0)” · " } ?? "") + r.fr + " · id: " + r.id)
-                                .font(OB.font(11, 500)).foregroundStyle(OB.faint).lineLimit(1)
+                            Text(verbatim: r.display).font(OB.font(14, 700)).foregroundStyle(OB.ink)
+                            if let via = r.via {
+                                Text("matches “\(via)”")
+                                    .font(OB.font(11, 500)).foregroundStyle(OB.faint).lineLimit(1)
+                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         Text(added(r.id) ? "Added" : "+ Add").font(OB.font(12, 800)).foregroundStyle(actionColor)
@@ -827,7 +834,7 @@ struct OBAllergyStep: View {
                 if !results.isEmpty {
                     OBSearchResults(results: results, added: { m.a.allergies.contains($0) }, actionColor: OB.red) { m.addAllergy($0.id) }
                 } else if !m.aQuery.trimmingCharacters(in: .whitespaces).isEmpty {
-                    OBText("No match in our allergen list. Try another spelling or a French name.", 12, 500, color: OB.faint)
+                    OBText("No match in our allergen list. Try another spelling.", 12, 500, color: OB.faint)
                         .padding(.horizontal, 6).padding(.top, 8)
                 }
             }
@@ -846,6 +853,11 @@ struct OBAllergyStep: View {
 struct OBDislikeStep: View {
     @Environment(OnboardingModel.self) private var m
 
+    private func displayName(_ d: OnboardingAnswers.Dislike) -> String {
+        guard let item = OBData.ingredients.first(where: { $0.id == d.id }) else { return lemoraLocalized(d.name) }
+        return OBData.displayName(en: item.en, fr: item.fr)
+    }
+
     var body: some View {
         @Bindable var m = m
         let results = m.iQuery.trimmingCharacters(in: .whitespaces).isEmpty ? [] : OBData.search(OBData.ingredients, m.iQuery)
@@ -853,10 +865,11 @@ struct OBDislikeStep: View {
         VStack(spacing: 12) {
             LazyVGrid(columns: twoCols, spacing: 8) {
                 ForEach(OBCatalog.quickDislike, id: \.id) { q in
-                    let name = OBData.ingredients.first { $0.id == q.id }?.en ?? q.id
+                    let item = OBData.ingredients.first { $0.id == q.id }
+                    let name = item?.en ?? q.id
                     let on = m.a.dislikes.contains { $0.id == q.id }
                     Button { m.toggleDislike(id: q.id, name: name) } label: {
-                        OBTileRow(icon: q.icon, label: name, on: on)
+                        OBTileRow(icon: q.icon, label: item.map { OBData.displayName(en: $0.en, fr: $0.fr) } ?? name, on: on)
                     }
                     .buttonStyle(.plain)
                 }
@@ -868,7 +881,7 @@ struct OBDislikeStep: View {
                 if !results.isEmpty {
                     OBSearchResults(results: results, added: { id in m.a.dislikes.contains { $0.id == id } }) { m.addDislike($0) }
                 } else if !m.iQuery.trimmingCharacters(in: .whitespaces).isEmpty {
-                    OBText("No ingredient found. Try another spelling or a French name.", 12, 500, color: OB.faint)
+                    OBText("No ingredient found. Try another spelling.", 12, 500, color: OB.faint)
                         .padding(.horizontal, 6).padding(.top, 8)
                 }
             }
@@ -877,8 +890,8 @@ struct OBDislikeStep: View {
                     ForEach(custom, id: \.id) { d in
                         Button { m.toggleDislike(id: d.id, name: d.name) } label: {
                             HStack(spacing: 6) {
-                                Text(d.name)
-                                Text("✕").opacity(0.6)
+                                Text(verbatim: displayName(d))
+                                Text(verbatim: "✕").opacity(0.6)
                             }
                             .font(OB.font(12.5, 700)).foregroundStyle(.white)
                             .padding(.horizontal, 12).padding(.vertical, 8)
@@ -984,7 +997,7 @@ struct OBLocationStep: View {
             if showManual {
                 VStack(spacing: 9) {
                     HStack(spacing: 3) {
-                        ForEach([("CA", "🇨🇦 Canada"), ("US", "🇺🇸 USA"), ("AU", "🇦🇺 Australia")], id: \.0) { c in
+                        ForEach([("CA", "🇨🇦 " + String(localized: "Canada")), ("US", "🇺🇸 " + String(localized: "USA")), ("AU", "🇦🇺 " + String(localized: "Australia"))], id: \.0) { c in
                             Button { m.setCountry(c.0) } label: {
                                 Text(c.1).font(OB.font(13, 700)).lineLimit(1).minimumScaleFactor(0.75)
                                     .foregroundStyle(m.a.country == c.0 ? .white : OB.muted)
@@ -1092,7 +1105,7 @@ struct OBStoresStep: View {
                 .buttonStyle(.plain)
             }
         }
-        Text("Stores with weekly flyers near \(loc?.postal ?? "you").")
+        Text(loc.map { String(localized: "Stores with weekly flyers near \($0.postal).") } ?? String(localized: "Stores with weekly flyers near you."))
             .font(OB.font(11.5, 500)).foregroundStyle(OB.faint)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -1143,7 +1156,7 @@ struct OBStoresStep: View {
             }
             .obIn(duration: 0.3)
         }
-        Text("Stores shown are the ones available in \(loc?.name ?? "your area").")
+        Text(loc.map { String(localized: "Stores shown are the ones available in \(lemoraLocalized($0.name)).") } ?? String(localized: "Stores shown are the ones available in your area."))
             .font(OB.font(11.5, 500)).foregroundStyle(OB.faint)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -1196,7 +1209,7 @@ struct OBBudgetStep: View {
     var body: some View {
         let hh = max(1, m.a.household)
         let lo = Int((Double(hh) * 50 / 5).rounded()) * 5, hi = Int((Double(hh) * 85 / 5).rounded()) * 5
-        let people = hh >= 5 ? "5+ people" : (hh == 1 ? "1 person" : "\(hh) people")
+        let people = hh >= 5 ? String(localized: "5+ people") : (hh == 1 ? String(localized: "1 person") : String(localized: "\(hh) people"))
         VStack(spacing: 14) {
             VStack(spacing: 0) {
                 Text("PER WEEK · \(m.currency)").font(OB.font(12, 700)).tracking(0.72).foregroundStyle(OB.sub)
@@ -1215,7 +1228,7 @@ struct OBBudgetStep: View {
                     .tint(OB.green)
                     .padding(.top, 14)
                 HStack {
-                    Text("$30"); Spacer(); Text("$1,000")
+                    Text(verbatim: OnboardingModel.money(30)); Spacer(); Text(verbatim: OnboardingModel.money(1000))
                 }
                 .font(OB.font(11, 400)).foregroundStyle(OB.faint)
                 Text("Typical for \(people): \(OnboardingModel.money(Double(lo)))–\(OnboardingModel.money(Double(hi))) / week")
