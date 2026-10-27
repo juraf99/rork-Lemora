@@ -148,17 +148,26 @@ struct OBGeneratingScreen: View {
 
     private var steps: [String] {
         let a = m.a
-        var g = ["Personalizing meals to your goal: \(m.goalInfo.label)",
-                 a.diets.contains("none") ? "No diet restrictions to apply" : "Matching your diet: " + m.dietList.joined(separator: " + "),
-                 a.noAllergy || a.allergies.isEmpty ? "No allergens to remove" : "Removing \(a.allergies.count) allergen\(a.allergies.count > 1 ? "s" : "")"]
-        if !a.dislikes.isEmpty { g.append("Avoiding \(a.dislikes.count) disliked food\(a.dislikes.count > 1 ? "s" : "")") }
-        if let loc = m.currentLocation {
-            g.append("Finding \(a.stores.count) store\(a.stores.count != 1 ? "s" : "") near \(loc.postal)")
+        let goal = lemoraLocalized(m.goalInfo.label)
+        var g = [String(localized: "Personalizing meals to your goal: \(goal)")]
+        g.append(a.diets.contains("none") ? String(localized: "No diet restrictions to apply")
+                                          : String(localized: "Matching your diet: \(m.dietList.joined(separator: " + "))"))
+        if a.noAllergy || a.allergies.isEmpty {
+            g.append(String(localized: "No allergens to remove"))
         } else {
-            g.append("Finding stores near you")
+            g.append(a.allergies.count == 1 ? String(localized: "Removing 1 allergen") : String(localized: "Removing \(a.allergies.count) allergens"))
         }
-        g.append(a.noBudget ? "No strict budget, optimizing for value" : "Applying your \(OnboardingModel.money(Double(a.budget)))/week budget")
-        g.append("Optimizing for " + m.strategyTitle)
+        if !a.dislikes.isEmpty {
+            g.append(a.dislikes.count == 1 ? String(localized: "Avoiding 1 disliked food") : String(localized: "Avoiding \(a.dislikes.count) disliked foods"))
+        }
+        if let loc = m.currentLocation {
+            g.append(a.stores.count == 1 ? String(localized: "Finding 1 store near \(loc.postal)") : String(localized: "Finding \(a.stores.count) stores near \(loc.postal)"))
+        } else {
+            g.append(String(localized: "Finding stores near you"))
+        }
+        let budget = OnboardingModel.money(Double(a.budget))
+        g.append(a.noBudget ? String(localized: "No strict budget, optimizing for value") : String(localized: "Applying your \(budget)/week budget"))
+        g.append(String(localized: "Optimizing for \(m.strategyTitle)"))
         return g
     }
 
@@ -267,7 +276,7 @@ struct OBSavingsScreen: View {
             .padding(.horizontal, 6)
             .padding(.top, 26)
             .frame(minHeight: 150)
-            Text("Estimate based on \(m.a.noBudget ? "a typical budget for \(m.a.household) people" : "your \(OnboardingModel.money(Double(m.a.budget)))/week budget"), \(m.a.stores.count) store\(m.a.stores.count != 1 ? "s" : "") and \(m.strategyTitle.lowercased()) shopping. Actual savings depend on the deals available near you.")
+            Text(verbatim: estimateNote)
                 .font(OB.font(11.5, 500)).foregroundStyle(.white.opacity(0.6)).lineSpacing(2)
                 .padding(.top, 16)
             Button { m.go(.reminder) } label: {
@@ -291,6 +300,14 @@ struct OBSavingsScreen: View {
             .ignoresSafeArea()
         }
         .onAppear { grow = true; if m.countProgress == 0 { m.startCount() } }
+    }
+
+    /// "Estimate based on your $120/week budget, 3 stores and balanced shopping. …"
+    private var estimateNote: String {
+        let base = m.a.noBudget ? String(localized: "a typical budget for \(m.a.household) people")
+                                : String(localized: "your \(OnboardingModel.money(Double(m.a.budget)))/week budget")
+        let stores = m.a.stores.count == 1 ? String(localized: "1 store") : String(localized: "\(m.a.stores.count) stores")
+        return String(localized: "Estimate based on \(base), \(stores) and \(m.strategyTitle.lowercased()) shopping. Actual savings depend on the deals available near you.")
     }
 
     private func chip(_ value: String, _ unit: String) -> some View {
@@ -319,7 +336,7 @@ struct OBReminderScreen: View {
                     .offset(x: 18, y: -6)
                     .obPop(delay: 0.4, duration: 0.45)
             }
-            Text("YOUR GOAL · \(goal.label.uppercased())").font(OB.font(12, 800)).tracking(1.44).foregroundStyle(OB.green)
+            Text("YOUR GOAL · \(lemoraLocalized(goal.label).uppercased())").font(OB.font(12, 800)).tracking(1.44).foregroundStyle(OB.green)
                 .multilineTextAlignment(.center)
                 .padding(.top, 26)
             OBText(OBCatalog.reminder[m.a.goal] ?? "", 30, 800, tracking: -0.03, align: .center)
@@ -357,10 +374,10 @@ struct OBPlanScreen: View {
             ("🎯", m.selectedGoals.count > 1 ? "Goals" : "Goal", m.goalLabels),
             ("🥗", "Diet", m.dietList.joined(separator: " + ")),
             ("🚫", "Allergies", a.noAllergy || a.allergies.isEmpty ? "None" : a.allergies.map { m.allergenName($0) }.joined(separator: ", ")),
-            ("👎", "Dislikes", a.dislikes.isEmpty ? "None" : a.dislikes.map(\.name).joined(separator: ", ")),
+            ("👎", "Dislikes", a.dislikes.isEmpty ? "None" : a.dislikes.map { lemoraLocalized($0.name) }.joined(separator: ", ")),
             ("🍽️", "Meals", m.mealList.joined(separator: ", ")),
             ("🛒", "Stores", a.stores.isEmpty ? "None yet" : a.stores.joined(separator: ", ")),
-            ("💵", "Budget", a.noBudget ? "No strict budget" : OnboardingModel.money(Double(a.budget)) + " / week"),
+            ("💵", "Budget", a.noBudget ? "No strict budget" : String(localized: "\(OnboardingModel.money(Double(a.budget))) / week")),
             ("🧭", "Strategy", m.strategyTitle),
         ]
         let picks = Array(store.planPreview(for: m.makeProfile(base: store.data.profile)).matches.prefix(3))
@@ -470,7 +487,7 @@ struct OBAccountScreen: View {
                     .padding(.top, 8)
                 HStack(spacing: 8) {
                     Text("●").foregroundStyle(OB.green)
-                    Text("\(OnboardingModel.money(Double(m.estimate.annual)))/yr plan ready · \(m.goalInfo.label)").foregroundStyle(OB.ink)
+                    Text("\(OnboardingModel.money(Double(m.estimate.annual)))/yr plan ready · \(lemoraLocalized(m.goalInfo.label))").foregroundStyle(OB.ink)
                 }
                 .font(OB.font(12.5, 700))
                 .padding(.horizontal, 14).padding(.vertical, 8)
@@ -610,7 +627,7 @@ struct OBVerifyScreen: View {
         VStack(alignment: .leading, spacing: 0) {
             OBBackButton(size: 38) { m.go(.email) }
             OBText("Check your email", 30, 800, tracking: -0.03).padding(.top, 22)
-            OBText("Enter the 6-digit code we sent to \(m.email).", 14, 500, color: OB.muted).padding(.top, 6)
+            OBText(String(localized: "Enter the 6-digit code we sent to \(m.email)."), 14, 500, color: OB.muted).padding(.top, 6)
             VStack(alignment: .leading, spacing: 10) {
                 TextField("", text: Binding(get: { m.code }, set: { m.code = String($0.filter(\.isNumber).prefix(6)) }),
                           prompt: Text("123456").foregroundStyle(OB.faint))
@@ -684,42 +701,48 @@ struct OBPaywallScreen: View {
         return days
     }
     private var savePercent: Int { max(0, Int(((1 - annualValue / (monthlyValue * 12)) * 100).rounded())) }
-    private var perMonth: String { (annualValue / 12).formatted(.currency(code: currencyCode).presentation(.narrow)) }
+    private var perMonth: String { (annualValue / 12).formatted(.currency(code: currencyCode).presentation(.narrow).locale(AppLanguage.current.locale)) }
 
     /// Copy from "Lemora Paywall 2.0". Prices are the App Store prices in the buyer's own currency.
     private var timeline: [(String, String, String)] {
         if annual, let days = trialDays {
+            let reminderDay = TrialReminderService.reminderDay(forTrialDays: days)
             return [("🔓", "Today", "Everything unlocked: unlimited swipes, every deal"),
-                    ("🔔", "Day \(TrialReminderService.reminderDay(forTrialDays: days))", "We’ll remind you before your free trial ends"),
-                    ("⭐", "Day \(days)", "\(annualPrice)/year starts. Cancel anytime before.")]
+                    ("🔔", String(localized: "Day \(reminderDay)"), "We’ll remind you before your free trial ends"),
+                    ("⭐", String(localized: "Day \(days)"), String(localized: "\(annualPrice)/year starts. Cancel anytime before."))]
         }
         if annual {
             // This Apple ID already used its free trial: no "free" promise, same three steps.
             return [("🔓", "Today", "Everything unlocked: unlimited swipes, every deal"),
-                    ("🔔", "Every year", "\(annualPrice)/year, renews until you cancel"),
+                    ("🔔", "Every year", String(localized: "\(annualPrice)/year, renews until you cancel")),
                     ("⭐", "Anytime", "Cancel in Settings. You keep access until the end of your year.")]
         }
-        return [("🔓", "Today", "Everything unlocked · \(monthlyPrice) billed"),
-                ("🔁", "Every month", "Renews at \(monthlyPrice)"),
+        return [("🔓", "Today", String(localized: "Everything unlocked · \(monthlyPrice) billed")),
+                ("🔁", "Every month", String(localized: "Renews at \(monthlyPrice)")),
                 ("✨", "Anytime", "Cancel in Settings in two taps")]
     }
 
     private var cta: String {
-        if annual { return trialDays.map { "START MY \($0)-DAY FREE TRIAL" } ?? "Continue · \(annualPrice)/yr" }
-        return "Continue · \(monthlyPrice)/mo"
+        if annual {
+            if let days = trialDays { return String(localized: "START MY \(days)-DAY FREE TRIAL") }
+            return String(localized: "Continue · \(annualPrice)/yr")
+        }
+        return String(localized: "Continue · \(monthlyPrice)/mo")
     }
 
     private var legal: String {
         if annual, let days = trialDays {
-            return "\(days) days free, then \(annualPrice)/year (\(currencyCode)). We’ll remind you before your free trial ends."
+            return String(localized: "\(days) days free, then \(annualPrice)/year (\(currencyCode)). We’ll remind you before your free trial ends.")
         }
-        return annual ? "\(annualPrice) \(currencyCode)/year. Renews until cancelled." : "\(monthlyPrice) \(currencyCode)/month. Renews until cancelled."
+        return annual ? String(localized: "\(annualPrice) \(currencyCode)/year. Renews until cancelled.")
+                      : String(localized: "\(monthlyPrice) \(currencyCode)/month. Renews until cancelled.")
     }
 
     private var paywallSub: String {
         let n = m.a.stores.count
-        return n > 0 ? "Tailored to your goal, your diet and \(n) store\(n != 1 ? "s" : "") near you."
-                     : "Tailored to your goal, your diet and the stores near you."
+        if n == 0 { return String(localized: "Tailored to your goal, your diet and the stores near you.") }
+        return n == 1 ? String(localized: "Tailored to your goal, your diet and 1 store near you.")
+                      : String(localized: "Tailored to your goal, your diet and \(n) stores near you.")
     }
 
     var body: some View {
@@ -768,9 +791,9 @@ struct OBPaywallScreen: View {
                     .frame(maxHeight: 32)
 
                 OBWeightedRow(weights: [1.25, 1], spacing: 10) {
-                    planCard(id: "annual", name: "Yearly", price: annualPrice, unit: "\(perMonth) / month",
-                             terms: trialDays.map { "\($0) days free" } ?? "Billed yearly",
-                             badge: savePercent > 0 ? "BEST VALUE · −\(savePercent)%" : "BEST VALUE")
+                    planCard(id: "annual", name: "Yearly", price: annualPrice, unit: String(localized: "\(perMonth) / month"),
+                             terms: trialDays.map { String(localized: "\($0) days free") } ?? "Billed yearly",
+                             badge: savePercent > 0 ? String(localized: "BEST VALUE · −\(savePercent)%") : "BEST VALUE")
                     planCard(id: "monthly", name: "Monthly", price: monthlyPrice, unit: "per month", terms: "No trial", badge: nil)
                 }
                 .padding(.top, 11)
@@ -820,7 +843,7 @@ struct OBPaywallScreen: View {
             }
             .padding(.top, 4)
             .padding(.trailing, 16)
-            .accessibilityLabel("testerbypass")
+            .accessibilityLabel("Close")
         }
         .overlay(alignment: .topLeading) {
             OBBackButton(size: 34) { m.go(.plan) }
@@ -856,7 +879,7 @@ struct OBPaywallScreen: View {
         let on = m.a.plan == id
         return Button { m.a.plan = id } label: {
             VStack(alignment: .leading, spacing: 0) {
-                Text(name.uppercased()).font(OB.font(12, 800)).tracking(0.72).foregroundStyle(on ? .white.opacity(0.72) : OB.sub)
+                Text(verbatim: lemoraLocalized(name).uppercased()).font(OB.font(12, 800)).tracking(0.72).foregroundStyle(on ? .white.opacity(0.72) : OB.sub)
                 Text(price).font(OB.font(25, 800)).tracking(-0.75).foregroundStyle(on ? .white : OB.ink)
                     .lineLimit(1).minimumScaleFactor(0.7).padding(.top, 6)
                 Text(unit).font(OB.font(11.5, 600)).foregroundStyle(on ? .white.opacity(0.72) : OB.sub).padding(.top, 2)
@@ -886,7 +909,7 @@ struct OBPaywallScreen: View {
 
     private func purchase() async {
         guard let product = annual ? sub.annual : sub.monthly else {
-            message = "Subscriptions aren’t available right now. Please try again."
+            message = String(localized: "Subscriptions aren’t available right now. Please try again.")
             await sub.loadProducts()
             return
         }
@@ -901,13 +924,13 @@ struct OBPaywallScreen: View {
                 m.go(.done)
             }
         } catch {
-            message = "The purchase didn’t go through. Please try again."
+            message = String(localized: "The purchase didn’t go through. Please try again.")
         }
     }
 
     private func restore() async {
         await sub.restore()
-        if store.isPremium { m.go(.done) } else { message = "No active subscription found for this Apple ID." }
+        if store.isPremium { m.go(.done) } else { message = String(localized: "No active subscription found for this Apple ID.") }
     }
 }
 
@@ -999,6 +1022,14 @@ struct OBMergeSheet: View {
     @Environment(OnboardingModel.self) private var m
     @Environment(AppStore.self) private var store
 
+    private var mergeMessage: String {
+        if let account = store.data.account {
+            let first = account.name.split(separator: " ").first.map(String.init) ?? account.name
+            return String(localized: "Welcome back, \(first). You just answered the questions again. Keep your saved profile, or replace it with today’s answers.")
+        }
+        return String(localized: "Welcome back. You just answered the questions again. Keep your saved profile, or replace it with today’s answers.")
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             OB.ink.opacity(0.45).ignoresSafeArea().transition(.opacity)
@@ -1007,7 +1038,7 @@ struct OBMergeSheet: View {
                     ZestyMascot(mood: .curious, size: 52, seedKey: "mg")
                     OBText("Update your Lemora preferences with these new answers?", 21, 800, tracking: -0.02)
                 }
-                OBText("Welcome back\(store.data.account.map { ", " + ($0.name.split(separator: " ").first.map(String.init) ?? $0.name) } ?? ""). You just answered the questions again. Keep your saved profile, or replace it with today’s answers.",
+                OBText(mergeMessage,
                        13, 500, color: OB.muted)
                     .lineSpacing(3)
                     .padding(.top, 10)
