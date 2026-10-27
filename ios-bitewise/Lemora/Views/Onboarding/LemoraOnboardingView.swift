@@ -45,7 +45,7 @@ struct LemoraOnboardingView: View {
         switch model.screen {
         case .landing: OBLandingScreen()
         case .signin: OBSignInScreen()
-        case .hear, .goal, .branch, .people, .diet, .allergies, .dislikes, .meals, .location, .stores, .budget, .strategy: OBStepScreen()
+        case .hear, .goal, .weightAsk, .branch, .people, .diet, .allergies, .dislikes, .meals, .location, .stores, .budget, .strategy: OBStepScreen()
         case .thanks: OBThanksScreen()
         case .notif: OBNotifScreen()
         case .ready: OBReadyScreen()
