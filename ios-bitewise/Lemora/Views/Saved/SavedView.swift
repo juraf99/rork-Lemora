@@ -335,7 +335,7 @@ struct SavedView: View {
             .contextMenu {
                 Button("Add to collection", systemImage: "folder.badge.plus") { organizing = OrganizeTarget(id: recipe.id) }
                 Button("Add to grocery list", systemImage: "cart.badge.plus") {
-                    store.addToGrocery(recipe, servings: recipe.servings)
+                    store.addToGrocery(recipe, servings: store.defaultServings(for: recipe))
                 }
                 Button("Remove", systemImage: "trash", role: .destructive) { store.unsave(recipe) }
             }
