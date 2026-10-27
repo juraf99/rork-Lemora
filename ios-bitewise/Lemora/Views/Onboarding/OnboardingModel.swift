@@ -253,7 +253,7 @@ final class OnboardingModel {
     var selectedGoals: [String] { a.goals ?? [a.goal] }
 
     var goalLabels: String {
-        selectedGoals.compactMap { id in OBCatalog.goals.first { $0.id == id }?.label }.joined(separator: ", ")
+        AppFormat.list(selectedGoals.compactMap { id in OBCatalog.goals.first { $0.id == id }.map { lemoraLocalized($0.label) } })
     }
     func setHousehold(_ n: Int) { a.household = n; react() }
 
@@ -286,7 +286,8 @@ final class OnboardingModel {
             let other: String? = id == c.a ? c.b : (id == c.b ? c.a : nil)
             if let other, d.contains(other) {
                 d.removeAll { $0 == other }
-                note = c.message + ". Kept " + (OBCatalog.dietLabel[id] ?? id) + "."
+                let kept = lemoraLocalized(OBCatalog.dietLabel[id] ?? id)
+                note = String(localized: "\(lemoraLocalized(c.message)). Kept \(kept).")
             }
         }
         a.diets = d + [id]
@@ -336,7 +337,7 @@ final class OnboardingModel {
 
     var mealList: [String] {
         let picked = a.meals ?? []
-        return picked.isEmpty ? ["All meals"] : OBCatalog.meals.filter { picked.contains($0.id) }.map(\.label)
+        return picked.isEmpty ? [String(localized: "All meals")] : OBCatalog.meals.filter { picked.contains($0.id) }.map { lemoraLocalized($0.label) }
     }
 
     func addDislike(_ r: OBSearchResult) {
@@ -513,19 +514,24 @@ final class OnboardingModel {
                                rate: rate, weekly: w, monthly: Int((Double(w) * 52 / 12).rounded()), annual: w * 52)
     }
 
+    /// Whole amounts written the way the picked language writes them: "$1,000" or "1 000 $".
     static func money(_ n: Double) -> String {
-        "$" + Int(n.rounded()).formatted(.number.grouping(.automatic).locale(Locale(identifier: "en_US")))
+        let number = Int(n.rounded()).formatted(.number.grouping(.automatic).locale(AppLanguage.current.locale))
+        return AppLanguage.current == .fr ? "\(number) $" : "$\(number)"
     }
 
     var goalInfo: OBCatalog.Goal { OBCatalog.goals.first { $0.id == a.goal } ?? OBCatalog.goals[0] }
     var isBodyGoal: Bool { selectedGoals.contains { ["lose_weight", "build_muscle", "gain_weight", "maintain_weight"].contains($0) } }
     var strategyTitle: String {
-        (OBCatalog.strategies.first { $0.id == a.strategy } ?? OBCatalog.strategies[1]).label.lowercased().capitalizedFirst
+        lemoraLocalized((OBCatalog.strategies.first { $0.id == a.strategy } ?? OBCatalog.strategies[1]).label).lowercased().capitalizedFirst
     }
     var dietList: [String] {
-        a.diets.contains("none") ? ["No Specific Diet"] : a.diets.map { OBCatalog.dietLabel[$0] ?? $0 }
+        a.diets.contains("none") ? [String(localized: "No Specific Diet")] : a.diets.map { lemoraLocalized(OBCatalog.dietLabel[$0] ?? $0) }
     }
-    func allergenName(_ id: String) -> String { OBData.allergens.first { $0.id == id }?.en ?? id }
+    func allergenName(_ id: String) -> String {
+        guard let item = OBData.allergens.first(where: { $0.id == id }) else { return id }
+        return OBData.displayName(en: item.en, fr: item.fr)
+    }
 
     // MARK: Generating + savings animations
 

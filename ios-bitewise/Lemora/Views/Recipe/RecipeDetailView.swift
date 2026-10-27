@@ -67,7 +67,7 @@ struct RecipeDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                ShareLink(item: "\(recipe.title) on Lemora") {
+                ShareLink(item: String(localized: "\(recipe.title) on Lemora")) {
                     Image(systemName: "square.and.arrow.up")
                 }
             }
@@ -221,7 +221,7 @@ struct RecipeDetailView: View {
                     if let deal = line.deal {
                         HStack(spacing: 10) {
                             StoreChip(retailerId: deal.retailerId, name: deal.retailerDisplayName)
-                            Text(deal.productName)
+                            Text(verbatim: deal.displayName)
                                 .font(.bw(.subheadline, weight: .semibold))
                                 .foregroundStyle(.white)
                                 .lineLimit(1)
@@ -451,9 +451,9 @@ struct RecipeDetailView: View {
                             .frame(width: 56, height: 56)
                             .clipShape(.rect(cornerRadius: 12))
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("Instead of \(IngredientCatalog.name(swap.ingredientId).lowercased())")
+                            Text("Instead of \(lemoraLocalized(IngredientCatalog.name(swap.ingredientId)).lowercased())")
                                 .font(.bw(.caption, weight: .semibold)).foregroundStyle(BW.inkSecondary)
-                            Text(swap.deal.productName).font(.bw(.subheadline, weight: .heavy)).foregroundStyle(BW.ink).lineLimit(2)
+                            Text(verbatim: swap.deal.displayName).font(.bw(.subheadline, weight: .heavy)).foregroundStyle(BW.ink).lineLimit(2)
                             HStack(spacing: 6) {
                                 Text(swap.deal.priceText).font(.bw(.caption, weight: .heavy)).foregroundStyle(BW.leafDeep)
                                 if let size = swap.deal.sizeText, !size.isEmpty {

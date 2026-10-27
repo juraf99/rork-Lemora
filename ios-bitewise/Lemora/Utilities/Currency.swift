@@ -43,15 +43,16 @@ nonisolated enum AppCurrency: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Local convention: "4,27 $" in Canada, "$4.27" in the US, "4,27 €" in France.
+    /// Written the way the picked language writes money: "4,27 $" in French, "$4.27" in English and Spanish.
     func format(cad value: Double) -> String {
         let amount = value * perCAD
-        let number = amount.formatted(.number.precision(.fractionLength(2)))
+        let french = AppLanguage.current == .fr
+        let locale = AppLanguage.current.locale
+        let number = amount.formatted(.number.precision(.fractionLength(2)).locale(locale))
         switch self {
-        case .cad: return "\(number) $"
-        case .usd, .mxn, .aud: return "$\(number)"
-        case .eur: return "\(number) €"
-        case .gbp: return "£\(number)"
+        case .cad, .usd, .mxn, .aud: return french ? "\(number) $" : "$\(number)"
+        case .eur: return AppLanguage.current == .en ? "€\(number)" : "\(number) €"
+        case .gbp: return french ? "\(number) £" : "£\(number)"
         case .chf: return "\(number) CHF"
         }
     }

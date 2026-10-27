@@ -2,7 +2,7 @@ import SwiftUI
 import ObjectiveC
 
 /// In-app language, independent of the iPhone language. Changing it rebuilds the app UI right away.
-enum AppLanguage: String, CaseIterable, Identifiable, Sendable {
+nonisolated enum AppLanguage: String, CaseIterable, Identifiable, Sendable {
     case en, fr, es
 
     var id: String { rawValue }
@@ -33,15 +33,21 @@ enum AppLanguage: String, CaseIterable, Identifiable, Sendable {
         return AppLanguage(rawValue: system) ?? .en
     }
 
-    static func set(_ language: AppLanguage) {
+    @MainActor static func set(_ language: AppLanguage) {
         UserDefaults.standard.set(language.rawValue, forKey: key)
         // Also used by iOS on the next launch (system texts, date formats).
         UserDefaults.standard.set([language.rawValue], forKey: "AppleLanguages")
         LanguageBundle.install(language)
         LanguageState.shared.current = language
+        // Recipes, recipe reasons and deal names are rebuilt in the new language.
+        NotificationCenter.default.post(name: .lemoraLanguageChanged, object: nil)
     }
 
-    static func bootstrap() { LanguageBundle.install(current) }
+    @MainActor static func bootstrap() { LanguageBundle.install(current) }
+}
+
+extension Notification.Name {
+    static let lemoraLanguageChanged = Notification.Name("lemoraLanguageChanged")
 }
 
 @Observable final class LanguageState {

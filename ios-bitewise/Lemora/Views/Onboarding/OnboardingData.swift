@@ -15,9 +15,22 @@ nonisolated struct OBSearchResult: Hashable, Sendable, Identifiable {
     let fr: String
     let via: String?
     let score: Double
+
+    /// Name in the language picked in the app.
+    var display: String { OBData.displayName(en: en, fr: fr) }
 }
 
 nonisolated enum OBData {
+    /// Allergen or ingredient name in the language picked in the app (translations live in Localizable.xcstrings).
+    static func displayName(en: String, fr: String) -> String {
+        let translated = lemoraLocalized(en)
+        switch AppLanguage.current {
+        case .en: return en
+        case .fr: return translated != en ? translated : fr
+        case .es: return translated
+        }
+    }
+
     static let allergens: [OBItem] = parse("""
 peanut|Peanuts|Arachides|peanut,groundnut,cacahuete,peanut butter,beurre d'arachide
 tree_nut|Tree Nuts|Noix|nuts,tree nut,fruits a coque
@@ -246,7 +259,9 @@ sugar|Added Sugar|Sucre ajoute|sucre
         for it in db {
             var best: Double = 0
             var via: String? = nil
-            let terms: [(String, Bool)] = [(it.en, false), (it.fr, true)] + it.syn.map { ($0, true) }
+            // The name in the app language comes first, so French and Spanish searches work too.
+            let shown = displayName(en: it.en, fr: it.fr)
+            let terms: [(String, Bool)] = [(shown, false), (it.en, shown != it.en), (it.fr, shown != it.fr)] + it.syn.map { ($0, true) }
             for (raw, alt) in terms {
                 let t = norm(raw)
                 var sc: Double = 0

@@ -16,13 +16,13 @@ struct BuildingPlanView: View {
         if allergies.isEmpty {
             lines.append(String(localized: "Checking every ingredient against your diet"))
         } else {
-            lines.append(String(localized: "Blocking \(ListFormatter.localizedString(byJoining: allergies)) in every recipe"))
+            lines.append(String(localized: "Blocking \(AppFormat.list(allergies.map { lemoraLocalized($0) })) in every recipe"))
         }
         lines.append(String(localized: "Matching \(preview.matches.count) recipes to your taste"))
         if preview.storeNames.isEmpty {
             lines.append(String(localized: "Scanning this week's deals near you"))
         } else {
-            let names = ListFormatter.localizedString(byJoining: Array(preview.storeNames.prefix(2)))
+            let names = AppFormat.list(Array(preview.storeNames.prefix(2)))
             lines.append(String(localized: "Scanning this week's deals at \(names)"))
         }
         if let budget = profile.weeklyBudget {
@@ -164,7 +164,7 @@ struct PlanSummaryStep: View {
                     row("leaf", String(localized: "Diet"), profile.diets.map(\.title).sorted().joined(separator: ", "))
                     row("hand.raised", String(localized: "Avoiding"), avoidText)
                     row("storefront", String(localized: "Stores"), preview.storeNames.isEmpty ? "—" : preview.storeNames.joined(separator: ", "))
-                    row("dollarsign.circle", String(localized: "Budget"), profile.weeklyBudget.map { "\(Money.format($0))/week" } ?? String(localized: "Flexible"))
+                    row("dollarsign.circle", String(localized: "Budget"), profile.weeklyBudget.map { String(localized: "\(Money.format($0))/week") } ?? String(localized: "Flexible"))
                     row("scalemass", String(localized: "Strategy"), profile.strategy.title, last: true)
                 }
                 .padding(.vertical, 4)
@@ -270,7 +270,7 @@ struct WelcomeView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 12)
                 if let ends = store.data.trialEndsAt, store.isPremium {
-                    SoftChip(text: String(localized: "Free trial until \(ends.formatted(.dateTime.month(.wide).day()))"),
+                    SoftChip(text: String(localized: "Free trial until \(AppFormat.longMonthDay(ends))"),
                              symbol: "calendar", fill: BW.leafSoft, foreground: BW.leafDeep)
                 }
                 Spacer()

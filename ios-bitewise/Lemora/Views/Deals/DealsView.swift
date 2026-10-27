@@ -283,7 +283,7 @@ private struct CurrentPriceCard: View {
             ProductPhoto(url: price.imageURL, category: price.category, ingredientId: price.ingredientId)
                 .frame(height: 96)
                 .clipShape(.rect(cornerRadius: 12))
-            Text(price.retailerProductName ?? price.productName)
+            Text(verbatim: price.displayName)
                 .font(.bw(.subheadline, weight: .bold))
                 .foregroundStyle(BW.ink)
                 .lineLimit(2)
@@ -349,7 +349,7 @@ enum DealTiming {
         if days < 1 {
             return plural ? String(localized: "Deals end today") : String(localized: "Deal ends today")
         }
-        let when = days < 7 ? date.formatted(.dateTime.weekday(.wide)) : date.formatted(.dateTime.month(.abbreviated).day())
+        let when = days < 7 ? AppFormat.weekday(date) : AppFormat.monthDay(date)
         return plural ? String(localized: "Deals end \(when)") : String(localized: "Deal ends \(when)")
     }
 }
@@ -447,7 +447,7 @@ struct StoreDealsCard: View {
             DealArtwork(deal: deal, height: 56, radius: 14)
                 .frame(width: 56)
             VStack(alignment: .leading, spacing: 2) {
-                Text(deal.productName)
+                Text(verbatim: deal.displayName)
                     .font(.bw(.subheadline, weight: .bold))
                     .foregroundStyle(BW.ink)
                     .lineLimit(2)
@@ -631,7 +631,7 @@ struct StealCard: View {
                 }
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(deal.productName)
+                Text(verbatim: deal.displayName)
                     .font(.bw(.subheadline, weight: .bold)).foregroundStyle(BW.ink)
                     .lineLimit(2, reservesSpace: true)
                 Text(deal.sizeText?.isEmpty == false ? deal.sizeText! : " ")
@@ -694,23 +694,23 @@ struct DealDetailView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(deal.productName).font(.bw(.title2, weight: .heavy)).foregroundStyle(BW.ink)
+                        Text(verbatim: deal.displayName).font(.bw(.title2, weight: .heavy)).foregroundStyle(BW.ink)
                         HStack(alignment: .firstTextBaseline, spacing: 10) {
                             Text(deal.priceText).font(.bw(size: 38, weight: .heavy)).monospacedDigit().foregroundStyle(BW.ink)
                             if let regular = deal.regularPrice {
-                                Text("reg. \(Money.format(regular))\(deal.multiBuyQuantity == nil ? deal.unitLabel : " ea")")
+                                Text(deal.multiBuyQuantity == nil ? "reg. \(Money.format(regular))\(deal.unitLabel)" : "reg. \(Money.format(regular)) each")
                                     .font(.bw(.subheadline, weight: .medium)).strikethrough().foregroundStyle(BW.inkSecondary)
                             }
                         }
                         if let q = deal.multiBuyQuantity, q > 1 {
                             Text("That's \(Money.format(deal.effectivePrice)) each").font(.bw(.subheadline, weight: .semibold)).foregroundStyle(BW.leafDeep)
                         }
-                        Text("At \(deal.retailerDisplayName) · valid \(deal.validFrom.formatted(.dateTime.month().day()))–\(deal.validUntil.formatted(.dateTime.month().day()))")
+                        Text("At \(deal.retailerDisplayName) · valid \(AppFormat.monthDay(deal.validFrom))–\(AppFormat.monthDay(deal.validUntil))")
                             .font(.bw(.subheadline, weight: .medium)).foregroundStyle(BW.inkSecondary)
                         if let brand = deal.brand, !brand.isEmpty {
                             Text("Brand: \(brand)").font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
                         }
-                        Text("Format: \(deal.sizeText?.isEmpty == false ? deal.sizeText! : "not specified in the flyer")")
+                        Text(deal.sizeText?.isEmpty == false ? "Format: \(deal.sizeText!)" : "Format: not specified in the flyer")
                             .font(.bw(.caption, weight: .medium))
                             .foregroundStyle(BW.inkSecondary)
                         if deal.processingLevel == "processed" || deal.processingLevel == "ultra_processed" {

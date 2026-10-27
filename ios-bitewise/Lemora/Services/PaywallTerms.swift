@@ -33,7 +33,7 @@ nonisolated struct PaywallTerms: Sendable {
     }
 
     var annualPerMonth: String {
-        (annualValue / 12).formatted(.currency(code: currencyCode).presentation(.narrow))
+        (annualValue / 12).formatted(.currency(code: currencyCode).presentation(.narrow).locale(AppLanguage.current.locale))
     }
 
     var ctaTitle: String {
