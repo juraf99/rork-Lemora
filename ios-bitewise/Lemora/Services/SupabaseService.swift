@@ -224,9 +224,10 @@ private nonisolated struct RemoteRecipeEnvelope: Decodable, Sendable {
     var recipe: Recipe? {
         let payload = cataloguePayload
         guard !catalogueId.isEmpty, payload.servings > 0 else { return nil }
-        let useFrench = AppLanguage.current == .fr
+        // Recipes are shown in the language picked in the app (Spanish falls back to English if missing).
+        let language = AppLanguage.current
         let ingredients = payload.ingredients.map { item in
-            let name = useFrench ? item.name.fr : item.name.en
+            let name = item.name.text(language)
             let unit = Self.unit(item.unit)
             return RecipeIngredient(
                 ingredientId: item.normalizedName,
@@ -251,8 +252,8 @@ private nonisolated struct RemoteRecipeEnvelope: Decodable, Sendable {
 
         return Recipe(
             id: catalogueId,
-            title: useFrench ? payload.title.fr : payload.title.en,
-            summary: useFrench ? (payload.description?.fr ?? "") : (payload.description?.en ?? ""),
+            title: payload.title.text(language),
+            summary: payload.description?.text(language) ?? "",
             imageName: imageUrl,
             cuisine: Self.cuisine(payload.cuisine),
             mealType: Self.mealType(payload.mealType),
@@ -261,7 +262,7 @@ private nonisolated struct RemoteRecipeEnvelope: Decodable, Sendable {
             prepMinutes: payload.prepMinutes,
             cookMinutes: payload.cookMinutes + (payload.restMinutes ?? 0),
             ingredients: ingredients,
-            steps: useFrench ? payload.instructions.fr : payload.instructions.en,
+            steps: payload.instructions.steps(language),
             nutrition: Nutrition(
                 calories: payload.nutrition.calories,
                 protein: payload.nutrition.protein,
@@ -360,8 +361,33 @@ private nonisolated struct RemoteRecipePayload: Decodable, Sendable {
     }
 }
 
-private nonisolated struct RemoteLocalizedText: Decodable, Sendable { let fr: String; let en: String }
-private nonisolated struct RemoteInstructions: Decodable, Sendable { let fr: [String]; let en: [String] }
+private nonisolated struct RemoteLocalizedText: Decodable, Sendable {
+    let fr: String
+    let en: String
+    let es: String?
+
+    func text(_ language: AppLanguage) -> String {
+        switch language {
+        case .fr: fr
+        case .es: es.flatMap { $0.isEmpty ? nil : $0 } ?? en
+        case .en: en
+        }
+    }
+}
+
+private nonisolated struct RemoteInstructions: Decodable, Sendable {
+    let fr: [String]
+    let en: [String]
+    let es: [String]?
+
+    func steps(_ language: AppLanguage) -> [String] {
+        switch language {
+        case .fr: fr
+        case .es: es.flatMap { $0.isEmpty ? nil : $0 } ?? en
+        case .en: en
+        }
+    }
+}
 private nonisolated struct RemoteIngredient: Decodable, Sendable {
     let normalizedName: String
     let name: RemoteLocalizedText
