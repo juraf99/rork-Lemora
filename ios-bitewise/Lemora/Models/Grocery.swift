@@ -274,3 +274,74 @@ nonisolated struct StorePrice: Identifiable, Hashable, Sendable {
         return nil
     }
 }
+
+// MARK: - Product names in the app language
+
+/// Flyer product names arrive in the store's language ("Pilons de poulet frais", "Salmon Fillets").
+/// They are shown in the language picked in the app: bilingual flyers ("FR | EN") are split, and a name
+/// written in another language is replaced by the ingredient's name in the app language.
+nonisolated enum ProductNaming {
+    static func display(productName: String, retailerProductName: String?, ingredientId: String) -> String {
+        let language = AppLanguage.current
+        if let raw = retailerProductName, raw.contains(" | ") {
+            let parts = raw.components(separatedBy: " | ").map { $0.trimmingCharacters(in: .whitespaces) }
+            if parts.count == 2 {
+                if language == .fr, !parts[0].isEmpty { return tidy(parts[0]) }
+                if language == .en, !parts[1].isEmpty { return tidy(parts[1]) }
+            }
+        }
+        if guessLanguage(productName) == language { return productName }
+        let english = IngredientCatalog.name(ingredientId)
+        if language == .en { return english }
+        let translated = lemoraLocalized(english)
+        return translated != english ? translated : productName
+    }
+
+    /// Rough language of a flyer name: accents or common French words mean French, Spanish words mean Spanish.
+    static func guessLanguage(_ text: String) -> AppLanguage {
+        let lower = text.lowercased()
+        if lower.contains(where: { "àâçéèêëîïôûùüÿœ".contains($0) }) {
+            return lower.contains(where: { "ñáíóú".contains($0) }) && !lower.contains(where: { "àâçèêëîïôûùœ".contains($0) }) ? .es : .fr
+        }
+        if lower.contains("ñ") { return .es }
+        let words = Set(lower.split(whereSeparator: { !$0.isLetter }).map(String.init))
+        let french: Set<String> = ["de", "du", "des", "au", "aux", "la", "le", "les", "et", "sans", "avec", "poulet", "boeuf", "porc",
+                                   "frais", "fraiches", "fraises", "pommes", "pomme", "oignons", "tranches", "hache", "biologique",
+                                   "biologiques", "lait", "fromage", "pain", "jambon", "saumon", "courge", "carottes", "poivrons",
+                                   "laitue", "oeufs", "beurre", "farine", "riz", "pates", "sauce", "jus", "veau", "dinde", "crevettes",
+                                   "haricots", "pois", "raisins", "poires", "citrons", "bleuets", "framboises", "mangues", "ananas"]
+        let spanish: Set<String> = ["pollo", "carne", "res", "cerdo", "leche", "queso", "huevos", "con", "sin", "fresco", "frescos",
+                                    "manzanas", "naranjas", "arroz", "frijoles", "tomates", "cebolla", "papas", "pan", "y", "del"]
+        if !words.isDisjoint(with: french) { return .fr }
+        if !words.isDisjoint(with: spanish) { return .es }
+        return .en
+    }
+
+    /// "FILET DE TRUITE ARC-EN-CIEL, 300 G" -> "Filet de truite arc-en-ciel".
+    static func tidy(_ text: String) -> String {
+        var t = text
+        if let comma = t.range(of: ",", options: .backwards), t[comma.upperBound...].contains(where: \.isNumber) {
+            t = String(t[..<comma.lowerBound])
+        }
+        let letters = t.filter(\.isLetter)
+        if !letters.isEmpty, letters == letters.uppercased() {
+            let lower = t.lowercased()
+            t = lower.prefix(1).uppercased() + lower.dropFirst()
+        }
+        return t.trimmingCharacters(in: .whitespaces)
+    }
+}
+
+extension Deal {
+    /// Product name in the language picked in the app.
+    var displayName: String {
+        ProductNaming.display(productName: productName, retailerProductName: retailerProductName, ingredientId: ingredientId)
+    }
+}
+
+extension StorePrice {
+    /// Product name in the language picked in the app.
+    var displayName: String {
+        ProductNaming.display(productName: retailerProductName ?? productName, retailerProductName: retailerProductName, ingredientId: ingredientId)
+    }
+}
