@@ -265,7 +265,7 @@ struct RecipeSwipeCard: View {
                         .minimumScaleFactor(0.8)
 
                     HStack(spacing: 12) {
-                        stat("fork.knife", item.recipe.nutrition.protein.map { "\($0)g protein" } ?? String(localized: "Nutrition unknown"))
+                        stat("fork.knife", item.recipe.nutrition.protein.map { String(localized: "\($0)g protein") } ?? String(localized: "Nutrition unknown"))
                         if let kcal = item.recipe.nutrition.calories {
                             divider
                             stat("flame", "\(kcal) kcal")
