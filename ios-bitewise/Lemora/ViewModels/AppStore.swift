@@ -678,7 +678,7 @@ final class AppStore {
     @discardableResult
     func cook(_ recipe: Recipe) -> CookLog {
         let p = price(for: recipe)
-        let log = CookLog(recipeId: recipe.id, date: .now, madeWithDeal: p.dealCount > 0, savings: p.savings)
+        let log = CookLog(recipeId: recipe.id, date: .now, madeWithDeal: p.dealCount > 0, savings: estimatedSavings(for: recipe))
         mutate { $0.cookLogs.append(log) }
         markActive()
         track("recipe_cooked", ["recipe": recipe.id])
@@ -696,30 +696,74 @@ final class AppStore {
 
     func cookLog(_ id: UUID) -> CookLog? { data.cookLogs.first { $0.id == id } }
 
+    /// Money saved by cooking this recipe with Lemora.
+    /// - This week's deals when the recipe has some.
+    /// - Otherwise an average, since we don't know where the groceries were bought: the gap between an
+    ///   average store and the cheapest one, or the usual saving of shopping a planned list on sale.
+    func estimatedSavings(for recipe: Recipe) -> Double {
+        let p = price(for: recipe)
+        if p.savings > 0.009 { return p.savings }
+        let servings = Double(max(recipe.servings, 1))
+        let storePrices = recipe.storePricesPerServing.values.filter { $0 > 0 }
+        var spread = 0.0
+        if storePrices.count >= 2, let low = storePrices.min() {
+            let average = storePrices.reduce(0, +) / Double(storePrices.count)
+            spread = (average - low) * servings
+        }
+        let discounts = deals.compactMap(\.discountPercent).filter { $0 > 0 && $0 < 80 }
+        let averageDiscount: Double = discounts.isEmpty ? 25 : Double(discounts.reduce(0, +)) / Double(discounts.count)
+        let rate = min(0.30, max(0.12, averageDiscount / 100 * 0.6))
+        let fallbackCost: Double = storePrices.max().map { $0 * servings } ?? 3.5 * servings
+        let baseline: Double = p.regularTotal ?? p.total ?? fallbackCost
+        let typical = baseline * rate
+        return (max(spread, typical) * 100).rounded() / 100
+    }
+
     /// Meals in the week plan count as cooked once their day is over. Each one is logged once,
     /// with the savings it had then, so the total in Profile stays true and stable.
+    /// Older cooked meals saved with no amount get their average saving too.
     func logPastPlannedMeals() {
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
         let logged = Set(data.cookLogs.compactMap(\.planEntryId))
         let due = (data.mealPlan ?? []).filter { cal.startOfDay(for: $0.date) < today && !logged.contains($0.id) }
-        guard !due.isEmpty else { return }
         var newLogs: [CookLog] = []
         for entry in due {
             guard let recipe = recipes.first(where: { $0.id == entry.recipeId }) else {
                 newLogs.append(CookLog(recipeId: entry.recipeId, date: entry.date, madeWithDeal: false, savings: 0, planEntryId: entry.id))
                 continue
             }
-            // Already checked off by hand that day: keep it, don't count it twice.
-            let cookedByHand = data.cookLogs.contains {
-                $0.planEntryId == nil && $0.recipeId == entry.recipeId && cal.isDate($0.date, inSameDayAs: entry.date)
-            }
             let p = price(for: recipe)
-            let counts = !cookedByHand && p.savings > 0.009
+            let counts = !cookedByHand(entry.recipeId, on: entry.date)
             newLogs.append(CookLog(recipeId: recipe.id, date: entry.date, madeWithDeal: counts && p.dealCount > 0,
-                                   savings: counts ? p.savings : 0, planEntryId: entry.id))
+                                   savings: counts ? estimatedSavings(for: recipe) : 0, planEntryId: entry.id))
         }
-        mutate { $0.cookLogs.append(contentsOf: newLogs) }
+        // Meals counted before with 0 $ (no deal that week): give them their average saving.
+        var fixed: [UUID: Double] = [:]
+        for log in data.cookLogs where log.savings < 0.009 {
+            guard let recipe = recipes.first(where: { $0.id == log.recipeId }) else { continue }
+            if log.planEntryId != nil && cookedByHand(log.recipeId, on: log.date) { continue }
+            let amount = estimatedSavings(for: recipe)
+            if amount > 0.009 { fixed[log.id] = amount }
+        }
+        guard !newLogs.isEmpty || !fixed.isEmpty else { return }
+        mutate { d in
+            for i in d.cookLogs.indices {
+                let old = d.cookLogs[i]
+                if let amount = fixed[old.id] {
+                    d.cookLogs[i] = CookLog(id: old.id, recipeId: old.recipeId, date: old.date, madeWithDeal: old.madeWithDeal,
+                                            savings: amount, planEntryId: old.planEntryId)
+                }
+            }
+            d.cookLogs.append(contentsOf: newLogs)
+        }
+    }
+
+    /// Already checked off by hand that day: a planned meal then isn't counted twice.
+    private func cookedByHand(_ recipeId: String, on date: Date) -> Bool {
+        data.cookLogs.contains {
+            $0.planEntryId == nil && $0.recipeId == recipeId && Calendar.current.isDate($0.date, inSameDayAs: date)
+        }
     }
 
     /// Meals counted as cooked: checked off by hand, or planned and past.
@@ -729,11 +773,12 @@ final class AppStore {
 
     func timesCooked(_ recipe: Recipe) -> Int { data.cookLogs.filter { $0.recipeId == recipe.id }.count }
 
-    var totalSaved: Double { data.cookLogs.filter(\.madeWithDeal).reduce(0) { $0 + $1.savings } }
+    /// Every cooked meal counts, with its deal saving or its average saving.
+    var totalSaved: Double { data.cookLogs.reduce(0) { $0 + $1.savings } }
 
     var savedThisMonth: Double {
         let cal = Calendar.current
-        return data.cookLogs.filter { $0.madeWithDeal && cal.isDate($0.date, equalTo: .now, toGranularity: .month) }
+        return data.cookLogs.filter { cal.isDate($0.date, equalTo: .now, toGranularity: .month) }
             .reduce(0) { $0 + $1.savings }
     }
 
