@@ -1,0 +1,54 @@
+name: i18n export
+
+# Manual only. Extracts every localizable string the compiler sees (exact keys)
+# and pushes the XLIFF files to the i18n-export branch. Never uploads to TestFlight.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch to analyse
+        default: main
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+
+      - name: Select latest Xcode
+        run: |
+          XC=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+
+      - name: Export localizations
+        run: |
+          set -o pipefail
+          xcodebuild -exportLocalizations \
+            -project ios-bitewise/Lemora.xcodeproj \
+            -localizationPath "$RUNNER_TEMP/loc" \
+            -exportLanguage en -exportLanguage fr -exportLanguage es \
+            -sdk iphonesimulator \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tail -60
+
+      - name: Push results
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          find "$RUNNER_TEMP/loc" -name "*.xliff" -exec cp {} "$RUNNER_TEMP/out/" \;
+          cp ios-bitewise/Lemora/Localizable.xcstrings "$RUNNER_TEMP/out/Localizable.synced.xcstrings"
+          ls -la "$RUNNER_TEMP/out"
+          git config user.name "lemora-ci"
+          git config user.email "ci@lemora.local"
+          git checkout --orphan i18n-export
+          git rm -rq --cached . || true
+          rm -rf ./* .github .cursor 2>/dev/null || true
+          cp "$RUNNER_TEMP"/out/* .
+          git add -A .
+          git commit -qm "i18n export ${{ github.event.inputs.ref }} $(date -u +%FT%TZ)"
+          git push -f origin i18n-export
