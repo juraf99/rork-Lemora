@@ -228,7 +228,7 @@ struct SubscriptionSummary: View {
     private var sub: SubscriptionService { store.subscription }
     private var isYearly: Bool { sub.activeProductId == SubscriptionService.annualId }
     private var isMonthly: Bool { sub.activeProductId == SubscriptionService.monthlyId }
-    private var date: String { sub.expirationDate?.formatted(date: .long, time: .omitted) ?? "" }
+    private var date: String { sub.expirationDate.map(AppFormat.longDate) ?? "" }
 
     private var planName: String {
         if isYearly { return sub.isInTrial ? String(localized: "Lemora Yearly · free trial") : String(localized: "Lemora Yearly") }
