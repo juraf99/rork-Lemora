@@ -37,7 +37,7 @@ extension OnboardingModel {
                 await didAuthenticate(store, provider: provider, isNew: isNew)
             } catch {
                 if !Self.isCancel(error) {
-                    errorText = "That didn’t work: \(Self.message(for: error))"
+                    errorText = Self.message(for: error)
                 }
             }
             busy = false
@@ -47,8 +47,8 @@ extension OnboardingModel {
     func emailSubmit(_ store: AppStore) {
         guard !busy else { return }
         let mail = email.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard mail.contains("@"), mail.contains(".") else { errorText = "Enter a valid email."; return }
-        if emailMode == .create && password.count < 8 { errorText = "Use at least 8 characters."; return }
+        guard mail.contains("@"), mail.contains(".") else { errorText = String(localized: "Enter a valid email."); return }
+        if emailMode == .create && password.count < 8 { errorText = String(localized: "Use at least 8 characters."); return }
         guard !password.isEmpty else { return }
         busy = true
         errorText = nil
@@ -66,7 +66,7 @@ extension OnboardingModel {
                         try await activate(signIn.createdSessionId)
                         await didAuthenticate(store, provider: .email, isNew: false)
                     } else {
-                        errorText = "This account needs another verification step. Try Google or Apple."
+                        errorText = String(localized: "This account needs another verification step. Try Google or Apple.")
                     }
                 }
             } catch {
@@ -87,10 +87,10 @@ extension OnboardingModel {
                     try await activate(result.createdSessionId)
                     await didAuthenticate(store, provider: .email, isNew: true)
                 } else {
-                    errorText = "Almost there. Please try again."
+                    errorText = String(localized: "Almost there. Please try again.")
                 }
             } catch {
-                errorText = "That code didn’t work. Check your email and try again."
+                errorText = String(localized: "That code didn’t work. Check your email and try again.")
             }
             busy = false
         }
@@ -133,9 +133,31 @@ extension OnboardingModel {
         return error.localizedDescription.lowercased().contains("cancel")
     }
 
+    /// Sign-in errors come from Clerk in English. They are shown in the app language instead.
     static func message(for error: Error) -> String {
-        let text = error.localizedDescription
-        return text.isEmpty ? "Something went wrong. Please try again." : text
+        let text = error.localizedDescription.lowercased()
+        if text.contains("breach") || text.contains("pwned") || text.contains("compromised") {
+            return String(localized: "This password was found in a data breach. Choose another one.")
+        }
+        if text.contains("incorrect") || text.contains("invalid password") || text.contains("wrong password") {
+            return String(localized: "Wrong password. Try again or reset it.")
+        }
+        if text.contains("couldn't find") || text.contains("could not find") || text.contains("not found") || text.contains("no account") {
+            return String(localized: "No account uses this email. Create one instead.")
+        }
+        if text.contains("already") || text.contains("taken") || text.contains("exists") {
+            return String(localized: "An account already uses this email. Log in instead.")
+        }
+        if text.contains("password") && (text.contains("short") || text.contains("length") || text.contains("characters")) {
+            return String(localized: "Use at least 8 characters.")
+        }
+        if text.contains("network") || text.contains("internet") || text.contains("offline") || text.contains("timed out") {
+            return String(localized: "No internet connection. Check it and try again.")
+        }
+        if text.contains("cancel") {
+            return String(localized: "Sign-in was cancelled.")
+        }
+        return String(localized: "That didn’t work. Please try again.")
     }
 
     // MARK: After authentication
