@@ -246,6 +246,8 @@ nonisolated struct CookLog: Codable, Identifiable, Sendable {
     let date: Date
     let madeWithDeal: Bool
     let savings: Double
+    /// Set when the meal was counted automatically from the week plan once its day was over.
+    var planEntryId: UUID? = nil
 }
 
 nonisolated enum SavingsActionKind: String, Codable, Sendable {

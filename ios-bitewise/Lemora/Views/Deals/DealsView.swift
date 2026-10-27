@@ -230,24 +230,30 @@ struct DealsView: View {
 
     // MARK: Worth It
 
-    private var worthItItems: [ScoredRecipe] { store.worthIt }
+    private var worthItItems: [ScoredRecipe] { store.worthItRecipes }
 
+    /// Last section of Deals: the recipes most worth making this week (not single foods).
     private var worthIt: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(title: String(localized: "Worth It This Week"), subtitle: String(localized: "Meals you'll love, built from these deals")) {
+            SectionHeader(title: String(localized: "Worth It This Week"),
+                          subtitle: lemoraText("The best-value recipes this week",
+                                               fr: "Les recettes les plus rentables de la semaine",
+                                               es: "Las recetas que más valen la pena esta semana")) {
                 path.append(Route.worthItAll)
             }
             .padding(.horizontal, 20)
 
             if worthItItems.isEmpty {
-                Text("No deal-powered meals match your profile this week yet.")
+                Text(lemoraText("Recipes appear here as soon as this week's prices load.",
+                                fr: "Les recettes apparaissent dès que les prix de la semaine sont chargés.",
+                                es: "Las recetas aparecen en cuanto se cargan los precios de la semana."))
                     .font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
                     .padding(.horizontal, 20)
             } else {
-                VStack(spacing: 16) {
-                    ForEach(Array(worthItItems.prefix(3))) { item in
+                VStack(spacing: 12) {
+                    ForEach(Array(worthItItems.prefix(6))) { item in
                         NavigationLink(value: Route.recipe(item.id)) {
-                            WorthItCard(item: item)
+                            RecipeRow(item: item)
                         }
                         .buttonStyle(BWPressableStyle())
                     }
@@ -773,8 +779,10 @@ struct RecipeRow: View {
                 .font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
                 HStack(spacing: 6) {
                     MatchBadge(percent: item.matchPercent, compact: true)
+                        .lineLimit(1).fixedSize()
                     if item.price.dealCount > 0 {
                         SoftChip(text: item.price.dealCount == 1 ? String(localized: "1 deal") : String(localized: "\(item.price.dealCount) deals"), symbol: "tag.fill", fill: BW.leafSoft, foreground: BW.leafDeep)
+                            .lineLimit(1).fixedSize()
                     }
                 }
             }
@@ -792,7 +800,7 @@ struct WorthItListView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
-                ForEach(store.worthIt) { item in
+                ForEach(Array(store.worthItRecipes.prefix(30))) { item in
                     NavigationLink(value: Route.recipe(item.id)) { RecipeRow(item: item) }
                         .buttonStyle(BWPressableStyle())
                 }

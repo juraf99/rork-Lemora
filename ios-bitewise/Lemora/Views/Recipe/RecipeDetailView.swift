@@ -4,7 +4,7 @@ struct RecipeDetailView: View {
     let recipe: Recipe
     @Environment(AppStore.self) private var store
     @State private var servings: Int
-    @State private var cookedLog: CookLog? = nil
+    @State private var cookedTimes: Int = 0
     @State private var addedToList: Int = 0
     @State private var showAddedToast: Bool = false
     @State private var toastText: String = ""
@@ -72,9 +72,6 @@ struct RecipeDetailView: View {
             }
         }
         .safeAreaInset(edge: .bottom) { actionBar }
-        .sheet(item: $cookedLog) { log in
-            CookedView(recipe: recipe, logId: log.id)
-        }
         .sheet(isPresented: $showPaywall) {
             PaywallView(context: .upgrade) { showPaywall = false }
         }
@@ -520,9 +517,16 @@ struct RecipeDetailView: View {
                 .buttonStyle(BWSecondaryButtonStyle())
 
                 Button {
-                    cookedLog = store.cook(recipe)
+                    // Straight to the savings: no celebration screen.
+                    let log = store.cook(recipe)
+                    cookedTimes += 1
+                    toast(log.savings > 0.009
+                          ? lemoraText("Cooked · \(Money.format(log.savings)) added to your savings",
+                                       fr: "Cuisiné · \(Money.format(log.savings)) ajouté à tes économies",
+                                       es: "Cocinado · \(Money.format(log.savings)) sumado a tus ahorros")
+                          : lemoraText("Marked as cooked", fr: "Marqué comme cuisiné", es: "Marcado como cocinado"))
                 } label: {
-                    Image(systemName: "frying.pan")
+                    Image(systemName: store.timesCooked(recipe) > 0 ? "checkmark" : "frying.pan")
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(BW.ink)
                         .frame(width: 56, height: 56)
@@ -530,6 +534,7 @@ struct RecipeDetailView: View {
                         .overlay(Circle().strokeBorder(BW.hairline))
                 }
                 .accessibilityLabel("I cooked this")
+                .sensoryFeedback(.success, trigger: cookedTimes)
             }
         }
         .padding(.horizontal, 20)
