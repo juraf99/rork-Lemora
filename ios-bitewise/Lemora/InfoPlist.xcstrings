@@ -1,0 +1,33 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "CFBundleDisplayName" : {
+      "comment" : "Bundle display name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Lemora" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Lemora" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Lemora" } }
+      }
+    },
+    "CFBundleName" : {
+      "comment" : "Bundle name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Lemora" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Lemora" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Lemora" } }
+      }
+    },
+    "NSLocationWhenInUseUsageDescription" : {
+      "comment" : "Privacy - Location When In Use Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Lemora uses your location to find nearby grocery stores and local deals." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Lemora usa tu ubicación para encontrar supermercados y ofertas cerca de ti." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Lemora utilise ta position pour trouver les épiceries et les aubaines près de chez toi." } }
+      }
+    }
+  },
+  "version" : "1.0"
+}
