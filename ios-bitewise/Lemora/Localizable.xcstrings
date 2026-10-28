@@ -27934,6 +27934,22 @@
           }
         }
       }
+    },
+    "Promo code": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code promo"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Código promocional"
+          }
+        }
+      }
     }
   }
 }
