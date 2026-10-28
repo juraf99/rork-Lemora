@@ -83,16 +83,24 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     private func resolve(_ location: CLLocation) async {
-        var code = try? await CLGeocoder().reverseGeocodeLocation(location).first?.postalCode
-        if code == nil {
+        var mark = try? await CLGeocoder().reverseGeocodeLocation(location).first
+        if mark == nil {
             try? await Task.sleep(for: .seconds(1))
-            code = try? await CLGeocoder().reverseGeocodeLocation(location).first?.postalCode
+            mark = try? await CLGeocoder().reverseGeocodeLocation(location).first
         }
-        if let code {
+        if let code = mark?.postalCode, !code.isEmpty {
             state = .resolved(code)
-        } else {
-            state = .failed
+            return
         }
+        // "Precise Location" off: Apple gives the town but no postal code. Use the town's postal code instead.
+        if let mark, let town = mark.locality ?? mark.subAdministrativeArea {
+            let place = [town, mark.administrativeArea].compactMap { $0 }.joined(separator: ", ")
+            if let found = await Self.postalCode(forCity: place, country: mark.isoCountryCode ?? "CA") {
+                state = .resolved(found.postal)
+                return
+            }
+        }
+        state = .failed
     }
 
     /// "Montréal" → a postal code near that city's centre, for people who'd rather not give theirs.
