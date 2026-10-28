@@ -829,22 +829,6 @@ struct OBPaywallScreen: View {
             }
             .ignoresSafeArea()
         }
-        .overlay(alignment: .topTrailing) {
-            // TEMPORARY (beta): tester bypass for the hard paywall. Remove before public release.
-            Button {
-                store.enableTesterBypass()
-                m.go(.done)
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.footnote.weight(.bold))
-                    .foregroundStyle(OB.ink.opacity(0.55))
-                    .frame(width: 34, height: 34)
-                    .background(.ultraThinMaterial, in: .circle)
-            }
-            .padding(.top, 4)
-            .padding(.trailing, 16)
-            .accessibilityLabel("Close")
-        }
         .overlay(alignment: .topLeading) {
             OBBackButton(size: 34) { m.go(.plan) }
                 .padding(.top, 4)
