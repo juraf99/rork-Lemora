@@ -64,9 +64,8 @@ struct PaywallView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { ctaBar }
         .overlay(alignment: .topTrailing) {
-            // TEMPORARY (beta): tester bypass for the hard paywall. Remove before public release.
+            // Closes the upgrade sheet only. It never grants access.
             Button {
-                store.enableTesterBypass()
                 onClose()
             } label: {
                 Image(systemName: "xmark")
@@ -77,7 +76,7 @@ struct PaywallView: View {
             }
             .padding(.top, 8)
             .padding(.trailing, 16)
-            .accessibilityLabel("testerbypass")
+            .accessibilityLabel("Close")
         }
         .sensoryFeedback(.success, trigger: purchaseSuccess)
         .sheet(isPresented: $showPrivacy) { NavigationStack { PrivacyView() } }
