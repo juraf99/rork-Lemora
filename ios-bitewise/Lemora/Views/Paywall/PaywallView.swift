@@ -16,6 +16,7 @@ struct PaywallView: View {
     @State private var appeared: Bool = false
     @State private var zestTalking: Bool = false
     @State private var showPrivacy: Bool = false
+    @State private var showPromoCode: Bool = false
     @State private var purchaseSuccess: Int = 0
 
     private var sub: SubscriptionService { store.subscription }
@@ -80,6 +81,13 @@ struct PaywallView: View {
         }
         .sensoryFeedback(.success, trigger: purchaseSuccess)
         .sheet(isPresented: $showPrivacy) { NavigationStack { PrivacyView() } }
+        // Apple's own sheet for subscription offer codes (created in App Store Connect).
+        .offerCodeRedemption(isPresented: $showPromoCode) { _ in
+            Task {
+                await sub.restore()
+                if store.isPremium { onClose() }
+            }
+        }
         .onAppear {
             store.track("paywall_viewed", ["context": context == .onboarding ? "onboarding" : "upgrade"])
             appeared = true
@@ -235,6 +243,7 @@ struct PaywallView: View {
                     Link("Terms", destination: terms)
                 }
                 Button("Privacy") { showPrivacy = true }
+                Button("Promo code") { showPromoCode = true }
             }
             .font(.bw(.footnote, weight: .semibold))
             .foregroundStyle(BW.inkSecondary)
