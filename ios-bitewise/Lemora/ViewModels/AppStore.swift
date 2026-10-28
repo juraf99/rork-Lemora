@@ -76,6 +76,15 @@ final class AppStore {
     // MARK: Lifecycle
 
     func bootstrap() async {
+        // One time, after the move to production sign-in (clerk.lemoraapp.com): accounts made with the
+        // test sign-in no longer exist, so the device starts again from onboarding and a fresh sign-in.
+        if !UserDefaults.standard.bool(forKey: "lemora.productionSignIn") {
+            if data.account != nil {
+                signOut()
+                await subscription.logOut()
+            }
+            UserDefaults.standard.set(true, forKey: "lemora.productionSignIn")
+        }
         syncCurrency()
         config = await configProvider.fetch()
         await subscription.start()
