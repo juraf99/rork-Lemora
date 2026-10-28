@@ -232,16 +232,9 @@ final class AppStore {
 
     // MARK: Entitlements
 
-    /// Full app access is granted only by a verified StoreKit entitlement.
-    // TEMPORARY (beta): tester bypass for the hard paywall. Remove before public release.
-    var testerBypass: Bool = UserDefaults.standard.bool(forKey: "lemora.testerBypass")
-    func enableTesterBypass() {
-        guard SubscriptionService.isTestFlight else { return }
-        testerBypass = true
-        UserDefaults.standard.set(true, forKey: "lemora.testerBypass")
-    }
-
-    var isPremium: Bool { subscription.hasActiveSubscription || (testerBypass && SubscriptionService.isTestFlight) }
+    /// Full app access is granted only by an active subscription (RevenueCat / StoreKit).
+    /// Hard paywall: there is no bypass. TestFlight testers subscribe in Apple's sandbox, free.
+    var isPremium: Bool { subscription.hasActiveSubscription }
 
     func has(_ entitlement: Entitlement) -> Bool { isPremium }
 
