@@ -681,6 +681,7 @@ struct OBPaywallScreen: View {
     @State private var purchasing = false
     @State private var message: String?
     @State private var showPrivacy = false
+    @State private var showPromoCode = false
 
     private var sub: SubscriptionService { store.subscription }
     private var annual: Bool { m.a.plan == "annual" }
@@ -809,6 +810,7 @@ struct OBPaywallScreen: View {
                     .frame(maxWidth: .infinity).padding(.top, 10)
                 HStack(spacing: 18) {
                     Button("Restore") { Task { await restore() } }
+                    Button("Promo code") { showPromoCode = true }
                     Button("Terms & Privacy") { showPrivacy = true }
                 }
                 .font(OB.font(11.5, 700))
@@ -835,6 +837,16 @@ struct OBPaywallScreen: View {
                 .padding(.leading, 16)
         }
         .sheet(isPresented: $showPrivacy) { NavigationStack { PrivacyView() } }
+        // Apple's own sheet for subscription offer codes (created in App Store Connect).
+        .offerCodeRedemption(isPresented: $showPromoCode) { _ in
+            Task {
+                await sub.restore()
+                if store.isPremium {
+                    m.a.completed = true
+                    m.go(.done)
+                }
+            }
+        }
         .task { if !sub.productsAvailable { await sub.loadProducts() } }
         .onAppear { store.track("paywall_viewed", ["context": "onboarding_v2"]) }
     }
