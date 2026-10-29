@@ -1,8 +1,8 @@
 import Foundation
-import StoreKit
 
-/// Everything the paywall says about price and trial, derived from the live StoreKit products
-/// (or remote-config fallbacks before they load). Never invents dates or billing behaviour.
+/// Everything the paywall says about price and trial, derived from the live StoreKit products.
+/// Until those products load, the paywall shows a placeholder instead of a hardcoded price.
+/// The free trial is only offered on the yearly plan.
 nonisolated struct PaywallTerms: Sendable {
     let annualPrice: String
     let annualValue: Double
@@ -14,8 +14,9 @@ nonisolated struct PaywallTerms: Sendable {
     let configuredTrialDays: Int?
     let isEligibleForTrial: Bool
     let annualSelected: Bool
+    let pricesLoaded: Bool
 
-    /// Trial offered on the yearly plan for this user, if any.
+    /// Trial offered on the yearly plan for this user, if any. Never the monthly plan.
     var annualTrialDays: Int? {
         guard isEligibleForTrial, let days = configuredTrialDays, days > 0 else { return nil }
         return days
@@ -33,10 +34,12 @@ nonisolated struct PaywallTerms: Sendable {
     }
 
     var annualPerMonth: String {
-        (annualValue / 12).formatted(.currency(code: currencyCode).presentation(.narrow).locale(AppLanguage.current.locale))
+        guard annualValue > 0 else { return "…" }
+        return (annualValue / 12).formatted(.currency(code: currencyCode).presentation(.narrow).locale(AppLanguage.current.locale))
     }
 
     var ctaTitle: String {
+        guard pricesLoaded else { return String(localized: "Loading prices…") }
         switch trialDays {
         case .some(7): String(localized: "Start My Free Week")
         case .some(let days): String(localized: "Start My \(days)-Day Free Trial")
@@ -45,6 +48,7 @@ nonisolated struct PaywallTerms: Sendable {
     }
 
     var footnote: String {
+        guard pricesLoaded else { return String(localized: "Prices load from the App Store.") }
         if let days = trialDays {
             return String(localized: "Free for \(days) days, then \(annualPrice)\(currencySuffix)/year. Cancel anytime.")
         }
@@ -56,23 +60,22 @@ nonisolated struct PaywallTerms: Sendable {
 
 extension PaywallTerms {
     @MainActor
-    static func make(sub: SubscriptionService, config: RemoteConfig, annualSelected: Bool) -> PaywallTerms {
-        let trial: Int?
-        if let annual = sub.annual {
-            trial = SubscriptionService.trialDays(of: annual)
-        } else {
-            trial = config.trialEnabled ? config.trialDays : nil
-        }
-        let hasProducts = sub.annual != nil
+    static func make(sub: SubscriptionService, annualSelected: Bool) -> PaywallTerms {
+        let productTrial = sub.introductoryTrialDays(for: .annual)
+        // TestFlight purchases are free tests, so testers see the yearly free-trial design when the
+        // product has an intro offer, even on an Apple ID that already used the trial.
+        let eligible = sub.isEligibleForTrial || (SubscriptionService.isTestFlight && productTrial != nil)
+        let loaded = sub.pricesLoaded
         return PaywallTerms(
-            annualPrice: sub.annual?.displayPrice ?? config.annualPriceFallback,
-            annualValue: sub.annual.map(SubscriptionService.amount) ?? config.annualPriceValue,
-            monthlyPrice: sub.monthly?.displayPrice ?? config.monthlyPriceFallback,
-            monthlyValue: sub.monthly.map(SubscriptionService.amount) ?? config.monthlyPriceValue,
-            currencyCode: sub.annual?.priceFormatStyle.currencyCode ?? "CAD",
-            currencySuffix: hasProducts ? "" : " CAD",
-            configuredTrialDays: trial,
-            isEligibleForTrial: sub.isEligibleForTrial,
-            annualSelected: annualSelected)
+            annualPrice: sub.annualPriceText ?? "…",
+            annualValue: sub.annualAmount ?? 0,
+            monthlyPrice: sub.monthlyPriceText ?? "…",
+            monthlyValue: sub.monthlyAmount ?? 0,
+            currencyCode: sub.currencyCode ?? "USD",
+            currencySuffix: "",
+            configuredTrialDays: loaded ? productTrial : nil,
+            isEligibleForTrial: eligible,
+            annualSelected: annualSelected,
+            pricesLoaded: loaded)
     }
 }

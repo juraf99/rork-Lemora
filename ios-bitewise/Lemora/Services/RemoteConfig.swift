@@ -9,12 +9,14 @@ nonisolated struct RemoteConfig: Codable, Sendable {
     var calibrationSwipes: Int = 4
     var temporarySaveHours: Int = 72
     var freeAskPerDay: Int = 3
+    /// The yearly App Store product includes a 3-day free trial. Monthly has no trial.
+    /// The paywall does not show these numbers; it waits for the StoreKit product.
+    /// `public.remote_config` is not read by the app and is still the old CAD 39.99 / 9.99, 7-day values.
     var trialEnabled: Bool = true
-    /// Used only until StoreKit products load; the live intro offer always wins.
-    var trialDays: Int = 7
-    var annualPriceFallback: String = "$39.99"
+    var trialDays: Int = 3
+    var annualPriceFallback: String = "$29.99"
     var monthlyPriceFallback: String = "$9.99"
-    var annualPriceValue: Double = 39.99
+    var annualPriceValue: Double = 29.99
     var monthlyPriceValue: Double = 9.99
     var weights = RecommendationWeights()
 }

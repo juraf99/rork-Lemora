@@ -1,5 +1,4 @@
 import SwiftUI
-import StoreKit
 
 /// Lemora paywall (hard paywall, single paid plan). Layout follows the approved reference: sunny Zesty hero, premium pill,
 /// "Unlock Your Full Plan Today", trial timeline card, yearly/monthly cards and a shining CTA.
@@ -18,9 +17,12 @@ struct PaywallView: View {
     @State private var showPrivacy: Bool = false
     @State private var showPromoCode: Bool = false
     @State private var purchaseSuccess: Int = 0
+    @State private var didTrackView = false
+    @State private var didPurchase = false
 
     private var sub: SubscriptionService { store.subscription }
-    private var terms: PaywallTerms { .make(sub: sub, config: store.config, annualSelected: annualSelected) }
+    private var terms: PaywallTerms { .make(sub: sub, annualSelected: annualSelected) }
+    private var paywallVariant: String { context == .onboarding ? "onboarding" : "upgrade" }
 
     var body: some View {
         ScrollView {
@@ -67,6 +69,9 @@ struct PaywallView: View {
         .overlay(alignment: .topTrailing) {
             // Closes the upgrade sheet only. It never grants access.
             Button {
+                if !didPurchase {
+                    store.track("paywall_dismissed", sub.analyticsProperties(plan: annualSelected ? "annual" : "monthly", paywallVariant: paywallVariant))
+                }
                 onClose()
             } label: {
                 Image(systemName: "xmark")
@@ -84,12 +89,22 @@ struct PaywallView: View {
         // Apple's own sheet for subscription offer codes (created in App Store Connect).
         .offerCodeRedemption(isPresented: $showPromoCode) { _ in
             Task {
-                await sub.restore()
-                if store.isPremium { onClose() }
+                _ = await sub.restore(paywallVariant: paywallVariant)
+                if store.isPremium {
+                    didPurchase = true
+                    onClose()
+                }
             }
         }
+        .task {
+            if !sub.pricesLoaded { await sub.loadProducts() }
+            guard !didTrackView else { return }
+            didTrackView = true
+            var props = sub.analyticsProperties(plan: annualSelected ? "annual" : "monthly", paywallVariant: paywallVariant)
+            props["context"] = paywallVariant
+            store.track("paywall_viewed", props)
+        }
         .onAppear {
-            store.track("paywall_viewed", ["context": context == .onboarding ? "onboarding" : "upgrade"])
             appeared = true
         }
     }
@@ -148,6 +163,12 @@ struct PaywallView: View {
     private var timelineSteps: [PaywallTimelineStep] {
         let t = terms
         let unlocks = [String(localized: "Recipes matched to you"), String(localized: "Every weekly deal"), String(localized: "Saves that never expire")]
+        if !t.pricesLoaded {
+            return [
+                PaywallTimelineStep(id: "loading", icon: "lock.open.fill", highlighted: true, title: String(localized: "Today"),
+                                    detail: String(localized: "Prices load from the App Store."), checks: unlocks),
+            ]
+        }
         if let days = t.trialDays, let reminder = t.reminderDay {
             return [
                 PaywallTimelineStep(id: "today", icon: "lock.open.fill", highlighted: true, title: String(localized: "Today"),
@@ -189,13 +210,21 @@ struct PaywallView: View {
             PaywallPlanCard(
                 title: String(localized: "YEARLY"), price: t.annualPrice,
                 detail: String(localized: "\(t.annualPerMonth) / month"),
-                note: t.annualTrialDays.map { String(localized: "\($0) days free") } ?? String(localized: "Billed yearly"),
+                note: t.pricesLoaded ? (t.annualTrialDays.map { String(localized: "\($0) days free") } ?? String(localized: "Billed yearly")) : "…",
                 badge: t.savingsPercent.map { String(localized: "BEST VALUE · -\($0)%") },
-                selected: annualSelected) { annualSelected = true }
+                selected: annualSelected) {
+                    guard !annualSelected else { return }
+                    annualSelected = true
+                    store.track("plan_selected", sub.analyticsProperties(plan: "annual", paywallVariant: paywallVariant))
+                }
             PaywallPlanCard(
                 title: String(localized: "MONTHLY"), price: t.monthlyPrice,
                 detail: String(localized: "per month"), note: String(localized: "No trial"),
-                badge: nil, selected: !annualSelected) { annualSelected = false }
+                badge: nil, selected: !annualSelected) {
+                    guard annualSelected else { return }
+                    annualSelected = false
+                    store.track("plan_selected", sub.analyticsProperties(plan: "monthly", paywallVariant: paywallVariant))
+                }
         }
         .sensoryFeedback(.selection, trigger: annualSelected)
     }
@@ -212,7 +241,7 @@ struct PaywallView: View {
                 .contentTransition(.opacity)
             }
             .buttonStyle(ShineButtonStyle())
-            .disabled(isPurchasing || selectedProduct == nil)
+            .disabled(isPurchasing || !terms.pricesLoaded)
             .animation(.snappy, value: annualSelected)
 
             Text(terms.footnote)
@@ -235,8 +264,15 @@ struct PaywallView: View {
             HStack(spacing: 18) {
                 Button("Restore") {
                     Task {
-                        await sub.restore()
-                        if store.isPremium { onClose() } else { message = String(localized: "No active subscription found for this Apple ID.") }
+                        let ok = await sub.restore(paywallVariant: paywallVariant)
+                        if store.isPremium {
+                            didPurchase = true
+                            onClose()
+                        } else if ok {
+                            message = String(localized: "No active subscription found for this Apple ID.")
+                        } else {
+                            message = String(localized: "The restore didn't go through. Please try again.")
+                        }
                     }
                 }
                 if let terms = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/") {
@@ -266,29 +302,27 @@ struct PaywallView: View {
     }
 
     private func purchase() async {
-        guard let product = selectedProduct else {
+        guard terms.pricesLoaded else {
             message = String(localized: "Subscriptions aren't available right now. Please try again.")
+            await sub.loadProducts()
             return
         }
+        let plan: SubscriptionService.Plan = annualSelected ? .annual : .monthly
         let current = terms
         isPurchasing = true
         defer { isPurchasing = false }
         do {
-            if try await sub.purchase(product) {
-                if let days = current.trialDays {
-                    store.recordTrialStart(days: days, priceText: current.annualPrice)
+            if try await sub.purchase(plan: plan, paywallVariant: paywallVariant) {
+                if sub.isInTrial, let days = current.trialDays {
+                    store.recordTrialStart(days: days)
                 }
-                store.track("subscription_started", ["plan": product.id])
+                didPurchase = true
                 purchaseSuccess += 1
                 onClose()
             }
         } catch {
             message = String(localized: "The purchase didn't go through. Please try again.")
         }
-    }
-
-    private var selectedProduct: Product? {
-        annualSelected ? sub.annual : sub.monthly
     }
 }
 

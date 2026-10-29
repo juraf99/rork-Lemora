@@ -1,5 +1,4 @@
 import SwiftUI
-import StoreKit
 
 struct ProfileView: View {
     @Environment(AppStore.self) private var store
@@ -226,8 +225,8 @@ struct SubscriptionSummary: View {
     @State private var message: String?
 
     private var sub: SubscriptionService { store.subscription }
-    private var isYearly: Bool { sub.activeProductId == SubscriptionService.annualId }
-    private var isMonthly: Bool { sub.activeProductId == SubscriptionService.monthlyId }
+    private var isYearly: Bool { sub.activePlanIsAnnual }
+    private var isMonthly: Bool { sub.activePlanIsMonthly }
     private var date: String { sub.expirationDate.map(AppFormat.longDate) ?? "" }
 
     private var planName: String {
@@ -258,12 +257,12 @@ struct SubscriptionSummary: View {
                 }
             }
             .task { await sub.refreshEntitlements() }
-            if isMonthly, let annual = sub.annual {
+            if isMonthly, let price = sub.annualPriceText {
                 Button {
-                    Task { await switchToYearly(annual) }
+                    Task { await switchToYearly() }
                 } label: {
                     HStack {
-                        Text("Switch to yearly · \(annual.displayPrice)/year")
+                        Text("Switch to yearly · \(price)/year")
                         Spacer()
                         if switching { ProgressView() }
                     }
@@ -271,18 +270,27 @@ struct SubscriptionSummary: View {
                 .disabled(switching)
             }
             Button("Manage or cancel subscription") { Task { await sub.showManageSubscriptions() } }
-            Button("Restore purchases") { Task { await sub.restore() } }
+            Button("Restore purchases") {
+                Task {
+                    let ok = await sub.restore(paywallVariant: "profile")
+                    if !store.isPremium {
+                        message = ok
+                            ? String(localized: "No active subscription found for this Apple ID.")
+                            : String(localized: "The restore didn't go through. Please try again.")
+                    }
+                }
+            }
             if let message {
                 Text(message).font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
             }
         }
     }
 
-    private func switchToYearly(_ annual: Product) async {
+    private func switchToYearly() async {
         switching = true
         defer { switching = false }
         do {
-            if try await sub.purchase(annual) {
+            if try await sub.purchase(plan: .annual, paywallVariant: "profile") {
                 message = String(localized: "You’re on the yearly plan.")
             }
         } catch {
@@ -596,7 +604,7 @@ struct PrivacyView: View {
             Section("What we use") {
                 Text("Location: only when you open the app, to find nearby stores. You can use a postal code instead.")
                 Text("Profile & goals: to personalize recipes. Lemora is not medical advice and never promises health outcomes.")
-                Text("Usage analytics: anonymous events that help us improve recommendations.")
+                Text("Usage analytics: product events tied to your account id, used to improve Lemora. This is not used to track you across other companies’ apps.")
             }
             Section("Your control") {
                 Text("Everything from onboarding can be edited in Profile. Deleting your account removes your data.")

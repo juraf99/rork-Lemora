@@ -64,9 +64,9 @@ struct SafetyTests {
     }
 
     private func terms(trial: Int?, eligible: Bool, annual: Bool = true) -> PaywallTerms {
-        PaywallTerms(annualPrice: "$39.99", annualValue: 39.99, monthlyPrice: "$9.99", monthlyValue: 9.99,
-                     currencyCode: "CAD", currencySuffix: "", configuredTrialDays: trial,
-                     isEligibleForTrial: eligible, annualSelected: annual)
+        PaywallTerms(annualPrice: "$29.99", annualValue: 29.99, monthlyPrice: "$9.99", monthlyValue: 9.99,
+                     currencyCode: "USD", currencySuffix: "", configuredTrialDays: trial,
+                     isEligibleForTrial: eligible, annualSelected: annual, pricesLoaded: true)
     }
 
     @Test func freeWeekOnlyWhenEligibleForSevenDayTrial() {
@@ -77,12 +77,29 @@ struct SafetyTests {
         #expect(terms(trial: nil, eligible: true).trialDays == nil)
     }
 
+    @Test func threeDayAnnualTrialDoesNotPromiseAFreeWeek() {
+        #expect(terms(trial: 3, eligible: true).ctaTitle == "Start My 3-Day Free Trial")
+        #expect(terms(trial: 3, eligible: true).reminderDay == 2)
+        #expect(terms(trial: 3, eligible: true, annual: false).trialDays == nil)
+        #expect(terms(trial: 3, eligible: true, annual: false).ctaTitle == "Unlock My Full Plan")
+    }
+
     @Test func monthlyPlanHasNoTrial() {
         #expect(terms(trial: 7, eligible: true, annual: false).trialDays == nil)
+        #expect(terms(trial: 3, eligible: true, annual: false).footnote.contains("/month"))
     }
 
     @Test func yearlySavingsIsComputedFromRealPrices() {
-        #expect(terms(trial: 7, eligible: true).savingsPercent == 67)
+        #expect(terms(trial: 3, eligible: true).savingsPercent == 75)
+    }
+
+    @Test func pricesStayHiddenUntilStoreKitLoads() {
+        let loading = PaywallTerms(annualPrice: "…", annualValue: 0, monthlyPrice: "…", monthlyValue: 0,
+                                   currencyCode: "USD", currencySuffix: "", configuredTrialDays: nil,
+                                   isEligibleForTrial: false, annualSelected: true, pricesLoaded: false)
+        #expect(loading.ctaTitle == "Loading prices…")
+        #expect(loading.trialDays == nil)
+        #expect(loading.savingsPercent == nil)
     }
 
     private func prices() -> [String: RecipePrice] {

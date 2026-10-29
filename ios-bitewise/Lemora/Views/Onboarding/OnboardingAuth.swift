@@ -26,6 +26,7 @@ extension OnboardingModel {
         busy = true
         errorText = nil
         Task { @MainActor in
+            await store.awaitSessionTeardown()
             do {
                 if Clerk.shared.user != nil { try? await Clerk.shared.auth.signOut() }
                 let result = try await op()
@@ -53,6 +54,7 @@ extension OnboardingModel {
         busy = true
         errorText = nil
         Task { @MainActor in
+            await store.awaitSessionTeardown()
             do {
                 if Clerk.shared.user != nil { try? await Clerk.shared.auth.signOut() }
                 if emailMode == .create {
@@ -109,6 +111,7 @@ extension OnboardingModel {
         guard !busy else { return }
         busy = true
         Task { @MainActor in
+            await store.awaitSessionTeardown()
             do {
                 try await Clerk.shared.auth.startHostedAuth(mode: .signIn)
                 if Clerk.shared.user != nil { await didAuthenticate(store, provider: .email, isNew: false) }
