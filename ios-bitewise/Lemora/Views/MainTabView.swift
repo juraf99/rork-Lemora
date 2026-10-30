@@ -5,6 +5,10 @@ enum AppTab: Hashable {
     case discover, deals, saved, ask, profile
 }
 
+extension Notification.Name {
+    static let lemoraShowAsk = Notification.Name("lemora.showAsk")
+}
+
 /// Destinations pushed onto any tab's navigation stack.
 enum Route: Hashable {
     case recipe(String)
@@ -39,6 +43,9 @@ struct MainTabView: View {
         .overlay(alignment: .bottom) {
             // The Deals tab has its own banner.
             if tab != .deals { NewAreaToast().padding(.bottom, 62) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .lemoraShowAsk)) { _ in
+            tab = .ask
         }
         .animation(.snappy, value: store.checkingNewArea)
         .sensoryFeedback(.success, trigger: store.checkingNewArea) { old, new in old && !new }

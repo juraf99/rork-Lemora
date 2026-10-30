@@ -4,23 +4,30 @@ struct DealsView: View {
     @Environment(AppStore.self) private var store
     @State private var path: NavigationPath = NavigationPath()
     @State private var myStoresOnly: Bool = true
+    @State private var query: String = ""
+    @State private var under30: Bool = false
+    @State private var minSavings: Int = 0
 
     var body: some View {
         NavigationStack(path: $path) {
+            VStack(spacing: 0) {
+                header
+                recipeDealTools
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    header
                     checkingBanner
                     storeToggle
                     storesThisWeek
                     seeAllBanner
                     lowestPrices
-                    worthIt
+                    if !premiumItems.isEmpty { premium }
+                    if !worthItItems.isEmpty || rankedRecipes.isEmpty { worthIt }
                     if stealItems.contains(where: \.isSampleData) {
                         SamplePricesNote().padding(.horizontal, 20)
                     }
                 }
                 .padding(.bottom, 24)
+            }
             }
             .background(BW.canvas)
             .toolbar(.hidden, for: .navigationBar)
@@ -108,7 +115,72 @@ struct DealsView: View {
 
     // MARK: Stores this week
 
-    private var stealItems: [Deal] { store.steals(myStoresOnly: myStoresOnly) }
+    private var searchText: String { query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+
+    private var stealItems: [Deal] {
+        store.steals(myStoresOnly: myStoresOnly).filter { deal in
+            if minSavings > 0, (deal.discountPercent ?? 0) < minSavings { return false }
+            guard !searchText.isEmpty else { return true }
+            return deal.displayName.lowercased().contains(searchText)
+                || deal.retailerDisplayName.lowercased().contains(searchText)
+        }
+    }
+
+    private var rankedRecipes: [ScoredRecipe] {
+        store.worthItRecipes.filter { item in
+            if under30, item.recipe.totalMinutes > 30 { return false }
+            if minSavings > 0, Int((item.price.savingsFraction * 100).rounded()) < minSavings { return false }
+            guard !searchText.isEmpty else { return true }
+            return item.recipe.title.lowercased().contains(searchText)
+        }
+        .sorted { $0.price.savingsFraction > $1.price.savingsFraction }
+    }
+
+    private var premiumItems: [ScoredRecipe] { Array(rankedRecipes.prefix(6)) }
+
+    private var aroundDealRecipes: [ScoredRecipe] {
+        let shown = Set(premiumItems.map(\.id))
+        return rankedRecipes.filter { !shown.contains($0.id) }
+    }
+
+    private var recipeDealTools: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(BW.inkSecondary)
+                    TextField("Search recipes and deals", text: $query)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
+                .padding(.horizontal, 12)
+                .frame(height: 44)
+                .background(BW.card, in: .capsule)
+                Button {
+                    NotificationCenter.default.post(name: .lemoraShowAsk, object: nil)
+                } label: {
+                    Text("Ask")
+                        .font(.bw(.subheadline, weight: .heavy))
+                        .foregroundStyle(BW.ink)
+                        .padding(.horizontal, 14)
+                        .frame(height: 44)
+                        .background(BW.lemon, in: .capsule)
+                }
+                .buttonStyle(BWPressableStyle())
+            }
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    ChoiceChip(title: String(localized: "Under 30 min"), selected: under30) { under30.toggle() }
+                    ForEach([0, 15, 30, 50], id: \.self) { percent in
+                        ChoiceChip(title: percent == 0 ? String(localized: "Any savings") : String(localized: "At least \(percent)%"),
+                                   selected: minSavings == percent) { minSavings = percent }
+                    }
+                }
+            }
+            .scrollIndicators(.hidden)
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 8)
+    }
 
     /// A stale or unsupported store selection must not make the whole page look empty.
     /// Switch the visible scope to All Stores while keeping the user's preferences intact.
@@ -230,12 +302,42 @@ struct DealsView: View {
 
     // MARK: Worth It
 
-    private var worthItItems: [ScoredRecipe] { store.worthItRecipes }
+    private var worthItItems: [ScoredRecipe] { aroundDealRecipes }
+
+    private var premium: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: String(localized: "Premium"),
+                          subtitle: String(localized: "The biggest savings from this week's deals"))
+                .padding(.horizontal, 20)
+            ScrollView(.horizontal) {
+                HStack(spacing: 10) {
+                    ForEach(premiumItems) { item in
+                        NavigationLink(value: Route.recipe(item.id)) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                FoodImage(name: item.recipe.imageName, height: 72, radius: 12)
+                                Text(item.recipe.title)
+                                    .font(.bw(.caption, weight: .bold))
+                                    .foregroundStyle(BW.ink)
+                                    .lineLimit(2)
+                                Text("\(item.recipe.totalMinutes) min · \(Int((item.price.savingsFraction * 100).rounded()))%")
+                                    .font(.bw(.caption2, weight: .heavy))
+                                    .foregroundStyle(BW.leafDeep)
+                            }
+                            .frame(width: 132, alignment: .leading)
+                        }
+                        .buttonStyle(BWPressableStyle())
+                    }
+                }
+            }
+            .contentMargins(.horizontal, 20)
+            .scrollIndicators(.hidden)
+        }
+    }
 
     /// Last section of Deals: the recipes most worth making this week (not single foods).
     private var worthIt: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(title: String(localized: "Worth It This Week"),
+            SectionHeader(title: String(localized: "Recipes around this week's deals"),
                           subtitle: lemoraText("The best-value recipes this week",
                                                fr: "Les recettes les plus rentables de la semaine",
                                                es: "Las recetas que más valen la pena esta semana")) {
@@ -385,7 +487,7 @@ struct StoreDealsCard: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(group.name)
-                        .font(.bw(size: 30, weight: .heavy))
+                        .font(.bw(size: 22, weight: .heavy))
                         .foregroundStyle(c.fg)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
@@ -435,7 +537,7 @@ struct StoreDealsCard: View {
                 .padding(16)
             }
         }
-        .frame(width: 300)
+        .frame(width: 260)
         .background(BW.card)
         .clipShape(.rect(cornerRadius: BW.cardRadius))
         .shadow(color: BW.ink.opacity(0.07), radius: 14, y: 6)
@@ -625,7 +727,7 @@ struct StealCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .topLeading) {
-                DealArtwork(deal: deal, height: 130, radius: 0)
+                DealArtwork(deal: deal, height: 96, radius: 0)
                 if let label = deal.label {
                     DealTag(text: label.title).padding(10)
                 }
@@ -767,11 +869,11 @@ struct RecipeRow: View {
     var body: some View {
         HStack(spacing: 14) {
             Color.clear
-                .frame(width: 84, height: 84)
-                .overlay { FoodImage(name: item.recipe.imageName, height: 84, radius: 16).allowsHitTesting(false) }
+                .frame(width: 64, height: 64)
+                .overlay { FoodImage(name: item.recipe.imageName, height: 64, radius: 14).allowsHitTesting(false) }
                 .clipShape(.rect(cornerRadius: 16))
             VStack(alignment: .leading, spacing: 6) {
-                Text(item.recipe.title).font(.bw(.headline)).foregroundStyle(BW.ink).lineLimit(2).multilineTextAlignment(.leading)
+                Text(item.recipe.title).font(.bw(.subheadline, weight: .bold)).foregroundStyle(BW.ink).lineLimit(2).multilineTextAlignment(.leading)
                 HStack(spacing: 10) {
                     Text(item.recipe.nutrition.protein.map { "\($0)g protein" } ?? String(localized: "Nutrition unknown"))
                     Text("\(Money.format(item.price.perServing))/serving").monospacedDigit()
