@@ -24,6 +24,10 @@ Price tests use the current RevenueCat offering only (`$rc_annual` and `$rc_mont
 
 Profile can request an Apple refund, and shows a retention offer before cancellation: an eligible RevenueCat promotional offer when Apple has one, otherwise the yearly price for a monthly subscriber. Marketing email is off until the person opts in. That choice is stored in Resend by `marketing-consent`.
 
+A new person pays before creating an account: the plan leads to the paywall, the App Store payment, then Sign in with Apple. The purchase stays on the device until Apple sign-in attaches it to the Clerk user. Someone who already paid and reopens the app goes to Sign in with Apple instead of being charged again.
+
+Deals keeps a search field on screen, with an under-30-minute filter and a minimum savings percent. Recipes tied to this week's deals sit under a smaller Premium row. Ask is the Demander button on that same bar. Deal and recipe cards use the smaller format.
+
 Trial availability and displayed billing terms depend on the actual StoreKit product and the Apple account's eligibility. Preserve the trial/no-trial variants. Claude's downloaded `apply-timeline.yml` corrects the paywall connectors by sizing each timeline row to its content; that source change is included directly in this integration.
 
 ## Ask

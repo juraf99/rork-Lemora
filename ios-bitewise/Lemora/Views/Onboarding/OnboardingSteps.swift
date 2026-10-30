@@ -123,6 +123,7 @@ struct OBAuthButtons: View {
     let google: () -> Void
     let emailAction: () -> Void
     var busy = false
+    var appleOnly = false
 
     var body: some View {
         VStack(spacing: 10) {
@@ -134,6 +135,7 @@ struct OBAuthButtons: View {
                 .frame(maxWidth: .infinity).frame(height: 56)
                 .background(.black, in: .capsule)
             }
+            if !appleOnly {
             Button(action: google) {
                 HStack(spacing: 12) {
                     OBArt.image("logo_google").resizable().frame(width: 20, height: 20)
@@ -151,6 +153,7 @@ struct OBAuthButtons: View {
                 .frame(maxWidth: .infinity).frame(height: 56)
                 .background(.white, in: .capsule)
                 .overlay(Capsule().strokeBorder(OB.border, lineWidth: 1.5))
+            }
             }
         }
         .buttonStyle(OBPress())

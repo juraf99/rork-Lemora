@@ -28082,6 +28082,54 @@
         "fr": { "stringUnit": { "state": "translated", "value": "La mise à jour du courriel n’a pas fonctionné. Réessaie." } },
         "es": { "stringUnit": { "state": "translated", "value": "La actualización del correo no se completó. Inténtalo de nuevo." } }
       }
+    },
+    "Your payment is done": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Ton paiement est fait" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Tu pago ya está hecho" } }
+      }
+    },
+    "Sign in with Apple to keep your plan.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Connecte-toi avec Apple pour garder ton forfait." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Inicia sesión con Apple para conservar tu plan." } }
+      }
+    },
+    "Search recipes and deals": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Cherche des recettes et des aubaines" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Busca recetas y ofertas" } }
+      }
+    },
+    "Any savings": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Toute économie" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Cualquier ahorro" } }
+      }
+    },
+    "At least %lld%": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Au moins %lld %" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Al menos %lld %" } }
+      }
+    },
+    "Premium": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Premium" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Premium" } }
+      }
+    },
+    "The biggest savings from this week's deals": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Les plus grosses économies des aubaines de la semaine" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Los mayores ahorros de las ofertas de la semana" } }
+      }
+    },
+    "Recipes around this week's deals": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Recettes autour des aubaines de la semaine" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Recetas alrededor de las ofertas de la semana" } }
+      }
     }
   }
 }

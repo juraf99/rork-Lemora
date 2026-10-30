@@ -452,7 +452,15 @@ struct OBPlanScreen: View {
             .scrollIndicators(.hidden)
             .padding(.horizontal, -4)
             .padding(.top, 14)
-            OBPrimaryButton(title: "CONTINUE") { m.go(isSignedIn ? (store.isPremium ? .done : .paywall) : .account) }
+            OBPrimaryButton(title: "CONTINUE") {
+                if isSignedIn {
+                    m.go(store.isPremium ? .done : .paywall)
+                } else if store.isPremium {
+                    m.go(.account)
+                } else {
+                    m.go(.paywall)
+                }
+            }
                 .padding(.top, 10)
         }
         .padding(.horizontal, 24)
@@ -471,17 +479,20 @@ struct OBAccountScreen: View {
     @Environment(OnboardingModel.self) private var m
     @Environment(AppStore.self) private var store
 
+    /// Payment happened before the account. Apple is the only way to attach that purchase.
+    private var paidFirst: Bool { store.isPremium && store.data.account?.userId == nil }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                OBBackButton(size: 38) { m.go(.plan) }
+                if !paidFirst { OBBackButton(size: 38) { m.go(.plan) } }
                 Spacer()
             }
             Spacer(minLength: 0)
             VStack(spacing: 0) {
                 ZestyMascot(mood: .talking, size: 110, seedKey: "ac")
-                OBText("Save your Lemora plan", 32, 800, tracking: -0.03, align: .center).padding(.top, 18)
-                OBText("Create your account to keep your preferences, recommendations and personalized savings.", 14.5, 500, color: OB.muted, align: .center)
+                OBText(paidFirst ? "Your payment is done" : "Save your Lemora plan", 32, 800, tracking: -0.03, align: .center).padding(.top, 18)
+                OBText(paidFirst ? "Sign in with Apple to keep your plan." : "Create your account to keep your preferences, recommendations and personalized savings.", 14.5, 500, color: OB.muted, align: .center)
                     .lineSpacing(3)
                     .frame(maxWidth: 300)
                     .padding(.top, 8)
@@ -499,10 +510,11 @@ struct OBAccountScreen: View {
                 }
             }
             Spacer(minLength: 0)
-            OBAuthButtons(apple: { m.authCtx = .new; m.authApple(store) },
+            OBAuthButtons(apple: { m.authCtx = paidFirst ? .merge : .new; m.authApple(store) },
                           google: { m.authCtx = .new; m.authGoogle(store) },
                           emailAction: { m.authCtx = .new; m.emailMode = .create; m.resetSent = false; m.go(.email) },
-                          busy: m.busy)
+                          busy: m.busy,
+                          appleOnly: paidFirst)
             HStack(spacing: 4) {
                 Text("Already have an account?").font(OB.font(13.5, 500)).foregroundStyle(OB.muted)
                 Button { m.authCtx = .merge; m.go(.signin) } label: {
@@ -696,6 +708,9 @@ struct OBPaywallScreen: View {
     /// Monthly never has a trial. Nothing is invented before StoreKit prices load.
     private var trialDays: Int? { terms.trialDays }
     private var savePercent: Int { terms.savingsPercent ?? 0 }
+    private var signedIn: Bool { store.data.account?.userId != nil }
+    /// Payment already went through on this phone. The next step is Sign in with Apple, not another charge.
+    private var paidWaitingForAccount: Bool { store.isPremium && !signedIn }
 
     /// Copy from "Lemora Paywall 2.0". Prices are the App Store prices in the buyer's own currency.
     private var timeline: [(String, String, String)] {
@@ -798,7 +813,10 @@ struct OBPaywallScreen: View {
                 .padding(.top, 11)
                 .obIn(delay: 0.38, duration: 0.4)
 
-                OBPrimaryButton(title: cta, enabled: pricesReady, shine: true, loading: purchasing) { Task { await purchase() } }
+                OBPrimaryButton(title: paidWaitingForAccount ? "Continue with Apple" : cta,
+                                enabled: paidWaitingForAccount || pricesReady, shine: true, loading: purchasing) {
+                    if paidWaitingForAccount { m.go(.account) } else { Task { await purchase() } }
+                }
                     .padding(.top, 14)
                 if let message {
                     Text(message).font(OB.font(11.5, 600)).foregroundStyle(OB.red)
@@ -933,7 +951,7 @@ struct OBPaywallScreen: View {
             if try await sub.purchase(plan: annual ? .annual : .monthly, paywallVariant: paywallVariant) {
                 if sub.isInTrial, annual, let days = trialDays { store.recordTrialStart(days: days) }
                 m.a.completed = true
-                m.go(.done)
+                m.go(store.data.account?.userId != nil ? .done : .account)
             }
         } catch {
             message = String(localized: "The purchase didn’t go through. Please try again.")
@@ -943,7 +961,7 @@ struct OBPaywallScreen: View {
     private func restore() async {
         let ok = await sub.restore(paywallVariant: paywallVariant)
         if store.isPremium {
-            m.go(.done)
+            m.go(store.data.account?.userId != nil ? .done : .account)
         } else if ok {
             message = String(localized: "No active subscription found for this Apple ID.")
         } else {
