@@ -22,6 +22,9 @@ xcuserdata/
 .build/
 .swiftpm/
 Package.resolved
+# Commit the app lockfile so Xcode and CI resolve the same versions.
+# This environment cannot run Xcode, so Package.resolved is not regenerated here.
+!Lemora.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 # macOS
 .DS_Store

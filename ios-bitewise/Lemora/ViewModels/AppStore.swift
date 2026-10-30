@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import ClerkKit
 
 /// Single source of app state. Views read from it and call intent methods; business rules live here
 /// and in the engines, never in views.
@@ -45,6 +46,8 @@ final class AppStore {
     private var availableDeals: [Deal] = []
     private var availableStorePrices: [StorePrice] = []
     private var sessionPosition = 0
+    /// In-flight Clerk + RevenueCat sign-out. A later login waits for it so it cannot sign the new user out.
+    @ObservationIgnored private var sessionTeardown: Task<Void, Never>?
 
     init(repository: UserDataRepository = LocalUserDataRepository(),
          analytics: AnalyticsTracking = LogAnalytics(),
@@ -81,9 +84,12 @@ final class AppStore {
         if !UserDefaults.standard.bool(forKey: "lemora.productionSignIn") {
             if data.account != nil {
                 signOut()
-                await subscription.logOut()
+                await awaitSessionTeardown()
             }
             UserDefaults.standard.set(true, forKey: "lemora.productionSignIn")
+        }
+        if let userId = data.account?.userId, !userId.isEmpty {
+            await subscription.logIn(userId: userId)
         }
         syncCurrency()
         config = await configProvider.fetch()
@@ -153,16 +159,35 @@ final class AppStore {
     }
 
     func signOut() {
+        Analytics.reset()
         mutate { $0.account = nil }
         OnboardingModel.clearSaved()
+        startSessionTeardown()
     }
 
     func deleteAccount() {
+        Analytics.reset()
         repository.wipe()
         data = AppData()
         availableDeals = []
         availableStorePrices = []
         refreshDeals()
+        startSessionTeardown()
+    }
+
+    /// Clerk and RevenueCat sign-out. Stored so a later login can wait for it to finish.
+    private func startSessionTeardown() {
+        let previous = sessionTeardown
+        sessionTeardown = Task { @MainActor in
+            await previous?.value
+            try? await Clerk.shared.auth.signOut()
+            await self.subscription.logOut()
+        }
+    }
+
+    /// Waits for an in-flight sign-out or account deletion before a new Clerk session starts.
+    func awaitSessionTeardown() async {
+        await sessionTeardown?.value
     }
 
     // MARK: Onboarding
@@ -193,11 +218,11 @@ final class AppStore {
         track("welcome_completed")
     }
 
-    /// Records a started free trial and schedules the real reminder shown on the paywall timeline.
-    func recordTrialStart(days: Int, priceText: String) {
+    /// Remembers the trial end date shown in the app. The purchase itself emits `trial_started`,
+    /// and customer info schedules or cancels the reminder. No event is sent from here.
+    func recordTrialStart(days: Int) {
+        guard subscription.isInTrial else { return }
         mutate { $0.trialEndsAt = Calendar.current.date(byAdding: .day, value: days, to: .now) }
-        track("trial_started", ["days": "\(days)"])
-        Task { await TrialReminderService.schedule(trialDays: days, priceText: priceText) }
     }
 
     /// Personalized preview of the plan built from onboarding answers (before it is saved).

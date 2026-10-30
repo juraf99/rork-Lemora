@@ -9,3 +9,11 @@ verify_jwt = false
 
 [functions.flipp-flyer-ingest]
 verify_jwt = true
+
+# RevenueCat webhook. The handler checks its own shared secret. Do not require a Supabase JWT.
+[functions.rc-webhook]
+verify_jwt = false
+
+# Marketing opt-in. The handler verifies the Clerk session itself.
+[functions.marketing-consent]
+verify_jwt = false

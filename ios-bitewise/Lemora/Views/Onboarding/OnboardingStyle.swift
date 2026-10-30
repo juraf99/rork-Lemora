@@ -143,6 +143,7 @@ struct OBPrimaryButton: View {
             .shadow(color: enabled ? OB.lemon.opacity(0.4) : .clear, radius: 8, x: 0, y: 6)
         }
         .buttonStyle(OBPress())
+        .disabled(!enabled || loading)
         .animation(.easeInOut(duration: 0.2), value: enabled)
     }
 }

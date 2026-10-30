@@ -1,10 +1,12 @@
 import SwiftUI
-import StoreKit
 
 struct ProfileView: View {
     @Environment(AppStore.self) private var store
     @State private var path: NavigationPath = NavigationPath()
     @State private var confirmDelete: Bool = false
+    @State private var marketingOn: Bool = false
+    @State private var marketingBusy: Bool = false
+    @State private var marketingMessage: String?
 
     private var profile: UserProfile { store.data.profile }
 
@@ -32,6 +34,31 @@ struct ProfileView: View {
 
                 Section("Subscription") {
                     SubscriptionSummary()
+                }
+
+                Section {
+                    Toggle(isOn: Binding(
+                        get: { marketingOn },
+                        set: { value in Task { await setMarketing(value) } }
+                    )) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Send me Lemora recipes and deals")
+                            Text("Only if you agree. You can turn this off anytime.")
+                                .font(.bw(.footnote, weight: .regular))
+                                .foregroundStyle(BW.inkSecondary)
+                        }
+                    }
+                    .tint(BW.leaf)
+                    .disabled(marketingBusy || (store.data.account?.email.isEmpty ?? true))
+                    if let marketingMessage {
+                        Text(marketingMessage)
+                            .font(.bw(.footnote, weight: .regular))
+                            .foregroundStyle(BW.inkSecondary)
+                    }
+                } header: {
+                    Text("Emails")
+                } footer: {
+                    Text("Lemora keeps this address for emails only after you turn this on.")
                 }
 
                 Section("My Lemora") {
@@ -91,6 +118,27 @@ struct ProfileView: View {
             } message: {
                 Text("This removes your profile, swipes, saves and grocery lists.")
             }
+            .onAppear {
+                let email = store.data.account?.email ?? ""
+                marketingOn = MarketingConsent.isOn(email: email)
+            }
+        }
+    }
+
+    private func setMarketing(_ consent: Bool) async {
+        let previous = marketingOn
+        marketingOn = consent
+        marketingBusy = true
+        marketingMessage = nil
+        defer { marketingBusy = false }
+        let account = store.data.account
+        let email = account?.email ?? ""
+        let ok = await MarketingConsent.set(email: email, name: account?.name ?? "", consent: consent)
+        if ok {
+            store.track("marketing_consent", ["consent": consent ? "true" : "false"])
+        } else {
+            marketingOn = previous
+            marketingMessage = String(localized: "The email update didn't go through. Please try again.")
         }
     }
 
@@ -224,10 +272,15 @@ struct SubscriptionSummary: View {
     @Environment(AppStore.self) private var store
     @State private var switching = false
     @State private var message: String?
+    @State private var showRetention = false
+    @State private var retention: SubscriptionService.RetentionOffer = .stay
+    @State private var preparingRetention = false
+    @State private var acceptingOffer = false
+    @State private var requestingRefund = false
 
     private var sub: SubscriptionService { store.subscription }
-    private var isYearly: Bool { sub.activeProductId == SubscriptionService.annualId }
-    private var isMonthly: Bool { sub.activeProductId == SubscriptionService.monthlyId }
+    private var isYearly: Bool { sub.activePlanIsAnnual }
+    private var isMonthly: Bool { sub.activePlanIsMonthly }
     private var date: String { sub.expirationDate.map(AppFormat.longDate) ?? "" }
 
     private var planName: String {
@@ -258,35 +311,191 @@ struct SubscriptionSummary: View {
                 }
             }
             .task { await sub.refreshEntitlements() }
-            if isMonthly, let annual = sub.annual {
+            if isMonthly, let price = sub.annualPriceText {
                 Button {
-                    Task { await switchToYearly(annual) }
+                    Task { await switchToYearly() }
                 } label: {
                     HStack {
-                        Text("Switch to yearly · \(annual.displayPrice)/year")
+                        Text("Switch to yearly · \(price)/year")
                         Spacer()
                         if switching { ProgressView() }
                     }
                 }
                 .disabled(switching)
             }
-            Button("Manage or cancel subscription") { Task { await sub.showManageSubscriptions() } }
-            Button("Restore purchases") { Task { await sub.restore() } }
+            Button("Manage or cancel subscription") {
+                Task { await manageOrCancel() }
+            }
+            .disabled(preparingRetention)
+            Button("Request a refund") {
+                Task { await requestRefund() }
+            }
+            .disabled(requestingRefund)
+            Button("Restore purchases") {
+                Task {
+                    let ok = await sub.restore(paywallVariant: "profile")
+                    if !store.isPremium {
+                        message = ok
+                            ? String(localized: "No active subscription found for this Apple ID.")
+                            : String(localized: "The restore didn't go through. Please try again.")
+                    }
+                }
+            }
             if let message {
                 Text(message).font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
             }
         }
+        .sheet(isPresented: $showRetention) {
+            RetentionOfferSheet(
+                offer: retention,
+                yearlyPrice: sub.annualPriceText ?? "…",
+                monthlyPrice: sub.monthlyPriceText ?? "…",
+                accessUntil: sub.expirationDate.map(AppFormat.longDate),
+                busy: acceptingOffer,
+                onKeep: { showRetention = false },
+                onAccept: { Task { await acceptOffer() } },
+                onCancel: {
+                    showRetention = false
+                    store.track("retention_declined", ["offer": retention.analyticsName])
+                    Task { await sub.showManageSubscriptions() }
+                }
+            )
+        }
     }
 
-    private func switchToYearly(_ annual: Product) async {
+    private func manageOrCancel() async {
+        guard store.isPremium, sub.willRenew else {
+            await sub.showManageSubscriptions()
+            return
+        }
+        preparingRetention = true
+        defer { preparingRetention = false }
+        retention = await sub.prepareRetentionOffer()
+        showRetention = true
+        store.track("retention_shown", ["offer": retention.analyticsName])
+    }
+
+    private func acceptOffer() async {
+        acceptingOffer = true
+        defer { acceptingOffer = false }
+        do {
+            if try await sub.acceptRetentionOffer(retention) {
+                store.track("retention_accepted", ["offer": retention.analyticsName])
+                showRetention = false
+                message = String(localized: "You’re staying on Lemora.")
+            }
+        } catch {
+            message = String(localized: "The change didn’t go through. Please try again.")
+        }
+    }
+
+    private func requestRefund() async {
+        requestingRefund = true
+        defer { requestingRefund = false }
+        switch await sub.requestRefund() {
+        case .success:
+            message = String(localized: "Apple received your refund request.")
+        case .cancelled:
+            break
+        case .unavailable:
+            message = String(localized: "No App Store purchase was found for this account.")
+        case .failed:
+            message = String(localized: "Apple's refund window couldn't open. Try again from the App Store.")
+        }
+    }
+
+    private func switchToYearly() async {
         switching = true
         defer { switching = false }
         do {
-            if try await sub.purchase(annual) {
+            if try await sub.purchase(plan: .annual, paywallVariant: "profile") {
                 message = String(localized: "You’re on the yearly plan.")
             }
         } catch {
             message = String(localized: "The change didn’t go through. Please try again.")
+        }
+    }
+}
+
+extension SubscriptionService.RetentionOffer {
+    var analyticsName: String {
+        switch self {
+        case .promotional: "promotional"
+        case .yearly: "yearly"
+        case .stay: "stay"
+        }
+    }
+}
+
+private struct RetentionOfferSheet: View {
+    let offer: SubscriptionService.RetentionOffer
+    let yearlyPrice: String
+    let monthlyPrice: String
+    let accessUntil: String?
+    let busy: Bool
+    let onKeep: () -> Void
+    let onAccept: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 18) {
+                Text("Before you cancel")
+                    .font(.bw(size: 28, weight: .heavy))
+                    .foregroundStyle(BW.ink)
+                Text(detail)
+                    .font(.bw(.body, weight: .regular))
+                    .foregroundStyle(BW.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if showsAccept {
+                    Button(action: onAccept) {
+                        HStack {
+                            Text(acceptTitle)
+                            Spacer()
+                            if busy { ProgressView() }
+                        }
+                    }
+                    .disabled(busy)
+                }
+                Button("Keep my plan", action: onKeep)
+                Button("Continue to cancel", action: onCancel)
+                    .foregroundStyle(BW.inkSecondary)
+                Spacer(minLength: 0)
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(BW.canvas)
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private var showsAccept: Bool {
+        switch offer {
+        case .stay: false
+        case .yearly, .promotional: true
+        }
+    }
+
+    private var acceptTitle: String {
+        switch offer {
+        case .yearly: String(localized: "Switch to yearly · \(yearlyPrice)/year")
+        case .promotional: String(localized: "Take the offer")
+        case .stay: ""
+        }
+    }
+
+    private var detail: String {
+        switch offer {
+        case .promotional(let title, let line):
+            "\(title). \(line)"
+        case .yearly:
+            String(localized: "Switch to yearly and pay \(yearlyPrice) for the year, instead of \(monthlyPrice) every month.")
+        case .stay:
+            if let accessUntil {
+                String(localized: "You already have the yearly price. You keep access until \(accessUntil) if you stay.")
+            } else {
+                String(localized: "You already have the yearly price. Stay and keep every deal.")
+            }
         }
     }
 }
@@ -596,7 +805,7 @@ struct PrivacyView: View {
             Section("What we use") {
                 Text("Location: only when you open the app, to find nearby stores. You can use a postal code instead.")
                 Text("Profile & goals: to personalize recipes. Lemora is not medical advice and never promises health outcomes.")
-                Text("Usage analytics: anonymous events that help us improve recommendations.")
+                Text("Usage analytics: product events tied to your account id, used to improve Lemora. This is not used to track you across other companies’ apps.")
             }
             Section("Your control") {
                 Text("Everything from onboarding can be edited in Profile. Deleting your account removes your data.")

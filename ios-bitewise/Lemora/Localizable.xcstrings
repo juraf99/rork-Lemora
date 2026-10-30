@@ -27950,6 +27950,138 @@
           }
         }
       }
+    },
+    "per year": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "par année" } },
+        "es": { "stringUnit": { "state": "translated", "value": "al año" } }
+      }
+    },
+    "A free period is on your plan": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Une période gratuite est offerte sur ton forfait" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Hay un periodo gratis en tu plan" } }
+      }
+    },
+    "Take it before you cancel. Apple applies it to this subscription.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Prends-la avant d’annuler. Apple l’applique à cet abonnement." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Tómala antes de cancelar. Apple la aplica a esta suscripción." } }
+      }
+    },
+    "A lower price is on your plan": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Un prix plus bas est offert sur ton forfait" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Hay un precio más bajo en tu plan" } }
+      }
+    },
+    "%@ for the next period, instead of the regular price.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "%@ pour la prochaine période, au lieu du prix habituel." } },
+        "es": { "stringUnit": { "state": "translated", "value": "%@ por el próximo periodo, en lugar del precio normal." } }
+      }
+    },
+    "Before you cancel": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Avant d’annuler" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Antes de cancelar" } }
+      }
+    },
+    "Take the offer": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Prendre l’offre" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Aceptar la oferta" } }
+      }
+    },
+    "Keep my plan": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Garder mon forfait" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Quedarme con mi plan" } }
+      }
+    },
+    "Continue to cancel": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Continuer l’annulation" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Seguir con la cancelación" } }
+      }
+    },
+    "Switch to yearly and pay %@ for the year, instead of %@ every month.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Passe à l’annuel et paie %@ pour l’année, au lieu de %@ chaque mois." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Pasa al anual y paga %@ por el año, en lugar de %@ cada mes." } }
+      }
+    },
+    "You already have the yearly price. You keep access until %@ if you stay.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Tu as déjà le prix annuel. Tu gardes l’accès jusqu’au %@ si tu restes." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Ya tienes el precio anual. Conservas el acceso hasta el %@ si te quedas." } }
+      }
+    },
+    "You already have the yearly price. Stay and keep every deal.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Tu as déjà le prix annuel. Reste et garde toutes les aubaines." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Ya tienes el precio anual. Quédate y conserva todas las ofertas." } }
+      }
+    },
+    "You’re staying on Lemora.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Tu restes sur Lemora." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Te quedas en Lemora." } }
+      }
+    },
+    "Request a refund": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Demander un remboursement" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Pedir un reembolso" } }
+      }
+    },
+    "Apple received your refund request.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Apple a reçu ta demande de remboursement." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Apple recibió tu solicitud de reembolso." } }
+      }
+    },
+    "No App Store purchase was found for this account.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Aucun achat App Store n’a été trouvé pour ce compte." } },
+        "es": { "stringUnit": { "state": "translated", "value": "No se encontró una compra del App Store para esta cuenta." } }
+      }
+    },
+    "Apple's refund window couldn't open. Try again from the App Store.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "La fenêtre de remboursement d’Apple n’a pas pu s’ouvrir. Réessaie depuis l’App Store." } },
+        "es": { "stringUnit": { "state": "translated", "value": "No se pudo abrir la ventana de reembolso de Apple. Inténtalo de nuevo desde el App Store." } }
+      }
+    },
+    "Send me Lemora recipes and deals": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Envoie-moi les recettes et les aubaines Lemora" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Envíame recetas y ofertas de Lemora" } }
+      }
+    },
+    "Only if you agree. You can turn this off anytime.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Seulement si tu es d’accord. Tu peux arrêter n’importe quand." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Solo si estás de acuerdo. Puedes desactivarlo cuando quieras." } }
+      }
+    },
+    "Emails": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Courriels" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Correos" } }
+      }
+    },
+    "Lemora keeps this address for emails only after you turn this on.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Lemora garde cette adresse pour les courriels seulement après que tu l’actives." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Lemora guarda esta dirección para correos solo después de que lo actives." } }
+      }
+    },
+    "The email update didn't go through. Please try again.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "La mise à jour du courriel n’a pas fonctionné. Réessaie." } },
+        "es": { "stringUnit": { "state": "translated", "value": "La actualización del correo no se completó. Inténtalo de nuevo." } }
+      }
     }
   }
 }

@@ -1,5 +1,5 @@
-import SwiftUI
 import StoreKit
+import SwiftUI
 
 // MARK: - Thanks
 
@@ -682,30 +682,26 @@ struct OBPaywallScreen: View {
     @State private var message: String?
     @State private var showPrivacy = false
     @State private var showPromoCode = false
+    @State private var didTrackView = false
 
     private var sub: SubscriptionService { store.subscription }
     private var annual: Bool { m.a.plan == "annual" }
-    private var annualPrice: String { sub.annual?.displayPrice ?? "$39.99" }
-    private var monthlyPrice: String { sub.monthly?.displayPrice ?? "$9.99" }
-    private var annualValue: Double { sub.annual.map(SubscriptionService.amount) ?? 39.99 }
-    private var monthlyValue: Double { sub.monthly.map(SubscriptionService.amount) ?? 9.99 }
-    private var currencyCode: String { sub.annual?.priceFormatStyle.currencyCode ?? (m.currency) }
+    private var paywallVariant: String { m.paywallOnly ? "lapsed" : "onboarding_v2" }
+    private var terms: PaywallTerms { .make(sub: sub, annualSelected: annual) }
+    private var pricesReady: Bool { terms.pricesLoaded }
+    private var annualPrice: String { terms.annualPrice }
+    private var monthlyPrice: String { terms.monthlyPrice }
+    private var currencyCode: String { terms.currencyCode }
     /// Free-trial days on the yearly plan (from the App Store product), when this Apple ID is eligible.
-    private var trialDays: Int? {
-        if SubscriptionService.isTestFlight {
-            // TestFlight purchases are free tests, so testers always see the yearly free-trial design,
-            // even on an Apple ID that already used the trial. The App Store build checks eligibility.
-            return sub.annual.flatMap { SubscriptionService.trialDays(of: $0) } ?? 3
-        }
-        guard let product = sub.annual else { return nil }
-        guard sub.isEligibleForTrial, let days = SubscriptionService.trialDays(of: product), days > 0 else { return nil }
-        return days
-    }
-    private var savePercent: Int { max(0, Int(((1 - annualValue / (monthlyValue * 12)) * 100).rounded())) }
-    private var perMonth: String { (annualValue / 12).formatted(.currency(code: currencyCode).presentation(.narrow).locale(AppLanguage.current.locale)) }
+    /// Monthly never has a trial. Nothing is invented before StoreKit prices load.
+    private var trialDays: Int? { terms.trialDays }
+    private var savePercent: Int { terms.savingsPercent ?? 0 }
 
     /// Copy from "Lemora Paywall 2.0". Prices are the App Store prices in the buyer's own currency.
     private var timeline: [(String, String, String)] {
+        guard pricesReady else {
+            return [("🔓", String(localized: "Today"), String(localized: "Prices load from the App Store."))]
+        }
         if annual, let days = trialDays {
             let reminderDay = TrialReminderService.reminderDay(forTrialDays: days)
             return [("🔓", "Today", "Everything unlocked: unlimited swipes, every deal"),
@@ -724,6 +720,7 @@ struct OBPaywallScreen: View {
     }
 
     private var cta: String {
+        guard pricesReady else { return String(localized: "Loading prices…") }
         if annual {
             if let days = trialDays { return String(localized: "START MY \(days)-DAY FREE TRIAL") }
             return String(localized: "Continue · \(annualPrice)/yr")
@@ -732,6 +729,7 @@ struct OBPaywallScreen: View {
     }
 
     private var legal: String {
+        guard pricesReady else { return String(localized: "Prices load from the App Store.") }
         if annual, let days = trialDays {
             return String(localized: "\(days) days free, then \(annualPrice)/year (\(currencyCode)). We’ll remind you before your free trial ends.")
         }
@@ -791,16 +789,16 @@ struct OBPaywallScreen: View {
                 Spacer(minLength: 12)
                     .frame(maxHeight: 32)
 
-                OBWeightedRow(weights: [1.25, 1], spacing: 10) {
-                    planCard(id: "annual", name: "Yearly", price: annualPrice, unit: String(localized: "\(perMonth) / month"),
-                             terms: trialDays.map { String(localized: "\($0) days free") } ?? "Billed yearly",
+                VStack(spacing: 12) {
+                    planCard(id: "annual", name: "Yearly", price: annualPrice, unit: String(localized: "per year"),
+                             terms: pricesReady ? (trialDays.map { String(localized: "\($0) days free") } ?? "Billed yearly") : "…",
                              badge: savePercent > 0 ? String(localized: "BEST VALUE · −\(savePercent)%") : "BEST VALUE")
                     planCard(id: "monthly", name: "Monthly", price: monthlyPrice, unit: "per month", terms: "No trial", badge: nil)
                 }
                 .padding(.top, 11)
                 .obIn(delay: 0.38, duration: 0.4)
 
-                OBPrimaryButton(title: cta, shine: true, loading: purchasing) { Task { await purchase() } }
+                OBPrimaryButton(title: cta, enabled: pricesReady, shine: true, loading: purchasing) { Task { await purchase() } }
                     .padding(.top, 14)
                 if let message {
                     Text(message).font(OB.font(11.5, 600)).foregroundStyle(OB.red)
@@ -811,7 +809,10 @@ struct OBPaywallScreen: View {
                 HStack(spacing: 18) {
                     Button("Restore") { Task { await restore() } }
                     Button("Promo code") { showPromoCode = true }
-                    Button("Terms & Privacy") { showPrivacy = true }
+                    if let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/") {
+                        Link("Terms", destination: termsURL)
+                    }
+                    Button("Privacy") { showPrivacy = true }
                 }
                 .font(OB.font(11.5, 700))
                 .foregroundStyle(OB.sub)
@@ -832,7 +833,10 @@ struct OBPaywallScreen: View {
             .ignoresSafeArea()
         }
         .overlay(alignment: .topLeading) {
-            OBBackButton(size: 34) { m.go(.plan) }
+            OBBackButton(size: 34) {
+                store.track("paywall_dismissed", sub.analyticsProperties(plan: annual ? "annual" : "monthly", paywallVariant: paywallVariant))
+                m.go(.plan)
+            }
                 .padding(.top, 4)
                 .padding(.leading, 16)
         }
@@ -840,15 +844,21 @@ struct OBPaywallScreen: View {
         // Apple's own sheet for subscription offer codes (created in App Store Connect).
         .offerCodeRedemption(isPresented: $showPromoCode) { _ in
             Task {
-                await sub.restore()
+                _ = await sub.restore(paywallVariant: paywallVariant)
                 if store.isPremium {
                     m.a.completed = true
                     m.go(.done)
                 }
             }
         }
-        .task { if !sub.productsAvailable { await sub.loadProducts() } }
-        .onAppear { store.track("paywall_viewed", ["context": "onboarding_v2"]) }
+        .task {
+            if !sub.pricesLoaded { await sub.loadProducts() }
+            guard !didTrackView else { return }
+            didTrackView = true
+            var props = sub.analyticsProperties(plan: annual ? "annual" : "monthly", paywallVariant: paywallVariant)
+            props["context"] = paywallVariant
+            store.track("paywall_viewed", props)
+        }
     }
 
     private var hero: some View {
@@ -873,29 +883,35 @@ struct OBPaywallScreen: View {
 
     private func planCard(id: String, name: String, price: String, unit: String, terms: String, badge: String?) -> some View {
         let on = m.a.plan == id
-        return Button { m.a.plan = id } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(verbatim: lemoraLocalized(name).uppercased()).font(OB.font(12, 800)).tracking(0.72).foregroundStyle(on ? .white.opacity(0.72) : OB.sub)
-                Text(price).font(OB.font(25, 800)).tracking(-0.75).foregroundStyle(on ? .white : OB.ink)
-                    .lineLimit(1).minimumScaleFactor(0.7).padding(.top, 6)
-                Text(unit).font(OB.font(11.5, 600)).foregroundStyle(on ? .white.opacity(0.72) : OB.sub).padding(.top, 2)
-                Text(terms).font(OB.font(11.5, 700)).foregroundStyle(on ? OB.lemon : OB.green).padding(.top, 8)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(.horizontal, 16)
-            .padding(.top, badge == nil ? 16 : 22)
-            .padding(.bottom, 15)
-            .background(on ? OB.ink : .white, in: .rect(cornerRadius: 24))
-            .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(on ? OB.ink : OB.inputBorder, lineWidth: 2))
-            .overlay(alignment: .topLeading) {
-                if let badge {
-                    Text(badge).font(OB.font(10, 800)).tracking(0.4).foregroundStyle(OB.ink)
-                        .padding(.horizontal, 10).padding(.vertical, 5)
-                        .background(OB.lemon, in: .capsule)
-                        .fixedSize()
-                        .offset(x: 14, y: -11)
+        return Button {
+            guard m.a.plan != id else { return }
+            m.a.plan = id
+            store.track("plan_selected", sub.analyticsProperties(plan: id, paywallVariant: paywallVariant))
+        } label: {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(verbatim: lemoraLocalized(name).uppercased()).font(OB.font(12, 800)).tracking(0.72).foregroundStyle(on ? .white.opacity(0.72) : OB.sub)
+                    Text(terms).font(OB.font(13, 700)).foregroundStyle(on ? OB.lemon : OB.green)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let badge {
+                        Text(badge).font(OB.font(10, 800)).tracking(0.4).foregroundStyle(OB.ink)
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(OB.lemon, in: .capsule)
+                            .padding(.top, 4)
+                    }
+                }
+                Spacer(minLength: 8)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(price).font(OB.font(28, 800)).tracking(-0.8).foregroundStyle(on ? .white : OB.ink)
+                        .lineLimit(1).minimumScaleFactor(0.6)
+                    Text(unit).font(OB.font(12, 600)).foregroundStyle(on ? .white.opacity(0.72) : OB.sub)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+            .background(on ? OB.ink : .white, in: .rect(cornerRadius: 24))
+            .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(on ? OB.ink : OB.inputBorder, lineWidth: 2))
             .shadow(color: on ? OB.ink.opacity(0.28) : .clear, radius: 13, x: 0, y: 12)
             .scaleEffect(on ? 1.02 : 0.98)
             .animation(.easeInOut(duration: 0.25), value: on)
@@ -904,18 +920,18 @@ struct OBPaywallScreen: View {
     }
 
     private func purchase() async {
-        guard let product = annual ? sub.annual : sub.monthly else {
+        guard pricesReady else {
             message = String(localized: "Subscriptions aren’t available right now. Please try again.")
             await sub.loadProducts()
             return
         }
+        guard !purchasing else { return }
         purchasing = true
         message = nil
         defer { purchasing = false }
         do {
-            if try await sub.purchase(product) {
-                if annual, let days = trialDays { store.recordTrialStart(days: days, priceText: annualPrice) }
-                store.track("subscription_started", ["plan": product.id])
+            if try await sub.purchase(plan: annual ? .annual : .monthly, paywallVariant: paywallVariant) {
+                if sub.isInTrial, annual, let days = trialDays { store.recordTrialStart(days: days) }
                 m.a.completed = true
                 m.go(.done)
             }
@@ -925,8 +941,14 @@ struct OBPaywallScreen: View {
     }
 
     private func restore() async {
-        await sub.restore()
-        if store.isPremium { m.go(.done) } else { message = String(localized: "No active subscription found for this Apple ID.") }
+        let ok = await sub.restore(paywallVariant: paywallVariant)
+        if store.isPremium {
+            m.go(.done)
+        } else if ok {
+            message = String(localized: "No active subscription found for this Apple ID.")
+        } else {
+            message = String(localized: "The restore didn’t go through. Please try again.")
+        }
     }
 }
 
