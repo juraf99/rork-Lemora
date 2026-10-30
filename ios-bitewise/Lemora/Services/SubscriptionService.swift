@@ -201,6 +201,96 @@ final class SubscriptionService {
         syncTrialReminder()
     }
 
+    /// Offer shown before Apple's cancel sheet. A promotional offer comes from the current RevenueCat
+    /// package when Apple has one for this subscriber. Otherwise a monthly subscriber is offered the yearly price.
+    enum RetentionOffer: Equatable {
+        case promotional(title: String, detail: String)
+        case yearly
+        case stay
+    }
+
+    @ObservationIgnored private var pendingPromoPackage: Package?
+    @ObservationIgnored private var pendingPromoOffer: PromotionalOffer?
+
+    func prepareRetentionOffer() async -> RetentionOffer {
+        pendingPromoPackage = nil
+        pendingPromoOffer = nil
+        var packages: [Package] = []
+        if let current = package(for: activePlanIsMonthly ? .monthly : .annual) { packages.append(current) }
+        if let annualPackage, !packages.contains(where: { $0.identifier == annualPackage.identifier }) {
+            packages.append(annualPackage)
+        }
+        for package in packages {
+            let offers = await Purchases.shared.eligiblePromotionalOffers(forProduct: package.storeProduct)
+            guard let offer = offers.first else { continue }
+            pendingPromoPackage = package
+            pendingPromoOffer = offer
+            let discount = offer.discount
+            if discount.paymentMode == .freeTrial {
+                return .promotional(
+                    title: String(localized: "A free period is on your plan"),
+                    detail: String(localized: "Take it before you cancel. Apple applies it to this subscription."))
+            }
+            let price = discount.localizedPriceString
+            return .promotional(
+                title: String(localized: "A lower price is on your plan"),
+                detail: price.isEmpty
+                    ? String(localized: "Take it before you cancel. Apple applies it to this subscription.")
+                    : String(localized: "\(price) for the next period, instead of the regular price."))
+        }
+        if activePlanIsMonthly, annualPriceText != nil { return .yearly }
+        return .stay
+    }
+
+    /// Buys the prepared promotional offer, or switches a monthly plan to yearly. Returns false when the person backs out.
+    func acceptRetentionOffer(_ offer: RetentionOffer) async throws -> Bool {
+        switch offer {
+        case .promotional:
+            guard let package = pendingPromoPackage, let promo = pendingPromoOffer else { return false }
+            let result = try await Purchases.shared.purchase(package: package, promotionalOffer: promo)
+            if result.userCancelled { return false }
+            apply(result.customerInfo)
+            return hasActiveSubscription
+        case .yearly:
+            return try await purchase(plan: .annual, paywallVariant: "retention")
+        case .stay:
+            return true
+        }
+    }
+
+    enum RefundRequestResult { case success, cancelled, unavailable, failed }
+
+    /// Opens Apple's refund request sheet for the latest Lemora subscription transaction.
+    func requestRefund() async -> RefundRequestResult {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        guard let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first else {
+            return .failed
+        }
+        var ids: [String] = []
+        if let activeProductId { ids.append(activeProductId) }
+        if let id = annualPackage?.storeProduct.productIdentifier { ids.append(id) }
+        if let id = monthlyPackage?.storeProduct.productIdentifier { ids.append(id) }
+        ids.append(contentsOf: [Self.annualId, Self.monthlyId])
+        var seen = Set<String>()
+        for id in ids where seen.insert(id).inserted {
+            guard let result = await Transaction.latest(for: id), case .verified(let transaction) = result,
+                  transaction.revocationDate == nil else { continue }
+            do {
+                Analytics.capture("refund_requested", ["product_id": id])
+                let status = try await transaction.beginRefundRequest(in: scene)
+                switch status {
+                case .success: return .success
+                case .userCancelled: return .cancelled
+                @unknown default: return .failed
+                }
+            } catch {
+                logger.error("Refund request failed")
+                return .failed
+            }
+        }
+        return .unavailable
+    }
+
     /// Apple's own subscription sheet: cancel (access stays until the end of the period) or change plan.
     func showManageSubscriptions() async {
         do {
@@ -373,7 +463,7 @@ final class SubscriptionService {
         }
     }
 
-    private static func days(period: SubscriptionPeriod, multiplier: Int) -> Int? {
+    private static func days(period: RevenueCat.SubscriptionPeriod, multiplier: Int) -> Int? {
         let value = period.value * multiplier
         switch period.unit {
         case .day: return value

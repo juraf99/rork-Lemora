@@ -1,3 +1,4 @@
+import StoreKit
 import SwiftUI
 
 // MARK: - Thanks
@@ -695,7 +696,6 @@ struct OBPaywallScreen: View {
     /// Monthly never has a trial. Nothing is invented before StoreKit prices load.
     private var trialDays: Int? { terms.trialDays }
     private var savePercent: Int { terms.savingsPercent ?? 0 }
-    private var perMonth: String { terms.annualPerMonth }
 
     /// Copy from "Lemora Paywall 2.0". Prices are the App Store prices in the buyer's own currency.
     private var timeline: [(String, String, String)] {
@@ -789,8 +789,8 @@ struct OBPaywallScreen: View {
                 Spacer(minLength: 12)
                     .frame(maxHeight: 32)
 
-                OBWeightedRow(weights: [1.25, 1], spacing: 10) {
-                    planCard(id: "annual", name: "Yearly", price: annualPrice, unit: String(localized: "\(perMonth) / month"),
+                VStack(spacing: 12) {
+                    planCard(id: "annual", name: "Yearly", price: annualPrice, unit: String(localized: "per year"),
                              terms: pricesReady ? (trialDays.map { String(localized: "\($0) days free") } ?? "Billed yearly") : "…",
                              badge: savePercent > 0 ? String(localized: "BEST VALUE · −\(savePercent)%") : "BEST VALUE")
                     planCard(id: "monthly", name: "Monthly", price: monthlyPrice, unit: "per month", terms: "No trial", badge: nil)
@@ -809,7 +809,10 @@ struct OBPaywallScreen: View {
                 HStack(spacing: 18) {
                     Button("Restore") { Task { await restore() } }
                     Button("Promo code") { showPromoCode = true }
-                    Button("Terms & Privacy") { showPrivacy = true }
+                    if let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/") {
+                        Link("Terms", destination: termsURL)
+                    }
+                    Button("Privacy") { showPrivacy = true }
                 }
                 .font(OB.font(11.5, 700))
                 .foregroundStyle(OB.sub)
@@ -885,28 +888,30 @@ struct OBPaywallScreen: View {
             m.a.plan = id
             store.track("plan_selected", sub.analyticsProperties(plan: id, paywallVariant: paywallVariant))
         } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(verbatim: lemoraLocalized(name).uppercased()).font(OB.font(12, 800)).tracking(0.72).foregroundStyle(on ? .white.opacity(0.72) : OB.sub)
-                Text(price).font(OB.font(25, 800)).tracking(-0.75).foregroundStyle(on ? .white : OB.ink)
-                    .lineLimit(1).minimumScaleFactor(0.7).padding(.top, 6)
-                Text(unit).font(OB.font(11.5, 600)).foregroundStyle(on ? .white.opacity(0.72) : OB.sub).padding(.top, 2)
-                Text(terms).font(OB.font(11.5, 700)).foregroundStyle(on ? OB.lemon : OB.green).padding(.top, 8)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(.horizontal, 16)
-            .padding(.top, badge == nil ? 16 : 22)
-            .padding(.bottom, 15)
-            .background(on ? OB.ink : .white, in: .rect(cornerRadius: 24))
-            .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(on ? OB.ink : OB.inputBorder, lineWidth: 2))
-            .overlay(alignment: .topLeading) {
-                if let badge {
-                    Text(badge).font(OB.font(10, 800)).tracking(0.4).foregroundStyle(OB.ink)
-                        .padding(.horizontal, 10).padding(.vertical, 5)
-                        .background(OB.lemon, in: .capsule)
-                        .fixedSize()
-                        .offset(x: 14, y: -11)
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(verbatim: lemoraLocalized(name).uppercased()).font(OB.font(12, 800)).tracking(0.72).foregroundStyle(on ? .white.opacity(0.72) : OB.sub)
+                    Text(terms).font(OB.font(13, 700)).foregroundStyle(on ? OB.lemon : OB.green)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let badge {
+                        Text(badge).font(OB.font(10, 800)).tracking(0.4).foregroundStyle(OB.ink)
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(OB.lemon, in: .capsule)
+                            .padding(.top, 4)
+                    }
+                }
+                Spacer(minLength: 8)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(price).font(OB.font(28, 800)).tracking(-0.8).foregroundStyle(on ? .white : OB.ink)
+                        .lineLimit(1).minimumScaleFactor(0.6)
+                    Text(unit).font(OB.font(12, 600)).foregroundStyle(on ? .white.opacity(0.72) : OB.sub)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+            .background(on ? OB.ink : .white, in: .rect(cornerRadius: 24))
+            .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(on ? OB.ink : OB.inputBorder, lineWidth: 2))
             .shadow(color: on ? OB.ink.opacity(0.28) : .clear, radius: 13, x: 0, y: 12)
             .scaleEffect(on ? 1.02 : 0.98)
             .animation(.easeInOut(duration: 0.25), value: on)

@@ -1,3 +1,4 @@
+import StoreKit
 import SwiftUI
 
 /// Lemora paywall (hard paywall, single paid plan). Layout follows the approved reference: sunny Zesty hero, premium pill,
@@ -206,10 +207,10 @@ struct PaywallView: View {
 
     private var planCards: some View {
         let t = terms
-        return HStack(alignment: .top, spacing: 12) {
+        return VStack(spacing: 16) {
             PaywallPlanCard(
                 title: String(localized: "YEARLY"), price: t.annualPrice,
-                detail: String(localized: "\(t.annualPerMonth) / month"),
+                detail: String(localized: "per year"),
                 note: t.pricesLoaded ? (t.annualTrialDays.map { String(localized: "\($0) days free") } ?? String(localized: "Billed yearly")) : "…",
                 badge: t.savingsPercent.map { String(localized: "BEST VALUE · -\($0)%") },
                 selected: annualSelected) {

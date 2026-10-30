@@ -41,9 +41,9 @@ nonisolated struct PaywallTerms: Sendable {
     var ctaTitle: String {
         guard pricesLoaded else { return String(localized: "Loading prices…") }
         switch trialDays {
-        case .some(7): String(localized: "Start My Free Week")
-        case .some(let days): String(localized: "Start My \(days)-Day Free Trial")
-        case .none: String(localized: "Unlock My Full Plan")
+        case .some(7): return String(localized: "Start My Free Week")
+        case .some(let days): return String(localized: "Start My \(days)-Day Free Trial")
+        case .none: return String(localized: "Unlock My Full Plan")
         }
     }
 

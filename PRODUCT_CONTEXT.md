@@ -18,7 +18,11 @@ Profile preference editors now reuse Claude's onboarding screens, including thei
 
 Authentication uses Clerk, including Apple, Google and email verification. Onboarding and Ask must both obtain the current Clerk session with `Clerk.shared.auth.getToken()`. RevenueCat ties purchases to the Clerk user ID. The entitlement is `lemora_pro`. The paywall buys the current offering's `$rc_annual` and `$rc_monthly` packages, so Offerings and Experiments choose the products. Prices and the free trial come from the StoreKit product. The yearly plan is $29.99 USD with a 3-day free trial. Monthly is $9.99 with no trial. Until StoreKit loads, the paywall shows a placeholder instead of a price.
 
-Product analytics go to PostHog (US cloud, project 684936). People are identified with the Clerk user id after RevenueCat `logIn`. Signing out resets that person and signs out of Clerk and RevenueCat. GeoIP lookup is off. The App Store privacy label should list Usage Data and User ID as linked to the user, and Tracking as no.
+Product analytics go to PostHog (US cloud, project 684936). People are identified with the Clerk user id after RevenueCat `logIn`. Signing out resets that person and signs out of Clerk and RevenueCat. GeoIP lookup is off. Each onboarding screen sends `onboarding_screen_viewed`. The App Store privacy label should list Usage Data and User ID as linked to the user, and Tracking as no.
+
+Price tests use the current RevenueCat offering only (`$rc_annual` and `$rc_monthly`). Superwall is not part of Lemora. Both paywalls show the StoreKit price that will be charged, in one column, with the trial terms, Terms, Privacy and Restore.
+
+Profile can request an Apple refund, and shows a retention offer before cancellation: an eligible RevenueCat promotional offer when Apple has one, otherwise the yearly price for a monthly subscriber. Marketing email is off until the person opts in. That choice is stored in Resend by `marketing-consent`.
 
 Trial availability and displayed billing terms depend on the actual StoreKit product and the Apple account's eligibility. Preserve the trial/no-trial variants. Claude's downloaded `apply-timeline.yml` corrects the paywall connectors by sizing each timeline row to its content; that source change is included directly in this integration.
 
