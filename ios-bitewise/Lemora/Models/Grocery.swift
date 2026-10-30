@@ -161,7 +161,7 @@ nonisolated struct Deal: Identifiable, Hashable, Sendable {
 
         if unit == .g {
             if let perGram { return perGram * quantity }
-            if let pack = packGrams { return price * quantity / pack }
+            if let pack = packGrams, pack > 0 { return price * Self.packs(toCover: quantity, pack: pack) }
         }
         if unit == .ml, label.contains("/l") || label.contains("perlitre") || label.contains("perliter") {
             return price * quantity / 1_000
@@ -171,14 +171,24 @@ nonisolated struct Deal: Identifiable, Hashable, Sendable {
                 guard let gramsPerUnit else { return nil }
                 return perGram * gramsPerUnit * quantity
             }
-            if let count = packCount { return price / Double(count) * quantity }
-            if let pack = packGrams, let gramsPerUnit, pack >= gramsPerUnit * 2 { return price * gramsPerUnit * quantity / pack }
-            return price * quantity
+            // Buy whole packages. A 6-pack that is more than the recipe needs is paid in full,
+            // so a bulk store does not look cheaper than a smaller pack that already covers the meal.
+            if let count = packCount, count > 0 { return price * Self.packs(toCover: quantity, pack: Double(count)) }
+            if let pack = packGrams, let gramsPerUnit, pack > 0 {
+                return price * Self.packs(toCover: gramsPerUnit * quantity, pack: pack)
+            }
+            return price * max(1, quantity.rounded(.up))
         }
         if unit == .can {
-            return price * quantity
+            return price * max(1, quantity.rounded(.up))
         }
         return nil
+    }
+
+    /// How many packs you pay for. One pack is the smallest purchase that covers `needed`.
+    private static func packs(toCover needed: Double, pack: Double) -> Double {
+        guard needed > 0, pack > 0 else { return 1 }
+        return max(1, (needed / pack).rounded(.up))
     }
 
     func isActive(at date: Date) -> Bool {
@@ -265,12 +275,20 @@ nonisolated struct StorePrice: Identifiable, Hashable, Sendable {
             if label == "lb" { return currentPrice * quantity / 453.59237 }
             if label == "kg" { return currentPrice * quantity / 1_000 }
             if label == "100g" { return currentPrice * quantity / 100 }
+            if let pack = Deal.packGrams(in: sizeText), pack > 0 {
+                return currentPrice * max(1, (quantity / pack).rounded(.up))
+            }
         }
         if unit == .ml {
             if label == "l" { return currentPrice * quantity / 1_000 }
             if label == "100ml" { return currentPrice * quantity / 100 }
         }
-        if unit == .unit || unit == .can { return currentPrice * quantity }
+        if unit == .unit || unit == .can {
+            if let count = Deal.packCount(in: sizeText), count > 0 {
+                return currentPrice * max(1, (quantity / Double(count)).rounded(.up))
+            }
+            return currentPrice * max(1, quantity.rounded(.up))
+        }
         return nil
     }
 }

@@ -303,24 +303,40 @@ extension Deal {
     /// True when the price is for one item or one package, not for a weight.
     nonisolated var isPiecePriced: Bool { weightPricePerGram == nil }
 
-    /// Package weight from the size text ("340g", "1,36 kg", "3 lb").
+    /// Package weight from the size text ("340g", "1,36 kg", "6 × 900 g"). A multipack is one purchase.
     nonisolated var packGrams: Double? {
-        guard isPiecePriced, let text = sizeText?.lowercased().replacingOccurrences(of: ",", with: ".") else { return nil }
-        let pattern = #"(\d+(?:\.\d+)?)\s*(kg|g|lb|lbs)\b"#
-        guard let regex = try? NSRegularExpression(pattern: pattern),
-              let m = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
-              let numberRange = Range(m.range(at: 1), in: text), let unitRange = Range(m.range(at: 2), in: text),
-              let value = Double(text[numberRange]), value > 0 else { return nil }
-        switch text[unitRange] {
-        case "kg": return value * 1_000
-        case "lb", "lbs": return value * 453.59237
-        default: return value >= 20 ? value : nil // "0.872g" style typos are ignored
-        }
+        guard isPiecePriced else { return nil }
+        return Self.packGrams(in: sizeText)
     }
 
     /// Number of pieces in a package ("12un", "Paquet de 6", "3 UN", "6 pk").
     nonisolated var packCount: Int? {
-        guard isPiecePriced, let text = sizeText?.lowercased() else { return nil }
+        guard isPiecePriced else { return nil }
+        return Self.packCount(in: sizeText)
+    }
+
+    nonisolated static func packGrams(in sizeText: String?) -> Double? {
+        guard let text = sizeText?.lowercased().replacingOccurrences(of: ",", with: ".") else { return nil }
+        let multi = #"(\d+)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(kg|g|lb|lbs)\b"#
+        if let regex = try? NSRegularExpression(pattern: multi),
+           let m = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+           let countRange = Range(m.range(at: 1), in: text),
+           let numberRange = Range(m.range(at: 2), in: text),
+           let unitRange = Range(m.range(at: 3), in: text),
+           let count = Double(text[countRange]), let value = Double(text[numberRange]),
+           let one = grams(value, unit: String(text[unitRange])) {
+            return count * one
+        }
+        let pattern = #"(\d+(?:\.\d+)?)\s*(kg|g|lb|lbs)\b"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let m = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let numberRange = Range(m.range(at: 1), in: text), let unitRange = Range(m.range(at: 2), in: text),
+              let value = Double(text[numberRange]) else { return nil }
+        return grams(value, unit: String(text[unitRange]))
+    }
+
+    nonisolated static func packCount(in sizeText: String?) -> Int? {
+        guard let text = sizeText?.lowercased() else { return nil }
         let patterns = [#"(\d+)\s*(un|unités?|units?|pk|pack|ct|count|ea)\b"#, #"(?:paquet|pack|sac|bag) de (\d+)"#]
         for pattern in patterns {
             guard let regex = try? NSRegularExpression(pattern: pattern),
@@ -329,5 +345,14 @@ extension Deal {
             return n
         }
         return nil
+    }
+
+    private nonisolated static func grams(_ value: Double, unit: String) -> Double? {
+        guard value > 0 else { return nil }
+        switch unit {
+        case "kg": return value * 1_000
+        case "lb", "lbs": return value * 453.59237
+        default: return value >= 20 ? value : nil
+        }
     }
 }

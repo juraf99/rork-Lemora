@@ -247,6 +247,21 @@ final class AppStore {
                            storeNames: names, averagePerServing: perServing, sampleWeeklySavings: topSavings)
     }
 
+    /// This week's savings from real flyer deals for the stores picked in onboarding.
+    /// The number is the sum of the four recipes that save the most. It is not a percent of the budget.
+    func flyerWeekSavings(country: String, postal: String, storeNames: [String], household: Int) async -> FlyerWeekSavings? {
+        let supported = SupportedCountry(rawValue: country) ?? .canada
+        let location = UserLocation.manual(country: supported, postalCode: postal)
+        guard let fetched = try? await SupabaseService.shared.fetchActiveDeals(location: location) else { return nil }
+        let ids = Set(storeNames.map(OnboardingModel.storeId))
+        let scoped = (ids.isEmpty ? fetched : fetched.filter { ids.contains($0.retailerId) }).filter { !$0.isSampleData && $0.isActive(at: .now) }
+        guard !scoped.isEmpty else { return FlyerWeekSavings(weekly: 0, dealCount: 0, ends: nil) }
+        let servings = min(12, max(1, household))
+        let saved = recipes.map { pricing.price(recipe: $0, servings: servings, deals: scoped).savings }.sorted(by: >)
+        let weekly = saved.prefix(4).reduce(0, +)
+        return FlyerWeekSavings(weekly: weekly, dealCount: scoped.count, ends: scoped.map(\.validUntil).min())
+    }
+
     func updateProfile(_ change: (inout UserProfile) -> Void) {
         let previousLocation = data.profile.location
         mutate { change(&$0.profile) }

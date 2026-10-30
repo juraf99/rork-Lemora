@@ -4,6 +4,19 @@ import SwiftUI
 
 struct OBLandingScreen: View {
     @Environment(OnboardingModel.self) private var m
+    @Environment(AppStore.self) private var store
+
+    /// A live flyer deal that is already used by a recipe. Nothing here is invented.
+    private var spotlight: (deal: Deal, recipe: Recipe, savings: Double)? {
+        let now = Date()
+        let ranked = store.deals.filter { !$0.isSampleData && $0.isActive(at: now) }
+            .sorted { ($0.discountPercent ?? 0) > ($1.discountPercent ?? 0) }
+        for deal in ranked.prefix(60) {
+            guard let meal = store.recipesUsing(ingredientId: deal.ingredientId).max(by: { $0.price.savings < $1.price.savings }) else { continue }
+            return (deal, meal.recipe, meal.price.savings)
+        }
+        return nil
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -12,29 +25,27 @@ struct OBLandingScreen: View {
                 .overlay(alignment: .trailing) { LanguageMenu() }
             Spacer(minLength: 0)
             VStack(spacing: 0) {
-                ZStack {
-                    Circle().fill(OB.sunSoft).frame(width: 240, height: 240)
-                    OBRays(opacity: 0.28, inner: 0.48, outer: 0.72, duration: 36, diameter: 300)
-                    ZestyMascot(mood: .talking, size: 150, seedKey: "land")
-                    Text("Hi, I’m Zesty!")
-                        .font(OB.font(12.5, 700))
-                        .foregroundStyle(OB.ink)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 9)
-                        .background(.white, in: UnevenRoundedRectangle(topLeadingRadius: 16, bottomLeadingRadius: 4, bottomTrailingRadius: 16, topTrailingRadius: 16))
-                        .shadow(color: OB.ink.opacity(0.1), radius: 9, x: 0, y: 6)
-                        .obPop(delay: 0.35, duration: 0.5)
-                        .offset(x: 105, y: -78)
+                if let spotlight {
+                    dealCard(spotlight.deal, recipe: spotlight.recipe, savings: spotlight.savings)
+                } else {
+                    ZStack {
+                        Circle().fill(OB.sunSoft).frame(width: 200, height: 200)
+                        OBRays(opacity: 0.28, inner: 0.48, outer: 0.72, duration: 36, diameter: 260)
+                        ZestyMascot(mood: .talking, size: 130, seedKey: "land")
+                    }
+                    .frame(width: 200, height: 200)
+                    .obPop()
                 }
-                .frame(width: 240, height: 240)
-                .obPop()
 
-                OBText("Meals you love, at prices you’ll love more.", 36, 800, tracking: -0.035, align: .center)
+                OBText("Meals you love, at prices you’ll love more.", 32, 800, tracking: -0.035, align: .center)
                     .lineSpacing(-4)
-                    .padding(.top, 34)
-                OBText("I’ll learn your taste, then match it with the best grocery deals near you.", 15, 500, color: OB.muted, align: .center)
+                    .padding(.top, 22)
+                OBText(spotlight == nil
+                       ? "I’ll learn your taste, then match it with the best grocery deals near you."
+                       : "This is a real deal from this week’s flyer, turned into a recipe.",
+                       15, 500, color: OB.muted, align: .center)
                     .lineSpacing(3)
-                    .frame(maxWidth: 290)
+                    .frame(maxWidth: 300)
                     .padding(.top, 12)
             }
             Spacer(minLength: 0)
@@ -50,6 +61,27 @@ struct OBLandingScreen: View {
         .padding(.top, 8)
         .padding(.bottom, 8)
         .background(OB.sun(rx: 1.1, ry: 0.55, cy: 0.34, stop: 0.64))
+    }
+
+    private func dealCard(_ deal: Deal, recipe: Recipe, savings: Double) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            FoodImage(name: recipe.imageName, height: 140, radius: 18)
+            Text(recipe.title).font(OB.font(18, 800)).foregroundStyle(OB.ink).lineLimit(2)
+            Text("\(deal.displayName) · \(deal.retailerDisplayName) · \(deal.priceText)")
+                .font(OB.font(13, 600)).foregroundStyle(OB.sub).lineLimit(2)
+            if savings > 0.5 {
+                Text("Saves \(Money.format(savings)) on this recipe")
+                    .font(OB.font(13, 800)).foregroundStyle(OB.green)
+            }
+            Text(DealTiming.endText(deal.validUntil))
+                .font(OB.font(12.5, 700)).foregroundStyle(OB.ink)
+            Text("The flyer really ends then. This is not a countdown we made up.")
+                .font(OB.font(12, 500)).foregroundStyle(OB.faint)
+        }
+        .padding(12)
+        .background(.white, in: .rect(cornerRadius: 24))
+        .shadow(color: OB.ink.opacity(0.08), radius: 10, y: 4)
+        .padding(.horizontal, 4)
     }
 }
 
@@ -211,12 +243,12 @@ struct OBStepScreen: View {
                                 : ("What do you love eating?", "Pick a few. Swipes refine the rest.", .idle)
         case .people: return ("How many people do you cook for each week?", "Counting you. Everyone at the table.", .talking)
         case .diet: return ("Do you follow a specific diet?", "Pick all that apply. I’ll keep them compatible.", .talking)
-        case .allergies: return ("Do you have any food allergies?", "These are strict. I’ll never show recipes with them.", .curious)
+        case .allergies: return ("Any allergies or foods you’d rather skip?", "Allergies are strict. Foods you’d rather not eat are taste only.", .curious)
         case .dislikes: return ("Anything you’d rather not eat?", "Tap a few or search any ingredient.", .talking)
         case .meals: return ("What kind of recipes are you looking for?", "Pick the meals you want ideas for.", .idea)
         case .location: return ("Where are you shopping from?", "I use this to find stores and deals near you.", .thinking)
         case .stores: return ("Where do you shop?", "Pick every store you’d go to.", .cart)
-        case .budget: return ("What’s your weekly grocery budget?", hh == 1 ? String(localized: "For your whole household. I started from 1 person.") : String(localized: "For your whole household. I started from \(hh) people."), .thinking)
+        case .budget: return ("What’s your weekly grocery budget?", hh == 1 ? String(localized: "For your whole household. I started from 1 person. Then tell me how you like to shop.") : String(localized: "For your whole household. I started from \(hh) people. Then tell me how you like to shop."), .thinking)
         case .strategy: return ("How do you like to shop?", "I’ll plan your list around this.", .cart)
         default: return ("", "", .idle)
         }
@@ -278,8 +310,8 @@ struct OBStepScreen: View {
                     .font(OB.font(13, 700))
                     .foregroundStyle(OB.faint)
                     .buttonStyle(.plain)
-                    .opacity([.location, .stores].contains(m.screen) ? 0 : 1)
-                    .disabled([.location, .stores].contains(m.screen))
+                    .opacity(m.skipLocked ? 0.35 : 1)
+                    .disabled(m.skipLocked)
             }
 
             if m.screen != .weightAsk {
@@ -322,7 +354,7 @@ struct OBStepScreen: View {
             .padding(.top, 16)
 
             Button { m.next() } label: {
-                Text(m.screen == .strategy ? "CONTINUE" : "Continue")
+                Text(m.screen == .budget ? "CONTINUE" : "Continue")
                     .font(OB.font(17, 800))
                     .foregroundStyle(m.canContinue ? OB.ink : OB.disabledText)
                     .frame(maxWidth: .infinity).frame(height: 58)
@@ -351,12 +383,27 @@ struct OBStepScreen: View {
         case .branch: if m.isBodyGoal { OBBodyStep() } else { OBTasteStep() }
         case .people: OBPeopleStep()
         case .diet: OBDietStep()
-        case .allergies: OBAllergyStep()
+        case .allergies:
+            VStack(spacing: 22) {
+                OBAllergyStep()
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Foods you’d rather not eat").font(OB.font(16, 800)).foregroundStyle(OB.ink)
+                    Text("Optional. Taste only, separate from allergies.").font(OB.font(12.5, 500)).foregroundStyle(OB.sub)
+                    OBDislikeStep()
+                }
+            }
         case .dislikes: OBDislikeStep()
         case .meals: OBMealStep()
         case .location: OBLocationStep()
         case .stores: OBStoresStep()
-        case .budget: OBBudgetStep()
+        case .budget:
+            VStack(spacing: 22) {
+                OBBudgetStep()
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("How do you like to shop?").font(OB.font(16, 800)).foregroundStyle(OB.ink)
+                    OBStrategyStep()
+                }
+            }
         case .strategy: OBStrategyStep()
         default: EmptyView()
         }
