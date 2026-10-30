@@ -28130,6 +28130,108 @@
         "fr": { "stringUnit": { "state": "translated", "value": "Recettes autour des aubaines de la semaine" } },
         "es": { "stringUnit": { "state": "translated", "value": "Recetas alrededor de las ofertas de la semana" } }
       }
+    },
+    "Any allergies or foods you’d rather skip?": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Des allergies ou des aliments que tu préfères éviter ?" } },
+        "es": { "stringUnit": { "state": "translated", "value": "¿Alergias o alimentos que prefieres evitar?" } }
+      }
+    },
+    "Allergies are strict. Foods you’d rather not eat are taste only.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Les allergies sont strictes. Les aliments que tu n’aimes pas, c’est seulement une question de goût." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Las alergias son estrictas. Lo que no te gusta es solo cuestión de sabor." } }
+      }
+    },
+    "Foods you’d rather not eat": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Aliments que tu préfères ne pas manger" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Alimentos que prefieres no comer" } }
+      }
+    },
+    "Optional. Taste only, separate from allergies.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Facultatif. Seulement le goût, à part des allergies." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Opcional. Solo el gusto, aparte de las alergias." } }
+      }
+    },
+    "For your whole household. I started from 1 person. Then tell me how you like to shop.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Pour tout ton foyer. J’ai commencé avec 1 personne. Ensuite, dis-moi comment tu aimes magasiner." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Para todo tu hogar. Empecé con 1 persona. Luego dime cómo te gusta comprar." } }
+      }
+    },
+    "This is a real deal from this week’s flyer, turned into a recipe.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "C’est une vraie aubaine de la circulaire de cette semaine, transformée en recette." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Es una oferta real del folleto de esta semana, convertida en receta." } }
+      }
+    },
+    "The flyer really ends then. This is not a countdown we made up.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "La circulaire finit vraiment à cette date. Ce n’est pas un compte à rebours inventé." } },
+        "es": { "stringUnit": { "state": "translated", "value": "El folleto termina de verdad ese día. No es una cuenta regresiva inventada." } }
+      }
+    },
+    "this week, from real flyer deals": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "cette semaine, à partir des vraies aubaines" } },
+        "es": { "stringUnit": { "state": "translated", "value": "esta semana, a partir de ofertas reales" } }
+      }
+    },
+    "Checking this week’s flyers…": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Je vérifie les circulaires de cette semaine…" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Revisando los folletos de esta semana…" } }
+      }
+    },
+    "No flyer deals are loaded for this area yet, so there is no savings number to show.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Aucune aubaine n’est chargée pour cette zone, donc il n’y a pas de chiffre d’économie à montrer." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Todavía no hay ofertas para esta zona, así que no hay una cifra de ahorro." } }
+      }
+    },
+    "These flyers don’t lower the recipes we priced. The number stays at zero instead of a guess.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Ces circulaires ne baissent pas les recettes qu’on a calculées. Le chiffre reste à zéro, sans estimation." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Estos folletos no bajan las recetas calculadas. La cifra se queda en cero, sin una estimación." } }
+      }
+    },
+    "Added up from the four recipes that save the most with this week’s flyers. It is not a percent of your budget, and next week’s flyers will be different.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "La somme des quatre recettes qui économisent le plus avec les circulaires de cette semaine. Ce n’est pas un pourcentage de ton budget, et la semaine prochaine sera différente." } },
+        "es": { "stringUnit": { "state": "translated", "value": "La suma de las cuatro recetas que más ahorran con los folletos de esta semana. No es un porcentaje de tu presupuesto, y la próxima semana será distinta." } }
+      }
+    },
+    "from this week’s flyers": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "des circulaires de cette semaine" } },
+        "es": { "stringUnit": { "state": "translated", "value": "de los folletos de esta semana" } }
+      }
+    },
+    "This week’s flyer savings": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Économies des circulaires de cette semaine" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Ahorros de los folletos de esta semana" } }
+      }
+    },
+    "This week": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Cette semaine" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Esta semana" } }
+      }
+    },
+    "For your whole household. I started from %lld people. Then tell me how you like to shop.": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Pour tout ton foyer. J’ai commencé avec %lld personnes. Ensuite, dis-moi comment tu aimes magasiner." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Para todo tu hogar. Empecé con %lld personas. Luego dime cómo te gusta comprar." } }
+      }
+    },
+    "Saves %@ on this recipe": {
+      "localizations": {
+        "fr": { "stringUnit": { "state": "translated", "value": "Économise %@ sur cette recette" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Ahorra %@ en esta receta" } }
+      }
     }
   }
 }

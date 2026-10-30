@@ -63,7 +63,8 @@ final class OnboardingModel {
     enum AuthContext { case new, existing, merge }
     enum EmailMode { case create, signin }
 
-    static let steps: [Screen] = [.hear, .goal, .weightAsk, .branch, .people, .diet, .allergies, .dislikes, .meals, .location, .stores, .budget, .strategy]
+    /// Allergies and disliked foods share one screen. Budget and shopping strategy share another.
+    static let steps: [Screen] = [.hear, .goal, .weightAsk, .branch, .people, .diet, .allergies, .meals, .location, .stores, .budget]
     private static let storageKey = "lemora-onboarding-v2"
     private static let screenKey = "lemora-onboarding-v2-screen"
 
@@ -92,6 +93,9 @@ final class OnboardingModel {
     var doneMode = "new"
     var pct = 0
     var countProgress: Double = 0
+    /// Nil until the flyer lookup finishes. Zero means the flyers did not lower any recipe.
+    var flyerSavings: FlyerWeekSavings? = nil
+    var flyerSavingsChecked = false
     var remoteAnswers: OnboardingAnswers? = nil
     var locating = false
 
@@ -210,7 +214,24 @@ final class OnboardingModel {
         go(i > 0 ? steps[i - 1] : .landing)
     }
 
+    /// Screens that need a real answer. Skip cannot pass them.
+    var skipLocked: Bool {
+        switch screen {
+        case .hear, .allergies, .location, .stores: return !canContinue
+        default: return false
+        }
+    }
+
     func skip() {
+        guard !skipLocked else {
+            let t = Date().addingTimeInterval(2)
+            nudgeUntil = t
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(2050))
+                if self.nudgeUntil == t { self.nudgeUntil = .distantPast }
+            }
+            return
+        }
         guard let i = stepIndex else { return }
         let steps = flow
         go(i < steps.count - 1 ? steps[i + 1] : (a.reachedPlan == true ? .plan : .thanks))
@@ -595,26 +616,23 @@ final class OnboardingModel {
     // MARK: Notifications
 
     func notifDeny() {
-        sadUntil = Date().addingTimeInterval(1.4)
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(1400))
-            self.a.notif = "declined_primer"
-            self.go(.ready)
-        }
+        Task { @MainActor in await self.askForNotifications() }
     }
 
     func notifAllow() {
-        Task { @MainActor in
-            let center = UNUserNotificationCenter.current()
-            if await center.notificationSettings().authorizationStatus == .denied,
-               let url = URL(string: UIApplication.openSettingsURLString) {
-                // iOS only asks once: after an earlier refusal, open Settings so notifications can be turned on.
-                _ = await UIApplication.shared.open(url)
-            }
-            let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
-            self.a.notif = granted ? "allowed" : "denied_system"
-            self.go(.ready)
+        Task { @MainActor in await self.askForNotifications() }
+    }
+
+    /// Both buttons open Apple's own permission sheet. "Don't allow" no longer skips it.
+    private func askForNotifications() async {
+        let center = UNUserNotificationCenter.current()
+        if await center.notificationSettings().authorizationStatus == .denied,
+           let url = URL(string: UIApplication.openSettingsURLString) {
+            _ = await UIApplication.shared.open(url)
         }
+        let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+        a.notif = granted ? "allowed" : "denied_system"
+        go(.ready)
     }
 }
 

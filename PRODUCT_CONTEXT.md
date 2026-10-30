@@ -26,6 +26,8 @@ Profile can request an Apple refund, and shows a retention offer before cancella
 
 A new person pays before creating an account: the plan leads to the paywall, the App Store payment, then Sign in with Apple. The purchase stays on the device until Apple sign-in attaches it to the Clerk user. Someone who already paid and reopens the app goes to Sign in with Apple instead of being charged again.
 
+Onboarding asks allergies and disliked foods on one screen, and the weekly budget with the shopping strategy on the next. The first screen shows a real flyer deal turned into a recipe, with the flyer’s real end date. Skip cannot pass a question that still needs an answer. Both notification buttons open Apple’s permission sheet. The savings figure is the sum of the four recipes that save the most on this week’s flyers, not a percent of the budget. A recipe’s price per serving buys the smallest whole package that covers the ingredient, so a bulk pack is not treated as if you could buy a fraction of it.
+
 Deals keeps a search field on screen, with an under-30-minute filter and a minimum savings percent. Recipes tied to this week's deals sit under a smaller Premium row. Ask is the Demander button on that same bar. Deal and recipe cards use the smaller format.
 
 Trial availability and displayed billing terms depend on the actual StoreKit product and the Apple account's eligibility. Preserve the trial/no-trial variants. Claude's downloaded `apply-timeline.yml` corrects the paywall connectors by sizing each timeline row to its content; that source change is included directly in this integration.
