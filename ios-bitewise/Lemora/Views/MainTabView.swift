@@ -73,7 +73,9 @@ struct NewAreaToast: View {
                     ProgressView().tint(BW.ink)
                     VStack(alignment: .leading, spacing: 5) {
                         Text("Loading deals for your area…").font(.bw(.subheadline, weight: .bold)).foregroundStyle(BW.ink)
-                        Text(elapsed < 60 ? "About \(left) s left · you can keep using Lemora" : "Almost done…")
+                        Text(elapsed < 60
+                             ? String(localized: "About \(left) s left · you can keep using Lemora")
+                             : String(localized: "Almost done…"))
                             .font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
                         ProgressView(value: min(elapsed / 60, 0.95)).tint(BW.amber)
                     }

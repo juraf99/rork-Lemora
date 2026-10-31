@@ -788,7 +788,9 @@ struct DealDetailView: View {
                         HStack(alignment: .firstTextBaseline, spacing: 10) {
                             Text(deal.priceText).font(.bw(size: 38, weight: .heavy)).monospacedDigit().foregroundStyle(BW.ink)
                             if let regular = deal.regularPrice {
-                                Text(deal.multiBuyQuantity == nil ? "reg. \(Money.format(regular))\(deal.unitLabel)" : "reg. \(Money.format(regular)) each")
+                                Text(deal.multiBuyQuantity == nil
+                                     ? String(localized: "reg. \(Money.format(regular))\(deal.unitLabel)")
+                                     : String(localized: "reg. \(Money.format(regular)) each"))
                                     .font(.bw(.subheadline, weight: .medium)).strikethrough().foregroundStyle(BW.inkSecondary)
                             }
                         }
@@ -800,7 +802,9 @@ struct DealDetailView: View {
                         if let brand = deal.brand, !brand.isEmpty {
                             Text("Brand: \(brand)").font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)
                         }
-                        Text(deal.sizeText?.isEmpty == false ? "Format: \(deal.sizeText!)" : "Format: not specified in the flyer")
+                        Text(deal.sizeText?.isEmpty == false
+                             ? String(localized: "Format: \(deal.sizeText!)")
+                             : String(localized: "Format: not specified in the flyer"))
                             .font(.bw(.caption, weight: .medium))
                             .foregroundStyle(BW.inkSecondary)
                         if deal.processingLevel == "processed" || deal.processingLevel == "ultra_processed" {

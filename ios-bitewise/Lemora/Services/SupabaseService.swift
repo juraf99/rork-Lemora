@@ -367,10 +367,22 @@ private nonisolated struct RemoteLocalizedText: Decodable, Sendable {
     let es: String?
 
     func text(_ language: AppLanguage) -> String {
+        let english = en.trimmingCharacters(in: .whitespacesAndNewlines)
+        let french = fr.trimmingCharacters(in: .whitespacesAndNewlines)
+        let spanish = es?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         switch language {
-        case .fr: fr
-        case .es: es.flatMap { $0.isEmpty ? nil : $0 } ?? en
-        case .en: en
+        case .en:
+            if !english.isEmpty, ProductNaming.guessLanguage(english) != .fr { return english }
+            if !french.isEmpty, ProductNaming.guessLanguage(french) == .en { return french }
+            return english.isEmpty ? french : english
+        case .fr:
+            if !french.isEmpty, ProductNaming.guessLanguage(french) != .en { return french }
+            if !english.isEmpty, ProductNaming.guessLanguage(english) == .fr { return english }
+            return french.isEmpty ? english : french
+        case .es:
+            if !spanish.isEmpty, ProductNaming.guessLanguage(spanish) != .fr { return spanish }
+            if !english.isEmpty, ProductNaming.guessLanguage(english) != .fr { return english }
+            return english
         }
     }
 }
@@ -381,10 +393,23 @@ private nonisolated struct RemoteInstructions: Decodable, Sendable {
     let es: [String]?
 
     func steps(_ language: AppLanguage) -> [String] {
+        func languageOf(_ lines: [String]) -> AppLanguage {
+            ProductNaming.guessLanguage(lines.joined(separator: " "))
+        }
+        let spanish = es ?? []
         switch language {
-        case .fr: fr
-        case .es: es.flatMap { $0.isEmpty ? nil : $0 } ?? en
-        case .en: en
+        case .en:
+            if languageOf(en) != .fr { return en }
+            if languageOf(fr) == .en { return fr }
+            return en
+        case .fr:
+            if languageOf(fr) != .en { return fr }
+            if languageOf(en) == .fr { return en }
+            return fr.isEmpty ? en : fr
+        case .es:
+            if !spanish.isEmpty, languageOf(spanish) != .fr { return spanish }
+            if languageOf(en) != .fr { return en }
+            return en
         }
     }
 }

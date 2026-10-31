@@ -146,7 +146,7 @@ private nonisolated struct ZestyAppRecipeSnapshot: Encodable, Sendable {
         cuisine = recipe.cuisine.rawValue
         meal_type = recipe.mealType.rawValue
         recipe_ingredients = recipe.ingredients.map {
-            .init(ingredient_name: IngredientCatalog.name($0.ingredientId), normalized_name: $0.ingredientId,
+            .init(ingredient_name: ProductNaming.ingredientName($0.ingredientId), normalized_name: $0.ingredientId,
                   quantity: $0.quantity, unit: $0.unit.rawValue, raw_text: $0.rawText)
         }
         recipe_steps = recipe.steps.enumerated().map { .init(step_number: $0.offset + 1, instruction: $0.element) }

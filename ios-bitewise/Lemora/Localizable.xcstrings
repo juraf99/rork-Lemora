@@ -9205,7 +9205,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lime"
+            "value": "Citron vert"
           }
         },
         "es": {
@@ -9222,7 +9222,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Jus de lime"
+            "value": "Jus de citron vert"
           }
         },
         "es": {
@@ -9806,7 +9806,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Meal prep"
+            "value": "Preparación de comidas"
           }
         }
       }
