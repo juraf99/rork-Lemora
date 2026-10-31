@@ -10,6 +10,8 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     private(set) var state: State = .idle
+    /// "Montreal, QC" from the same lookup, so the screen can show the place and not only a code.
+    private(set) var resolvedPlace: String = ""
     private let manager = CLLocationManager()
     /// GPS often has no fix on the first try (indoors, right after launch): retry before giving up.
     private var attempts = 0
@@ -23,15 +25,21 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     override init() {
         super.init()
         manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyKilometer
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
     }
 
     func request() {
         state = .requesting
         attempts = 0
+        resolvedPlace = ""
         switch manager.authorizationStatus {
         case .notDetermined:
             manager.requestWhenInUseAuthorization()
+            // The Allow tap can resolve before the callback is observed. Ask again once iOS has answered.
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(800))
+                self.startFixIfAllowed()
+            }
         case .denied, .restricted:
             // iOS only asks once: after a refusal, the button opens Lemora's Settings to turn location on.
             state = .denied
@@ -39,6 +47,13 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         default:
             manager.requestLocation()
         }
+    }
+
+    private func startFixIfAllowed() {
+        guard state == .requesting else { return }
+        let status = manager.authorizationStatus
+        guard status == .authorizedWhenInUse || status == .authorizedAlways else { return }
+        manager.requestLocation()
     }
 
     /// Finds the position without asking anything when the person already allowed it before.
@@ -62,7 +77,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else { return }
+        guard let location = locations.last, location.horizontalAccuracy >= 0 else { return }
         Task { @MainActor in
             await self.resolve(location)
         }
@@ -83,24 +98,38 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     private func resolve(_ location: CLLocation) async {
+        guard state == .requesting else { return }
         var mark = try? await CLGeocoder().reverseGeocodeLocation(location).first
         if mark == nil {
             try? await Task.sleep(for: .seconds(1))
+            guard state == .requesting else { return }
             mark = try? await CLGeocoder().reverseGeocodeLocation(location).first
         }
-        if let code = mark?.postalCode, !code.isEmpty {
+        guard let mark else {
+            state = .failed
+            return
+        }
+        resolvedPlace = Self.placeLine(mark)
+        if let code = mark.postalCode, !code.isEmpty {
             state = .resolved(code)
             return
         }
         // "Precise Location" off: Apple gives the town but no postal code. Use the town's postal code instead.
-        if let mark, let town = mark.locality ?? mark.subAdministrativeArea {
+        if let town = mark.locality ?? mark.subAdministrativeArea {
             let place = [town, mark.administrativeArea].compactMap { $0 }.joined(separator: ", ")
             if let found = await Self.postalCode(forCity: place, country: mark.isoCountryCode ?? "CA") {
+                if resolvedPlace.isEmpty { resolvedPlace = found.place }
                 state = .resolved(found.postal)
                 return
             }
         }
         state = .failed
+    }
+
+    private static func placeLine(_ mark: CLPlacemark) -> String {
+        [mark.locality ?? mark.subAdministrativeArea ?? mark.name, mark.administrativeArea]
+            .compactMap { $0 }
+            .joined(separator: ", ")
     }
 
     /// "Montréal" → a postal code near that city's centre, for people who'd rather not give theirs.

@@ -28232,6 +28232,126 @@
         "fr": { "stringUnit": { "state": "translated", "value": "Économise %@ sur cette recette" } },
         "es": { "stringUnit": { "state": "translated", "value": "Ahorra %@ en esta receta" } }
       }
+    },
+    "FINDING YOU…": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ON TE TROUVE…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BUSCÁNDOTE…"
+          }
+        }
+      }
+    },
+    "USE THIS LOCATION": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "UTILISER CET ENDROIT"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "USAR ESTE LUGAR"
+          }
+        }
+      }
+    },
+    "ENTER A POSTAL CODE": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ENTRER UN CODE POSTAL"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ESCRIBIR UN CÓDIGO POSTAL"
+          }
+        }
+      }
+    },
+    "ENTER A CITY": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ENTRER UNE VILLE"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ESCRIBIR UNA CIUDAD"
+          }
+        }
+      }
+    },
+    "We found you here. Use it, or enter a postal code or a city.": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On t’a trouvé ici. Utilise-le, ou entre un code postal ou une ville."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Te encontramos aquí. Úsalo, o escribe un código postal o una ciudad."
+          }
+        }
+      }
+    },
+    "We couldn’t find you. Enter your postal code or your city.": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On ne t’a pas trouvé. Entre ton code postal ou ta ville."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No te encontramos. Escribe tu código postal o tu ciudad."
+          }
+        }
+      }
+    },
+    "Create your account with Apple, Google, or your email.": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crée ton compte avec Apple, Google ou ton courriel."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crea tu cuenta con Apple, Google o tu correo."
+          }
+        }
+      }
     }
+
   }
 }

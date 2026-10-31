@@ -988,9 +988,10 @@ struct OBFlow: Layout {
 
 struct OBLocationStep: View {
     @Environment(OnboardingModel.self) private var m
-    /// The postal code field only opens after "Enter manually" (or when location fails).
-    @State private var showManual = false
-    /// City search for people who'd rather not give their postal code.
+    @Environment(\.scenePhase) private var scenePhase
+    /// Postal code field. Shown on request, or when the device lookup does not find a place.
+    @State private var showPostal = false
+    /// City field, on its own. A city is enough: Lemora uses the deals around that city centre.
     @State private var showCity = false
 
     var body: some View {
@@ -1016,7 +1017,7 @@ struct OBLocationStep: View {
             .frame(height: 150)
             .clipShape(.rect(cornerRadius: 24))
 
-            if let loc {
+            if let loc, m.a.locMode == "auto" {
                 HStack(spacing: 10) {
                     Text("✓").font(OB.font(12, 800)).foregroundStyle(.white).frame(width: 26, height: 26).background(OB.green, in: .circle)
                     Text("\(loc.postal) · \(m.placeName(loc))").font(OB.font(14, 700)).foregroundStyle(OB.ink).frame(maxWidth: .infinity, alignment: .leading)
@@ -1024,29 +1025,55 @@ struct OBLocationStep: View {
                 .padding(.horizontal, 14).padding(.vertical, 12)
                 .background(OB.mint, in: .rect(cornerRadius: 18))
                 .obPop(duration: 0.35)
+                Text("We found you here. Use it, or enter a postal code or a city.")
+                    .font(OB.font(12.5, 600)).foregroundStyle(OB.sub)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if !m.locating && (m.location.state == .failed || m.location.state == .denied) && m.currentLocation == nil {
+                Text("We couldn’t find you. Enter your postal code or your city.")
+                    .font(OB.font(12.5, 700)).foregroundStyle(OB.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            Button { showManual = false; m.allowLocation() } label: {
+            Button {
+                showPostal = false
+                showCity = false
+                m.allowLocation()
+            } label: {
                 HStack(spacing: 6) {
                     if m.locating { ProgressView().tint(.white) }
-                    Text("📍 ALLOW LOCATION").font(OB.font(15, 800)).tracking(0.45)
+                    Text(verbatim: lemoraLocalized(m.locating ? "FINDING YOU…" : (m.a.locMode == "auto" && loc != nil ? "USE THIS LOCATION" : "📍 ALLOW LOCATION")))
+                        .font(OB.font(15, 800)).tracking(0.45)
                 }
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity).padding(.vertical, 16)
                 .background(OB.ink, in: .capsule)
-                .overlay(Capsule().strokeBorder(m.a.locMode == "auto" ? OB.lemon : .clear, lineWidth: 3).padding(-3))
+                .overlay(Capsule().strokeBorder(m.a.locMode == "auto" && loc != nil ? OB.lemon : .clear, lineWidth: 3).padding(-3))
             }
             .buttonStyle(OBPress())
 
-            Button { m.a.locMode = "manual"; withAnimation(.snappy) { showManual = true } } label: {
-                Text("ENTER MANUALLY").font(OB.font(15, 800)).tracking(0.45).foregroundStyle(OB.ink)
+            Button {
+                m.a.locMode = "manual"
+                withAnimation(.snappy) { showCity = false; showPostal = true }
+            } label: {
+                Text("ENTER A POSTAL CODE").font(OB.font(15, 800)).tracking(0.45).foregroundStyle(OB.ink)
                     .frame(maxWidth: .infinity).padding(.vertical, 15)
                     .background(.white, in: .capsule)
-                    .overlay(Capsule().strokeBorder(m.a.locMode == "manual" ? OB.ink : OB.border, lineWidth: 1.5))
+                    .overlay(Capsule().strokeBorder(showPostal ? OB.ink : OB.border, lineWidth: 1.5))
             }
             .buttonStyle(OBPress())
 
-            if showManual {
+            Button {
+                m.a.locMode = "manual"
+                withAnimation(.snappy) { showPostal = false; showCity = true }
+            } label: {
+                Text("ENTER A CITY").font(OB.font(15, 800)).tracking(0.45).foregroundStyle(OB.ink)
+                    .frame(maxWidth: .infinity).padding(.vertical, 15)
+                    .background(.white, in: .capsule)
+                    .overlay(Capsule().strokeBorder(showCity ? OB.ink : OB.border, lineWidth: 1.5))
+            }
+            .buttonStyle(OBPress())
+
+            if showPostal {
                 VStack(spacing: 9) {
                     HStack(spacing: 3) {
                         ForEach([("CA", "🇨🇦 " + String(localized: "Canada")), ("US", "🇺🇸 " + String(localized: "USA")), ("AU", "🇦🇺 " + String(localized: "Australia"))], id: \.0) { c in
@@ -1083,46 +1110,42 @@ struct OBLocationStep: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 6)
 
-                    if showCity {
-                        HStack(spacing: 8) {
-                            TextField("", text: $m.cityQuery, prompt: Text("Your city").foregroundStyle(OB.faint))
-                                .textContentType(.addressCity)
-                                .font(OB.font(15, 700))
-                                .foregroundStyle(OB.ink)
-                                .autocorrectionDisabled()
-                                .submitLabel(.search)
-                                .onSubmit { Task { await m.findCity() } }
-                                .onChange(of: m.cityQuery) { _, _ in m.cityNotFound = false }
-                                .padding(.horizontal, 16).padding(.vertical, 12)
-                                .overlay(Capsule().strokeBorder(OB.inputBorder, lineWidth: 1.5))
-                            Button { Task { await m.findCity() } } label: {
-                                Group {
-                                    if m.cityLooking { ProgressView().tint(.white) } else { Text("Find").font(OB.font(14, 800)) }
-                                }
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 16).padding(.vertical, 12)
-                                .background(OB.ink, in: .capsule)
+                }
+                .padding(14)
+                .background(.white, in: .rect(cornerRadius: 20))
+                .shadow(color: OB.ink.opacity(0.05), radius: 5, x: 0, y: 2)
+                .obIn(duration: 0.3)
+            }
+
+            if showCity {
+                VStack(spacing: 9) {
+                    HStack(spacing: 8) {
+                        TextField("", text: $m.cityQuery, prompt: Text("Your city").foregroundStyle(OB.faint))
+                            .textContentType(.addressCity)
+                            .font(OB.font(15, 700))
+                            .foregroundStyle(OB.ink)
+                            .autocorrectionDisabled()
+                            .submitLabel(.search)
+                            .onSubmit { Task { await m.findCity() } }
+                            .onChange(of: m.cityQuery) { _, _ in m.cityNotFound = false }
+                            .padding(.horizontal, 16).padding(.vertical, 12)
+                            .overlay(Capsule().strokeBorder(OB.inputBorder, lineWidth: 1.5))
+                        Button { Task { await m.findCity() } } label: {
+                            Group {
+                                if m.cityLooking { ProgressView().tint(.white) } else { Text("Find").font(OB.font(14, 800)) }
                             }
-                            .buttonStyle(.plain)
-                            .disabled(m.cityLooking)
-                        }
-                        Text(m.cityNotFound ? "We couldn’t find that city. Check the spelling or enter your postal code." : "We’ll use the deals around your city centre.")
-                            .font(OB.font(12, 700))
-                            .foregroundStyle(m.cityNotFound ? .red : OB.faint)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 6)
-                    } else {
-                        Button { withAnimation(.snappy) { showCity = true } } label: {
-                            Text("Not comfortable sharing your postal code? Use your city instead")
-                                .font(OB.font(12.5, 700))
-                                .foregroundStyle(OB.green)
-                                .underline()
-                                .multilineTextAlignment(.leading)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 16).padding(.vertical, 12)
+                            .background(OB.ink, in: .capsule)
                         }
                         .buttonStyle(.plain)
-                        .padding(.horizontal, 6)
+                        .disabled(m.cityLooking)
                     }
+                    Text(m.cityNotFound ? "We couldn’t find that city. Check the spelling or enter your postal code." : "We’ll use the deals around your city centre.")
+                        .font(OB.font(12, 700))
+                        .foregroundStyle(m.cityNotFound ? .red : OB.faint)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 6)
                 }
                 .padding(14)
                 .background(.white, in: .rect(cornerRadius: 20))
@@ -1133,8 +1156,19 @@ struct OBLocationStep: View {
         .task(id: loc?.postal) { await m.lookupCity() }
         // Location already allowed before (an app update, a second pass through onboarding): no retyping.
         .onAppear { m.locateIfAlreadyAllowed() }
-        .onChange(of: m.a.locMode) { _, mode in
-            if mode == "manual" { withAnimation(.snappy) { showManual = true } }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active, m.currentLocation == nil, !m.locating, m.location.isAuthorized else { return }
+            m.allowLocation()
+        }
+        .onChange(of: m.location.state) { _, state in
+            switch state {
+            case .resolved:
+                withAnimation(.snappy) { showPostal = false; showCity = false }
+            case .failed, .denied:
+                if m.currentLocation == nil { withAnimation(.snappy) { showPostal = true } }
+            default:
+                break
+            }
         }
     }
 

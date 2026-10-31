@@ -24,11 +24,15 @@ Price tests use the current RevenueCat offering only (`$rc_annual` and `$rc_mont
 
 Profile can request an Apple refund, and shows a retention offer before cancellation: an eligible RevenueCat promotional offer when Apple has one, otherwise the yearly price for a monthly subscriber. Marketing email is off until the person opts in. That choice is stored in Resend by `marketing-consent`.
 
-A new person pays before creating an account: the plan leads to the paywall, the App Store payment, then Sign in with Apple. The purchase stays on the device until Apple sign-in attaches it to the Clerk user. Someone who already paid and reopens the app goes to Sign in with Apple instead of being charged again.
+A new person pays before creating an account. The questions, the savings chart, the loading screen and the plan all come before the hard paywall. After the App Store payment, the account screen offers Apple, Google and email. The purchase stays on the device until that sign-in attaches it to the Clerk user. Someone who already paid and reopens the app goes to the account screen instead of being charged again.
+
+The in-app language is English, French or Spanish, independent of the iPhone language. English is the source. Choosing English shows only English. Choosing French shows French. Choosing Spanish shows Spanish. A missing translation stays in English rather than falling through to another language. Store names stay as they are written.
 
 Onboarding asks allergies and disliked foods on one screen, and the weekly budget with the shopping strategy on the next. The first screen shows a real flyer deal turned into a recipe, with the flyer’s real end date. Skip cannot pass a question that still needs an answer. Both notification buttons open Apple’s permission sheet. The onboarding savings page uses the original household and budget estimate, with the week, month and year chart. A recipe’s price per serving buys the smallest whole package that covers the ingredient, so a bulk pack is not treated as if you could buy a fraction of it.
 
-Deals keeps a search field on screen, with an under-30-minute filter and a minimum savings percent. Recipes tied to this week's deals sit under a smaller Premium row. Ask is the Demander button on that same bar. Deal and recipe cards use the smaller format.
+Deals keeps a search field on screen, with an under-30-minute filter and a minimum savings percent. The header is the wordmark and Zesty, with room above the search row. It does not repeat a “fresh deals this week near you” line. Ask stays on that same bar. Recipes tied to this week's deals sit under a smaller Premium row. Deal and recipe cards use the smaller format.
+
+Allow location, in onboarding and in Profile, asks for the device location. After the person accepts, Lemora uses the place it found. They can still type a postal code, or only a city.
 
 Trial availability and displayed billing terms depend on the actual StoreKit product and the Apple account's eligibility. Preserve the trial/no-trial variants. Claude's downloaded `apply-timeline.yml` corrects the paywall connectors by sizing each timeline row to its content; that source change is included directly in this integration.
 

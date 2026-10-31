@@ -479,7 +479,7 @@ struct OBAccountScreen: View {
     @Environment(OnboardingModel.self) private var m
     @Environment(AppStore.self) private var store
 
-    /// Payment happened before the account. Apple is the only way to attach that purchase.
+    /// Payment already happened. Apple, Google and email all attach that purchase to the new account.
     private var paidFirst: Bool { store.isPremium && store.data.account?.userId == nil }
 
     var body: some View {
@@ -492,7 +492,7 @@ struct OBAccountScreen: View {
             VStack(spacing: 0) {
                 ZestyMascot(mood: .talking, size: 110, seedKey: "ac")
                 OBText(paidFirst ? "Your payment is done" : "Save your Lemora plan", 32, 800, tracking: -0.03, align: .center).padding(.top, 18)
-                OBText(paidFirst ? "Sign in with Apple to keep your plan." : "Create your account to keep your preferences, recommendations and personalized savings.", 14.5, 500, color: OB.muted, align: .center)
+                OBText(paidFirst ? "Create your account with Apple, Google, or your email." : "Create your account to keep your preferences, recommendations and personalized savings.", 14.5, 500, color: OB.muted, align: .center)
                     .lineSpacing(3)
                     .frame(maxWidth: 300)
                     .padding(.top, 8)
@@ -511,10 +511,9 @@ struct OBAccountScreen: View {
             }
             Spacer(minLength: 0)
             OBAuthButtons(apple: { m.authCtx = paidFirst ? .merge : .new; m.authApple(store) },
-                          google: { m.authCtx = .new; m.authGoogle(store) },
-                          emailAction: { m.authCtx = .new; m.emailMode = .create; m.resetSent = false; m.go(.email) },
-                          busy: m.busy,
-                          appleOnly: paidFirst)
+                          google: { m.authCtx = paidFirst ? .merge : .new; m.authGoogle(store) },
+                          emailAction: { m.authCtx = paidFirst ? .merge : .new; m.emailMode = .create; m.resetSent = false; m.go(.email) },
+                          busy: m.busy)
             HStack(spacing: 4) {
                 Text("Already have an account?").font(OB.font(13.5, 500)).foregroundStyle(OB.muted)
                 Button { m.authCtx = .merge; m.go(.signin) } label: {
@@ -529,6 +528,12 @@ struct OBAccountScreen: View {
         .padding(.top, 8)
         .padding(.bottom, 8)
         .background(OB.cream.ignoresSafeArea())
+        .onAppear {
+            // A new person pays first. This screen opens only after the paywall, or for someone already signed in.
+            if store.data.account?.userId == nil && !store.isPremium && !m.a.completed {
+                m.go(.paywall)
+            }
+        }
     }
 }
 
@@ -813,7 +818,7 @@ struct OBPaywallScreen: View {
                 .padding(.top, 11)
                 .obIn(delay: 0.38, duration: 0.4)
 
-                OBPrimaryButton(title: paidWaitingForAccount ? "Continue with Apple" : cta,
+                OBPrimaryButton(title: paidWaitingForAccount ? "Create your account" : cta,
                                 enabled: paidWaitingForAccount || pricesReady, shine: true, loading: purchasing) {
                     if paidWaitingForAccount { m.go(.account) } else { Task { await purchase() } }
                 }
@@ -863,10 +868,7 @@ struct OBPaywallScreen: View {
         .offerCodeRedemption(isPresented: $showPromoCode) { _ in
             Task {
                 _ = await sub.restore(paywallVariant: paywallVariant)
-                if store.isPremium {
-                    m.a.completed = true
-                    m.go(.done)
-                }
+                if store.isPremium { continueAfterPayment() }
             }
         }
         .onChange(of: store.isPremium) { _, premium in
