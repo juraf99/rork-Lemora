@@ -55,7 +55,7 @@ struct CookedView: View {
                         ForEach(Array(price.dealLines.enumerated()), id: \.element.id) { idx, line in
                             HStack(spacing: 12) {
                                 IngredientThumb(ingredientId: line.ingredientId, size: 30)
-                                Text(IngredientCatalog.name(line.ingredientId)).font(.bw(.body, weight: .medium)).foregroundStyle(BW.ink)
+                                Text(verbatim: ProductNaming.ingredientName(line.ingredientId)).font(.bw(.body, weight: .medium)).foregroundStyle(BW.ink)
                                 Spacer()
                                 Text("saved \(Money.format(line.savings))").font(.bw(.subheadline, weight: .bold)).monospacedDigit().foregroundStyle(BW.leafDeep)
                             }

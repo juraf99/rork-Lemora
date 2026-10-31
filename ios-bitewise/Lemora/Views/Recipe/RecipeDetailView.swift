@@ -264,7 +264,10 @@ struct RecipeDetailView: View {
                 macro(n.calories.map(String.init) ?? "—", String(localized: "kcal"))
             }
             if n.status != .verified {
-                Text(n.status == .unknown ? "Nutrition is not yet verified." : "Nutrition is estimated per serving.").font(.bw(.caption2, weight: .medium)).foregroundStyle(BW.inkSecondary)
+                Text(n.status == .unknown
+                     ? String(localized: "Nutrition is not yet verified.")
+                     : String(localized: "Nutrition is estimated per serving."))
+                    .font(.bw(.caption2, weight: .medium)).foregroundStyle(BW.inkSecondary)
             }
         }
     }
@@ -353,7 +356,7 @@ struct RecipeDetailView: View {
         HStack(spacing: 12) {
             IngredientThumb(ingredientId: line.ingredientId, size: 34)
             VStack(alignment: .leading, spacing: 4) {
-                Text(IngredientCatalog.name(line.ingredientId)).font(.bw(.body, weight: .semibold)).foregroundStyle(BW.ink)
+                Text(verbatim: ProductNaming.ingredientName(line.ingredientId)).font(.bw(.body, weight: .semibold)).foregroundStyle(BW.ink)
                 HStack(spacing: 6) {
                     Text(line.unit.format(line.quantity)).font(.bw(.footnote, weight: .regular)).foregroundStyle(BW.inkSecondary)
                     if onSale, let deal = line.deal {
@@ -437,7 +440,9 @@ struct RecipeDetailView: View {
             HStack(alignment: .center, spacing: 10) {
                 MascotView(name: BWImage.mascotCheer, size: 52)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(swaps.count > 1 ? "Zesty found cheaper swaps" : "Zesty found a cheaper swap")
+                    Text(swaps.count > 1
+                         ? String(localized: "Zesty found cheaper swaps")
+                         : String(localized: "Zesty found a cheaper swap"))
                         .font(.bw(.headline, weight: .heavy)).foregroundStyle(BW.ink)
                     Text("Almost identical, same result in this recipe.")
                         .font(.bw(.caption, weight: .medium)).foregroundStyle(BW.inkSecondary)

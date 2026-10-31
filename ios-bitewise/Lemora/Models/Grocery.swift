@@ -301,35 +301,50 @@ nonisolated struct StorePrice: Identifiable, Hashable, Sendable {
 nonisolated enum ProductNaming {
     static func display(productName: String, retailerProductName: String?, ingredientId: String) -> String {
         let language = AppLanguage.current
-        if let raw = retailerProductName, raw.contains(" | ") {
-            let parts = raw.components(separatedBy: " | ").map { $0.trimmingCharacters(in: .whitespaces) }
-            if parts.count == 2 {
-                if language == .fr, !parts[0].isEmpty { return tidy(parts[0]) }
-                if language == .en, !parts[1].isEmpty { return tidy(parts[1]) }
-            }
+        let parts = (retailerProductName ?? "").components(separatedBy: " | ")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        // Bilingual flyers are "French | English". Spanish never uses the French half.
+        let flyer: String
+        if parts.count >= 2 {
+            flyer = language == .fr ? parts[0] : parts[1]
+        } else {
+            flyer = productName
         }
-        if guessLanguage(productName) == language { return productName }
-        let english = IngredientCatalog.name(ingredientId)
-        if language == .en { return english }
-        let translated = lemoraLocalized(english)
-        return translated != english ? translated : productName
+        if guessLanguage(flyer) == language { return tidy(flyer) }
+        return ingredientName(ingredientId)
     }
 
-    /// Rough language of a flyer name: accents or common French words mean French, Spanish words mean Spanish.
+    /// Ingredient name in the language picked in the app. Never the other language's flyer line.
+    static func ingredientName(_ ingredientId: String) -> String {
+        let english = IngredientCatalog.name(ingredientId)
+        guard AppLanguage.current != .en else { return english }
+        let translated = lemoraLocalized(english)
+        return translated.isEmpty ? english : translated
+    }
+
+    /// Rough language of a flyer or recipe line. Accents and grocery words decide.
+    /// Shared words such as "sauce" are not enough, so an English label is not treated as French.
     static func guessLanguage(_ text: String) -> AppLanguage {
         let lower = text.lowercased()
-        if lower.contains(where: { "àâçéèêëîïôûùüÿœ".contains($0) }) {
-            return lower.contains(where: { "ñáíóú".contains($0) }) && !lower.contains(where: { "àâçèêëîïôûùœ".contains($0) }) ? .es : .fr
-        }
-        if lower.contains("ñ") { return .es }
+        let frenchAccent = lower.contains(where: { "àâçéèêëîïôûùüÿœ".contains($0) })
+        let spanishAccent = lower.contains(where: { "ñáíóú¿¡".contains($0) })
+        if frenchAccent && !spanishAccent { return .fr }
+        if spanishAccent && !frenchAccent { return .es }
+        if frenchAccent { return .fr }
         let words = Set(lower.split(whereSeparator: { !$0.isLetter }).map(String.init))
         let french: Set<String> = ["de", "du", "des", "au", "aux", "la", "le", "les", "et", "sans", "avec", "poulet", "boeuf", "porc",
-                                   "frais", "fraiches", "fraises", "pommes", "pomme", "oignons", "tranches", "hache", "biologique",
-                                   "biologiques", "lait", "fromage", "pain", "jambon", "saumon", "courge", "carottes", "poivrons",
-                                   "laitue", "oeufs", "beurre", "farine", "riz", "pates", "sauce", "jus", "veau", "dinde", "crevettes",
-                                   "haricots", "pois", "raisins", "poires", "citrons", "bleuets", "framboises", "mangues", "ananas"]
-        let spanish: Set<String> = ["pollo", "carne", "res", "cerdo", "leche", "queso", "huevos", "con", "sin", "fresco", "frescos",
-                                    "manzanas", "naranjas", "arroz", "frijoles", "tomates", "cebolla", "papas", "pan", "y", "del"]
+                                   "frais", "fraiche", "fraiches", "fraises", "pommes", "pomme", "oignons", "oignon", "tranches", "hache",
+                                   "biologique", "biologiques", "lait", "fromage", "pain", "jambon", "saumon", "courge", "carottes", "carotte",
+                                   "poivrons", "poivron", "laitue", "oeufs", "oeuf", "beurre", "farine", "riz", "pates", "jus", "veau", "dinde",
+                                   "crevettes", "crevette", "haricots", "pois", "raisins", "poires", "citrons", "bleuets", "framboises",
+                                   "mangues", "ananas", "yogourt", "aubaine", "aubaines", "poitrine", "cuisse", "cuisses", "pilon", "pilons",
+                                   "surgeles", "surgele", "barquette", "entier", "entiere", "maigre", "navet", "celeri", "chou", "bifteck",
+                                   "truite", "morue", "agneau", "vrac", "filet", "escalope", "darne", "emince", "mijote", "roti", "patate",
+                                   "patates", "tomate", "tomates", "concombre", "epinard", "epinards", "banane", "bananes"]
+        let spanish: Set<String> = ["pollo", "pechuga", "muslo", "carne", "res", "cerdo", "leche", "queso", "huevos", "huevo", "con", "sin",
+                                    "fresco", "frescos", "fresca", "manzanas", "naranjas", "arroz", "frijoles", "tomates", "tomate", "cebolla",
+                                    "papas", "papa", "oferta", "ofertas", "y", "del"]
         if !words.isDisjoint(with: french) { return .fr }
         if !words.isDisjoint(with: spanish) { return .es }
         return .en
