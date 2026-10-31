@@ -233,13 +233,11 @@ struct OBGeneratingScreen: View {
 
 struct OBSavingsScreen: View {
     @Environment(OnboardingModel.self) private var m
-    @Environment(AppStore.self) private var store
     @State private var grow = false
 
-    private var weekly: Int { Int((m.flyerSavings?.weekly ?? 0).rounded()) }
-
     var body: some View {
-        let bars: [(String, Int, CGFloat)] = [("This week", weekly, 1)]
+        let est = m.estimate
+        let bars: [(String, Int, CGFloat)] = [("Week", est.weekly, 0.16), ("Month", est.monthly, 0.40), ("Year", est.annual, 1)]
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top) {
                 Text("YOUR POTENTIAL SAVINGS").font(OB.font(12, 800)).tracking(1.44).foregroundStyle(OB.lemon)
@@ -247,19 +245,15 @@ struct OBSavingsScreen: View {
                 ZestyMascot(mood: .celebrating, size: 64, seedKey: "sv")
             }
             VStack(alignment: .leading, spacing: 0) {
-                Text(m.flyerSavingsChecked ? OnboardingModel.money(Double(weekly) * m.countProgress) : "…")
+                Text(OnboardingModel.money(Double(est.annual) * m.countProgress))
                     .font(OB.font(78, 800)).tracking(-3.9).foregroundStyle(.white).monospacedDigit()
                     .lineLimit(1).minimumScaleFactor(0.6)
-                Text("this week, from real flyer deals").font(OB.font(18, 700)).foregroundStyle(.white.opacity(0.8)).padding(.top, 6)
-                if let count = m.flyerSavings?.dealCount, count > 0 {
-                    HStack(spacing: 8) {
-                        chip("\(count)", count == 1 ? " deal" : " deals")
-                        if let ends = m.flyerSavings?.ends {
-                            chip(DealTiming.endText(ends, plural: true), "")
-                        }
-                    }
-                    .padding(.top, 16)
+                Text("per year, with regular use").font(OB.font(18, 700)).foregroundStyle(.white.opacity(0.8)).padding(.top, 6)
+                HStack(spacing: 8) {
+                    chip(OnboardingModel.money(Double(est.weekly)), " / week")
+                    chip(OnboardingModel.money(Double(est.monthly)), " / month")
                 }
+                .padding(.top, 16)
             }
             .padding(.top, -20)
             GeometryReader { geo in
@@ -305,29 +299,15 @@ struct OBSavingsScreen: View {
             }
             .ignoresSafeArea()
         }
-        .onAppear { grow = true }
-        .task {
-            guard !m.flyerSavingsChecked else {
-                if m.countProgress == 0 { m.startCount() }
-                return
-            }
-            let country = m.a.country
-            m.flyerSavings = await store.flyerWeekSavings(country: country, postal: m.a.postal, storeNames: m.a.stores, household: m.a.household)
-            m.flyerSavingsChecked = true
-            m.startCount()
-        }
+        .onAppear { grow = true; if m.countProgress == 0 { m.startCount() } }
     }
 
-    /// Explains that the figure is this week's flyers, not a percent of the budget.
+    /// "Estimate based on your $120/week budget, 3 stores and balanced shopping. …"
     private var estimateNote: String {
-        guard m.flyerSavingsChecked else { return String(localized: "Checking this week’s flyers…") }
-        guard let savings = m.flyerSavings, savings.dealCount > 0 else {
-            return String(localized: "No flyer deals are loaded for this area yet, so there is no savings number to show.")
-        }
-        if savings.weekly < 0.5 {
-            return String(localized: "These flyers don’t lower the recipes we priced. The number stays at zero instead of a guess.")
-        }
-        return String(localized: "Added up from the four recipes that save the most with this week’s flyers. It is not a percent of your budget, and next week’s flyers will be different.")
+        let base = m.a.noBudget ? String(localized: "a typical budget for \(m.a.household) people")
+                                : String(localized: "your \(OnboardingModel.money(Double(m.a.budget)))/week budget")
+        let stores = m.a.stores.count == 1 ? String(localized: "1 store") : String(localized: "\(m.a.stores.count) stores")
+        return String(localized: "Estimate based on \(base), \(stores) and \(m.strategyTitle.lowercased()) shopping. Actual savings depend on the deals available near you.")
     }
 
     private func chip(_ value: String, _ unit: String) -> some View {
@@ -363,8 +343,8 @@ struct OBReminderScreen: View {
                 .padding(.top, 10)
                 .obIn(delay: 0.2, duration: 0.4)
             HStack(spacing: 8) {
-                Text(m.flyerSavingsChecked ? "\(OnboardingModel.money(m.flyerSavings?.weekly ?? 0))/wk" : "…").foregroundStyle(OB.lemon)
-                Text("from this week’s flyers").foregroundStyle(.white)
+                Text("\(OnboardingModel.money(Double(m.estimate.annual)))/yr").foregroundStyle(OB.lemon)
+                Text("potential savings included").foregroundStyle(.white)
             }
             .font(OB.font(14, 800))
             .padding(.horizontal, 16).padding(.vertical, 10)
@@ -388,7 +368,7 @@ struct OBPlanScreen: View {
     @Environment(AppStore.self) private var store
 
     var body: some View {
-        let week = m.flyerSavings?.weekly ?? 0
+        let est = m.estimate
         let a = m.a
         let rows: [(String, String, String)] = [
             ("🎯", m.selectedGoals.count > 1 ? "Goals" : "Goal", m.goalLabels),
@@ -418,13 +398,13 @@ struct OBPlanScreen: View {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 0) {
-                            Text("This week’s flyer savings").font(OB.font(12, 700)).foregroundStyle(.white.opacity(0.7))
-                            (Text(m.flyerSavingsChecked ? OnboardingModel.money(week) : "…").font(OB.font(30, 800)).foregroundColor(OB.lemon)
-                             + Text(" this week").font(OB.font(15, 800)).foregroundColor(.white.opacity(0.75)))
+                            Text("Estimated savings").font(OB.font(12, 700)).foregroundStyle(.white.opacity(0.7))
+                            (Text(OnboardingModel.money(Double(est.annual))).font(OB.font(30, 800)).foregroundColor(OB.lemon)
+                             + Text(" / year").font(OB.font(15, 800)).foregroundColor(.white.opacity(0.75)))
                                 .tracking(-0.9)
                         }
                         Spacer()
-                        Text(m.flyerSavings.map { "\($0.dealCount) deals" } ?? "").font(OB.font(12, 700)).foregroundStyle(.white.opacity(0.7))
+                        Text("\(OnboardingModel.money(Double(est.weekly))) / week").font(OB.font(12, 700)).foregroundStyle(.white.opacity(0.7))
                     }
                     .padding(.horizontal, 18).padding(.vertical, 16)
                     .background(OB.ink, in: .rect(cornerRadius: 22))
@@ -518,7 +498,7 @@ struct OBAccountScreen: View {
                     .padding(.top, 8)
                 HStack(spacing: 8) {
                     Text("●").foregroundStyle(OB.green)
-                    Text("\(m.flyerSavingsChecked ? OnboardingModel.money(m.flyerSavings?.weekly ?? 0) : "…") this week · \(lemoraLocalized(m.goalInfo.label))").foregroundStyle(OB.ink)
+                    Text("\(OnboardingModel.money(Double(m.estimate.annual)))/yr plan ready · \(lemoraLocalized(m.goalInfo.label))").foregroundStyle(OB.ink)
                 }
                 .font(OB.font(12.5, 700))
                 .padding(.horizontal, 14).padding(.vertical, 8)
