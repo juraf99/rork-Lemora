@@ -869,7 +869,15 @@ struct OBPaywallScreen: View {
                 }
             }
         }
+        .onChange(of: store.isPremium) { _, premium in
+            if premium { continueAfterPayment() }
+        }
         .task {
+            await sub.refreshEntitlements()
+            if store.isPremium {
+                continueAfterPayment()
+                return
+            }
             if !sub.pricesLoaded { await sub.loadProducts() }
             guard !didTrackView else { return }
             didTrackView = true
@@ -935,6 +943,12 @@ struct OBPaywallScreen: View {
             .animation(.easeInOut(duration: 0.25), value: on)
         }
         .buttonStyle(.plain)
+    }
+
+    /// Payment is done. Go to the account only if one does not exist yet, otherwise open the app.
+    private func continueAfterPayment() {
+        m.a.completed = true
+        m.go(store.data.account?.userId != nil ? .done : .account)
     }
 
     private func purchase() async {
