@@ -34,6 +34,9 @@ final class SubscriptionService {
 
     private(set) var hasActiveSubscription = false
     private(set) var hasCheckedEntitlements = false
+    /// A purchase already succeeded in this session. Creating the account must not wipe it
+    /// while RevenueCat is still attaching the receipt to the new Clerk user.
+    private var unlockedByRecentPurchase = false
     private(set) var isLoading = false
     /// StoreKit's answer to whether this Apple ID can still redeem the yearly introductory offer.
     private(set) var isEligibleForTrial = false
@@ -115,15 +118,29 @@ final class SubscriptionService {
         do {
             let result = try await Purchases.shared.logIn(id)
             apply(result.customerInfo)
+            // The trial was bought before the account existed. Pull that App Store receipt onto this Clerk user
+            // so the app does not send them back to the paywall, or into Apple's "manage your free trial" sheet.
+            if !hasActiveSubscription || unlockedByRecentPurchase {
+                if let info = try? await Purchases.shared.syncPurchases() {
+                    apply(info)
+                }
+            }
+            if await storeKitHasActiveSubscription() {
+                hasActiveSubscription = true
+            }
             // Set after logIn so the attribute lands on this Clerk user, not whoever was current before.
             setPostHogUserId(id)
             Analytics.identify(userId: id)
         } catch {
             logger.error("RevenueCat logIn failed")
+            if await storeKitHasActiveSubscription() {
+                hasActiveSubscription = true
+            }
         }
     }
 
     func logOut() async {
+        unlockedByRecentPurchase = false
         do {
             _ = try await Purchases.shared.logOut()
             // logOut succeeded, so this clears the new anonymous user. A failed logOut leaves the
@@ -169,23 +186,30 @@ final class SubscriptionService {
         defer { hasCheckedEntitlements = true }
         if let info = try? await Purchases.shared.customerInfo() {
             apply(info)
-            return
         }
-        // Offline fallback: StoreKit's own record of active subscriptions.
-        var active = false
+        if await storeKitHasActiveSubscription() {
+            hasActiveSubscription = true
+        }
+    }
+
+    /// Apple's own receipt. This stays true through the free-trial confirmation, even if RevenueCat
+    /// has not attached it to the Clerk user yet.
+    private func storeKitHasActiveSubscription() async -> Bool {
+        let known = knownProductIds
         for await result in Transaction.currentEntitlements {
-            if case .verified(let transaction) = result, transaction.revocationDate == nil,
-               knownProductIds.contains(transaction.productID) {
-                active = true
+            guard case .verified(let transaction) = result, transaction.revocationDate == nil else { continue }
+            if known.contains(transaction.productID) || transaction.productType == .autoRenewable {
+                return true
             }
         }
-        hasActiveSubscription = active
+        return false
     }
 
     private func apply(_ info: CustomerInfo) {
         let ent = info.entitlements[Self.entitlementId]
         let known = knownProductIds
-        hasActiveSubscription = ent?.isActive == true || !info.activeSubscriptions.isDisjoint(with: known)
+        let revenueCatActive = ent?.isActive == true || !info.activeSubscriptions.isDisjoint(with: known)
+        hasActiveSubscription = revenueCatActive || unlockedByRecentPurchase
         if let ent, ent.isActive {
             activeProductId = ent.productIdentifier
             expirationDate = ent.expirationDate
@@ -337,10 +361,17 @@ final class SubscriptionService {
                 return false
             }
             apply(result.customerInfo)
+            if !hasActiveSubscription, let info = try? await Purchases.shared.syncPurchases() {
+                apply(info)
+            }
+            if await storeKitHasActiveSubscription() {
+                hasActiveSubscription = true
+            }
             guard hasActiveSubscription else {
                 Analytics.capture("purchase_failed", props.merging(["reason": "entitlement_inactive"]) { _, new in new })
                 throw SubscriptionPurchaseError.notEntitled
             }
+            unlockedByRecentPurchase = true
             if !wasActive {
                 var outcome = analyticsProperties(plan: plan.rawValue, paywallVariant: paywallVariant, includeSandbox: true)
                 outcome["product_id"] = result.transaction?.productIdentifier ?? package.storeProduct.productIdentifier
