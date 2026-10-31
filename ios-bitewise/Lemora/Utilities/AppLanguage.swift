@@ -55,24 +55,39 @@ extension Notification.Name {
     var current: AppLanguage = AppLanguage.current
 }
 
-/// Looks up app texts in the chosen language's table instead of the iPhone language.
-nonisolated final class LanguageBundle: Bundle {
+/// Looks up app texts in the chosen language only.
+/// English is the source: the key itself. French and Spanish come from that language's table.
+/// A missing translation stays in English. The iPhone language is never used as a fallback,
+/// so choosing English cannot surface a French string.
+nonisolated final class LanguageBundle: Bundle, @unchecked Sendable {
+    nonisolated(unsafe) private static var language: AppLanguage = .en
+    nonisolated(unsafe) private static var table: [String: String] = [:]
     nonisolated(unsafe) private static var target: Bundle?
-    nonisolated(unsafe) private static var english = false
     private static let swap: Void = { _ = object_setClass(Bundle.main, LanguageBundle.self) }()
 
     static func install(_ language: AppLanguage) {
         _ = swap
-        english = language == .en
+        Self.language = language
+        table = [:]
+        target = nil
+        guard language != .en else { return }
+        if let url = Bundle.main.url(forResource: "Localizable", withExtension: "strings", subdirectory: nil, localization: language.rawValue),
+           let dict = NSDictionary(contentsOf: url) as? [String: String] {
+            table = dict
+        }
         target = Bundle.main.path(forResource: language.rawValue, ofType: "lproj").flatMap { Bundle(path: $0) }
     }
 
+    override var preferredLocalizations: [String] { [Self.language.rawValue] }
+
     override func localizedString(forKey key: String, value: String?, table tableName: String?) -> String {
-        if tableName == nil || tableName == "Localizable" {
-            if let target = Self.target { return target.localizedString(forKey: key, value: value, table: tableName) }
-            if Self.english { return (value?.isEmpty == false ? value! : key) }
+        if Self.language == .en { return key }
+        if let translated = Self.table[key], !translated.isEmpty { return translated }
+        if let target = Self.target {
+            let found = target.localizedString(forKey: key, value: key, table: tableName)
+            if !found.isEmpty, found != key { return found }
         }
-        return super.localizedString(forKey: key, value: value, table: tableName)
+        return key
     }
 }
 

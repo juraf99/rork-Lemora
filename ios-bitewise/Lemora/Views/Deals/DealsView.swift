@@ -63,27 +63,15 @@ struct DealsView: View {
 
     // MARK: Header
 
-    private var storeCount: Int { Set(stealItems.map(\.retailerId)).count }
-
-    private var headerSubtitle: String {
-        if myStoresOnly && storeCount > 0 {
-            return storeCount == 1 ? String(localized: "Fresh deals from this week’s sales at your store")
-                                   : String(localized: "Fresh deals from this week’s sales at your \(storeCount) stores")
-        }
-        return String(localized: "Fresh deals from this week’s sales near you")
-    }
-
     private var header: some View {
         HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 3) {
-                LemoraWordmark(size: 44, color: BW.ink)
-                Text(headerSubtitle).font(.bw(.subheadline, weight: .regular)).foregroundStyle(BW.inkSecondary)
-            }
-            Spacer()
-            MascotView(name: BWImage.mascotWave, size: 76, bob: true)
+            LemoraWordmark(size: 40, color: BW.ink)
+            Spacer(minLength: 16)
+            MascotView(name: BWImage.mascotWave, size: 64, bob: true)
         }
         .padding(.horizontal, 20)
-        .padding(.top, 4)
+        .padding(.top, 12)
+        .padding(.bottom, 10)
     }
 
     private var storeToggle: some View {

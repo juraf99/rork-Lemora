@@ -506,13 +506,14 @@ final class OnboardingModel {
             cityNotFound = true
             return
         }
-        applyDevicePostal(found.postal)
+        applyDevicePostal(found.postal, usingDevice: false)
         a.locMode = "manual"
         if let loc = currentLocation, !found.place.isEmpty { cityByPostal[loc.postal] = found.place }
     }
 
     /// Called when the one-shot location lookup resolves.
-    func applyDevicePostal(_ code: String) {
+    /// `usingDevice` keeps the detected place selected. A typed postal code or city passes false.
+    func applyDevicePostal(_ code: String, usingDevice: Bool = true) {
         locating = false
         var cleaned = code.uppercased().filter { $0.isLetter || $0.isNumber }
         // Apple sometimes returns only the first half of a Canadian postal code ("H2T").
@@ -522,6 +523,11 @@ final class OnboardingModel {
         if country != a.country { a.stores = [] }
         a.country = country
         a.postal = cleaned
+        if usingDevice {
+            a.locMode = "auto"
+            let place = location.resolvedPlace
+            if !place.isEmpty, let loc = currentLocation { cityByPostal[loc.postal] = place }
+        }
         react()
     }
 

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Lemora onboarding v2: landing → 11 questions → plan → Clerk account → paywall → you're in.
+/// Lemora onboarding v2: landing → questions → savings → loading → hard paywall → account → you're in.
 /// Answers are kept on device while the user is a guest and saved to Supabase once signed in.
 struct LemoraOnboardingView: View {
     @Environment(AppStore.self) private var store
